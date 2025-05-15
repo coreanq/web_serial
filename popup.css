@@ -1,0 +1,55 @@
+body {
+  font-family: sans-serif;
+  padding: 10px;
+  width: 400px;
+}
+
+#serial-port-control, #packet-monitor {
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+#serial-port-control label {
+  display: inline-block;
+  width: 80px;
+  margin-bottom: 5px;
+}
+
+#serial-port-control select, #serial-port-control button {
+  margin-right: 10px;
+  margin-bottom: 5px;
+}
+
+#packet-monitor {
+  height: 300px;
+  overflow-y: scroll;
+}
+
+#packet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#packet-list li {
+  border-bottom: 1px solid #eee;
+  padding: 5px 0;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tx {
+  color: blue;
+}
+
+.rx {
+  color: green;
+}
+
+.error {
+  color: red;
+  font-weight: bold;
+}
