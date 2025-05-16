@@ -1,47 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>Modbus-RTU 시리얼 모니터</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h1>시리얼 포트 제어</h1>
+  <h1>시리얼 포트</h1>
   <div id="serial-port-control">
-    <label for="port-select">포트:</label>
-    <select id="port-select"></select>
+    <label for="baudrate-input">Baud Rate</label>
+    <input type="number" id="baudrate-input" value="115200" />
 
-    <label for="baudrate-select">보드레이트:</label>
-    <select id="baudrate-select">
-      <option value="9600">9600</option>
-      <option value="19200">19200</option>
-      <option value="38400">38400</option>
-      <option value="57600">57600</option>
-      <option value="115200">115200</option>
-    </select>
-
-    <label for="data-bits-select">데이터 비트:</label>
+    <label for="data-bits-select">Data Bits</label>
     <select id="data-bits-select">
-      <option value="8">8</option>
+      <option value="8" selected>8</option>
       <option value="7">7</option>
     </select>
 
-    <label for="parity-select">패리티:</label>
-    <select id="parity-select">
-      <option value="no">없음</option>
-      <option value="even">짝수</option>
-      <option value="odd">홀수</option>
-    </select>
-
-    <label for="stop-bits-select">스톱 비트:</label>
+    <label for="stop-bits-select">Stop Bits</label>
     <select id="stop-bits-select">
-      <option value="1">1</option>
+      <option value="1" selected>1</option>
       <option value="2">2</option>
     </select>
 
-    <button id="request-port-button">포트 권한 요청</button> <!-- 새 버튼 추가 -->
-    <button id="open-button">포트 열기</button>
-    <button id="close-button" disabled>포트 닫기</button>
-    <span id="status">상태: 닫힘</span>
+    <label for="parity-select">Parity Bits</label>
+    <select id="parity-select">
+      <option value="none" selected>None</option>
+      <option value="even">Even</option>
+      <option value="odd">Odd</option>
+    </select>
+
+    <label for="buffer-input">Buffer</label>
+    <input type="number" id="buffer-input" value="1024" />
+
+    <label for="flow-control-select">Flow Control</label>
+    <select id="flow-control-select">
+      <option value="none" selected>None</option>
+      <option value="hardware">Hardware</option>
+      <option value="software">Software</option>
+    </select>
+
+    <button id="request-port-button">Select Serial Port</button>
+    <button id="open-button">Open Serial Port</button>
+    <button id="close-button" disabled>Close Serial Port</button>
+    <span id="status" style="display:block; margin-top:10px; padding:5px; background-color:#d4edda; color:#155724; border-radius:4px;">Device Disconnected</span>
   </div>
 
   <h2>패킷 모니터링</h2>

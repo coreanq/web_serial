@@ -1,88 +1,78 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const portSelect = document.getElementById('port-select');
-  const baudrateSelect = document.getElementById('baudrate-select');
+  if (!("serial" in navigator)) {
+    alert("The current browser does not support serial port operation. Please replace the Edge or Chrome browser");
+  }
+  else { 
+    console.log("The current browser supports serial port operation.");
+  }
+  // Get UI elements
+  const baudrateInput = document.getElementById('baudrate-input');
   const dataBitsSelect = document.getElementById('data-bits-select');
   const paritySelect = document.getElementById('parity-select');
   const stopBitsSelect = document.getElementById('stop-bits-select');
+  const bufferInput = document.getElementById('buffer-input');
+  const flowControlSelect = document.getElementById('flow-control-select');
+
+  const requestPortButton = document.getElementById('request-port-button'); // Select Serial Port 버튼
   const openButton = document.getElementById('open-button');
   const closeButton = document.getElementById('close-button');
   const statusSpan = document.getElementById('status');
   const packetList = document.getElementById('packet-list');
-  const requestPortButton = document.getElementById('request-port-button'); // 새 버튼 추가
 
   let currentPort = null;
   let reader = null;
   let keepReading = true;
 
-  // 사용 가능한 시리얼 포트 목록 가져오기 및 UI 업데이트
-  async function populatePortList() {
-    const ports = await navigator.serial.getPorts();
-    portSelect.innerHTML = ''; // 기존 목록 초기화
-    if (ports.length === 0) {
-      const option = document.createElement('option');
-      option.value = '';
-      option.textContent = '사용 가능한 포트 없음';
-      portSelect.appendChild(option);
-      openButton.disabled = true;
-    } else {
-      ports.forEach(port => {
-        const option = document.createElement('option');
-        // port.getInfo()를 사용하여 포트 정보를 표시합니다.
-        const portInfo = port.getInfo();
-        option.value = portInfo.usbProductId ? `${portInfo.usbVendorId}:${portInfo.usbProductId}` : 'unknown'; // 예시 값
-        option.textContent = portInfo.usbProductId ? `USB ${portInfo.usbVendorId}:${portInfo.usbProductId}` : 'Serial Port'; // 더 유용한 정보 표시
-        option.port = port; // 포트 객체를 option 요소에 저장하여 나중에 사용
-        portSelect.appendChild(option);
-      });
-      openButton.disabled = false;
-    }
-  }
-
-  // 페이지 로드 시 이미 권한이 부여된 포트 목록 로드
-  populatePortList();
-
-  // "포트 권한 요청" 버튼 클릭 이벤트 (새로 추가)
+  // "Select Serial Port" 버튼 클릭 이벤트 - 시리얼 포트 권한 요청 및 포트 설정
   requestPortButton.addEventListener('click', async () => {
     try {
       // 사용자에게 시리얼 포트 선택 권한 요청
-      const port = await navigator.serial.requestPort();
-      // 권한 부여 후 포트 목록 새로고침
-      populatePortList();
-      statusSpan.textContent = '상태: 포트 권한 부여됨. 목록에서 선택하세요.';
+      // currentPort = await navigator.serial.requestPort();
+      await navigator.serial.requestPort().then(async (port) => {
+        //关闭旧的串口
+        console.log("requestPort");
+        currentPort?.close();
+        await currentPort?.forget();
+        currentPort = port;
+      });
+      statusSpan.textContent = 'Device Selected. Click Open Serial Port.';
+      openButton.disabled = false; // Enable open button after port is selected
+      requestPortButton.disabled = true; // Disable select button after port is selected
+
     } catch (error) {
-      statusSpan.textContent = `상태: 포트 권한 요청 실패 - ${error.message}`;
+      statusSpan.textContent = `상태: 포트 선택 실패 - ${error.message}`;
       console.error('Failed to request serial port:', error);
     }
   });
 
-
   // 포트 열기 버튼 클릭 이벤트
   openButton.addEventListener('click', async () => {
-    const selectedOption = portSelect.options[portSelect.selectedIndex];
-    if (!selectedOption || !selectedOption.port) {
-      statusSpan.textContent = '상태: 유효한 포트를 선택하세요.';
+    if (!currentPort) {
+      statusSpan.textContent = '상태: 시리얼 포트를 먼저 선택하세요.';
       return;
     }
 
-    currentPort = selectedOption.port; // option 요소에 저장된 포트 객체 사용
-
     try {
       await currentPort.open({
-        baudRate: parseInt(baudrateSelect.value),
+        baudRate: parseInt(baudrateInput.value),
         dataBits: parseInt(dataBitsSelect.value),
-        parity: paritySelect.value,
-        stopBits: parseInt(stopBitsSelect.value)
+        parity: paritySelect.value === 'none' ? 'none' : paritySelect.value,
+        stopBits: parseInt(stopBitsSelect.value),
+        bufferSize: parseInt(bufferInput.value),
+        flowControl: flowControlSelect.value === 'none' ? 'none' : flowControlSelect.value
       });
 
-      statusSpan.textContent = '상태: 열림';
+      statusSpan.textContent = 'Device Connected'; // Update status text
       openButton.disabled = true;
       closeButton.disabled = false;
-      portSelect.disabled = true;
-      baudrateSelect.disabled = true;
+      // Disable all setting inputs/selects after opening
+      baudrateInput.disabled = true;
       dataBitsSelect.disabled = true;
       paritySelect.disabled = true;
       stopBitsSelect.disabled = true;
-      requestPortButton.disabled = true; // 포트 열리면 권한 요청 버튼 비활성화
+      bufferInput.disabled = true;
+      flowControlSelect.disabled = true;
+      requestPortButton.disabled = true; // Disable select button
 
       // 데이터 읽기 시작
       startReading();
@@ -92,13 +82,15 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Failed to open serial port:', error);
       // 열기 실패 시 UI 상태 복원
       openButton.disabled = false;
-      closeButton.disabled = true;
-      portSelect.disabled = false;
-      baudrateSelect.disabled = false;
+      closeButton.disabled = true; // Keep close disabled if open failed
+      // Re-enable setting inputs/selects
+      baudrateInput.disabled = false;
       dataBitsSelect.disabled = false;
       paritySelect.disabled = false;
       stopBitsSelect.disabled = false;
-      requestPortButton.disabled = false;
+      bufferInput.disabled = false;
+      flowControlSelect.disabled = false;
+      requestPortButton.disabled = false; // Re-enable select button
     }
   });
 
@@ -111,31 +103,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       try {
         await currentPort.close();
-        statusSpan.textContent = '상태: 닫힘';
-        openButton.disabled = false;
-        closeButton.disabled = true;
-        portSelect.disabled = false;
-        baudrateSelect.disabled = false;
+        statusSpan.textContent = 'Device Disconnected'; // Update status text
+        openButton.disabled = false; // Re-enable open button
+        closeButton.disabled = true; // Disable close button
+        // Re-enable setting inputs/selects
+        baudrateInput.disabled = false;
         dataBitsSelect.disabled = false;
         paritySelect.disabled = false;
         stopBitsSelect.disabled = false;
-        requestPortButton.disabled = false; // 포트 닫히면 권한 요청 버튼 활성화
+        bufferInput.disabled = false;
+        flowControlSelect.disabled = false;
+        requestPortButton.disabled = false; // Re-enable select button
         currentPort = null;
         reader = null;
-        // 포트 닫은 후 목록 새로고침 (선택 사항)
-        // populatePortList();
       } catch (error) {
         statusSpan.textContent = `상태: 닫기 실패 - ${error.message}`;
         console.error('Failed to close serial port:', error);
         // 닫기 실패 시 UI 상태 복원 (필요하다면)
-        openButton.disabled = true;
-        closeButton.disabled = false;
-        portSelect.disabled = true;
-        baudrateSelect.disabled = true;
+        openButton.disabled = true; // Keep open disabled if close failed
+        closeButton.disabled = false; // Keep close enabled if close failed
+        baudrateInput.disabled = true; // Keep settings disabled
         dataBitsSelect.disabled = true;
         paritySelect.disabled = true;
         stopBitsSelect.disabled = true;
-        requestPortButton.disabled = true;
+        bufferInput.disabled = true;
+        flowControlSelect.disabled = true;
+        requestPortButton.disabled = true; // Keep select disabled
       }
     }
   });
@@ -166,15 +159,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     if (!keepReading) {
-        statusSpan.textContent = '상태: 닫힘';
-        openButton.disabled = false;
-        closeButton.disabled = true;
-        portSelect.disabled = false;
-        baudrateSelect.disabled = false;
+        statusSpan.textContent = 'Device Disconnected'; // Update status text
+        openButton.disabled = false; // Re-enable open button
+        closeButton.disabled = true; // Disable close button
+        // Re-enable setting inputs/selects
+        baudrateInput.disabled = false;
         dataBitsSelect.disabled = false;
         paritySelect.disabled = false;
         stopBitsSelect.disabled = false;
-        requestPortButton.disabled = false; // 포트 닫히면 권한 요청 버튼 활성화
+        bufferInput.disabled = false;
+        flowControlSelect.disabled = false;
+        requestPortButton.disabled = false; // Re-enable select button
         currentPort = null;
         reader = null;
     }
@@ -191,6 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 스크롤을 최신 패킷으로 이동
     packetList.scrollTop = packetList.scrollHeight;
   }
+
+  // Initial state setup
+  openButton.disabled = true; // Open button is disabled until a port is selected
+  closeButton.disabled = true; // Close button is disabled initially
 
   // TODO: Modbus-RTU 패킷 파싱 및 CRC 검사 함수 추가 (3.2 기능)
   // TODO: Modbus-RTU 명령 전송 기능 추가 (3.2 선택 사항)
