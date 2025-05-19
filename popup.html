@@ -1,58 +1,95 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Modbus-RTU 시리얼 모니터</title>
+  <link href="./bootstrap-5.3.0/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
-<body>
-  <h1>시리얼 포트</h1>
-  <div id="serial-port-control">
-    <label for="baudrate-input">Baud Rate</label>
-    <input type="number" id="baudrate-input" value="115200" />
+<body class="p-3">
+  <div class="container">
+    <h1 class="mb-4">시리얼 포트 설정</h1>
+    
+    <form id="serial-port-control" class="mb-4">
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label for="baudrate-input" class="form-label">Baud Rate</label>
+          <input type="number" class="form-control" id="baudrate-input" value="115200">
+        </div>
+        
+        <div class="col-md-4">
+          <label for="data-bits-select" class="form-label">Data Bits</label>
+          <select class="form-select" id="data-bits-select">
+            <option value="8" selected>8</option>
+            <option value="7">7</option>
+          </select>
+        </div>
+        
+        <div class="col-md-4">
+          <label for="stop-bits-select" class="form-label">Stop Bits</label>
+          <select class="form-select" id="stop-bits-select">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <label for="parity-select" class="form-label">Parity</label>
+          <select class="form-select" id="parity-select">
+            <option value="none" selected>None</option>
+            <option value="even">Even</option>
+            <option value="odd">Odd</option>
+          </select>
+        </div>
+        
+        <div class="col-md-4">
+          <label for="buffer-input" class="form-label">Buffer Size</label>
+          <input type="number" class="form-control" id="buffer-input" value="1024">
+        </div>
+        
+        <div class="col-md-4">
+          <label for="flow-control-select" class="form-label">Flow Control</label>
+          <select class="form-select" id="flow-control-select">
+            <option value="none" selected>None</option>
+            <option value="hardware">Hardware</option>
+            <option value="software">Software</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="d-flex gap-2 mb-3">
+        <button type="button" class="btn btn-primary" id="request-port-button">
+          <i class="bi bi-usb-drive"></i> Select Serial Port
+        </button>
+        <button type="button" class="btn btn-success" id="open-button">
+          <i class="bi bi-plug"></i> Open Port
+        </button>
+        <button type="button" class="btn btn-danger" id="close-button" disabled>
+          <i class="bi bi-plug-fill"></i> Close Port
+        </button>
+      </div>
+      
+      <div id="status" class="alert alert-success d-flex align-items-center" role="alert">
+        <i class="bi bi-info-circle me-2"></i>
+        <div>Device Disconnected</div>
+      </div>
+    </form>
 
-    <label for="data-bits-select">Data Bits</label>
-    <select id="data-bits-select">
-      <option value="8" selected>8</option>
-      <option value="7">7</option>
-    </select>
-
-    <label for="stop-bits-select">Stop Bits</label>
-    <select id="stop-bits-select">
-      <option value="1" selected>1</option>
-      <option value="2">2</option>
-    </select>
-
-    <label for="parity-select">Parity Bits</label>
-    <select id="parity-select">
-      <option value="none" selected>None</option>
-      <option value="even">Even</option>
-      <option value="odd">Odd</option>
-    </select>
-
-    <label for="buffer-input">Buffer</label>
-    <input type="number" id="buffer-input" value="1024" />
-
-    <label for="flow-control-select">Flow Control</label>
-    <select id="flow-control-select">
-      <option value="none" selected>None</option>
-      <option value="hardware">Hardware</option>
-      <option value="software">Software</option>
-    </select>
-
-    <button id="request-port-button">Select Serial Port</button>
-    <button id="open-button">Open Serial Port</button>
-    <button id="close-button" disabled>Close Serial Port</button>
-    <span id="status" style="display:block; margin-top:10px; padding:5px; background-color:#d4edda; color:#155724; border-radius:4px;">Device Disconnected</span>
+    <h2 class="mb-3">패킷 모니터링</h2>
+    <div class="card">
+      <div id="packet-monitor" class="card-body p-0">
+        <ul id="packet-list" class="list-group list-group-flush">
+          <!-- Packet entries will be added here by JavaScript -->
+        </ul>
+      </div>
+    </div>
   </div>
 
-  <h2>패킷 모니터링</h2>
-  <div id="packet-monitor">
-    <ul id="packet-list">
-      <!-- Packet entries will be added here by JavaScript -->
-    </ul>
-  </div>
-
-  <script src="popup.js"></script>
+  <!-- Bootstrap JS Bundle with Popper -->
+  <script src="./bootstrap-5.3.0/bootstrap.bundle.min.js"></script>
+  <script src="popup.js" type="module"></script>
 </body>
 </html>
