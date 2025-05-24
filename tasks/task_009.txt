@@ -1,6 +1,6 @@
 # Task ID: 9
 # Title: Implement Message Sending Interface
-# Status: pending
+# Status: done
 # Dependencies: 3, 7
 # Priority: medium
 # Description: Create the interface and functionality for sending custom Modbus messages, including hex input and looped sending.

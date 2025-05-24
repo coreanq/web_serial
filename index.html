@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web Serial Online - Modbus-RTU Monitor</title>
+    <meta name="description" content="Modbus-RTU 모니터링 및 디버깅을 위한 웹 시리얼 애플리케이션">
+    <meta name="theme-color" content="#212529">
+    <link rel="manifest" href="./src/manifest.json">
+    <link rel="apple-touch-icon" href="./src/icons/icon-192x192.png">
     <link rel="stylesheet" href="./src/css/bootstrap.min.css">
     <link rel="stylesheet" href="./src/css/styles.css">
 </head>
@@ -183,6 +187,7 @@
                     <div class="row">
                         <div class="col-md-8">
                             <textarea class="form-control bg-dark text-light" id="messageInput" rows="3" placeholder="Enter message to send..."></textarea>
+                            <div id="messageStatus" class="message-status mt-1" style="display: none;"></div>
                         </div>
                         <div class="col-md-4">
                             <div class="mb-2">
@@ -210,6 +215,16 @@
                                 <input type="number" class="form-control bg-dark text-light" id="sendInterval" value="1000">
                             </div>
                             <button class="btn btn-primary w-100" id="sendBtn">Send</button>
+                            <div class="d-grid gap-2 mt-2">
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="quickSendBtn">
+                                        빠른 전송
+                                    </button>
+                                    <div id="quickSendList" class="dropdown-menu" aria-labelledby="quickSendBtn">
+                                        <!-- 빠른 전송 메뉴 항목이 여기에 동적으로 추가됩니다 -->
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

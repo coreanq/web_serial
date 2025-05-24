@@ -1,6 +1,6 @@
 # Task ID: 8
 # Title: Implement Data Export and Storage
-# Status: pending
+# Status: done
 # Dependencies: 4, 7
 # Priority: medium
 # Description: Create functionality to export captured communication logs and store session data locally.

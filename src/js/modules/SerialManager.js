@@ -3,7 +3,11 @@
  * Web Serial API를 사용하여 시리얼 포트 연결을 관리하는 모듈
  */
 export class SerialManager {
-    constructor() {
+    /**
+     * SerialManager 생성자
+     * @param {AppState} appState 애플리케이션 상태 관리자 (선택적)
+     */
+    constructor(appState = null) {
         this.port = null;
         this.reader = null;
         this.writer = null;
@@ -18,6 +22,25 @@ export class SerialManager {
         this.receiveBuffer = new Uint8Array(4096); // 4KB 버퍼
         this.bufferPosition = 0;
         this.lastReceiveTime = 0;
+        
+        // 애플리케이션 상태 관리자
+        this.appState = appState;
+        
+        // 애플리케이션 상태가 있는 경우 연결 상태 변경 구독
+        if (this.appState) {
+            this.onConnectionChange((isConnected, message) => {
+                this.appState.update('connection.isConnected', isConnected);
+                if (isConnected) {
+                    this.appState.notify(`시리얼 포트 연결됨: ${message}`, 'success');
+                } else {
+                    this.appState.notify(`시리얼 포트 연결 해제됨: ${message}`, 'info');
+                }
+            });
+            
+            this.onError((error) => {
+                this.appState.notify(`시리얼 포트 오류: ${error.message}`, 'error');
+            });
+        }
     }
 
     /**
@@ -49,21 +72,36 @@ export class SerialManager {
      * @param {Object} options 연결 옵션
      * @returns {Promise<boolean>} 연결 성공 여부
      */
-    async connect(options = {
-        baudRate: 115200,
-        dataBits: 8,
-        stopBits: 1,
-        parity: 'none',
-        flowControl: 'none',
-        bufferSize: 1024
-    }) {
+    async connect(options = null) {
         if (!this.port) {
             this._notifyError(new Error('선택된 포트가 없습니다. 먼저 포트를 선택해주세요.'));
             return false;
         }
+        
+        // 애플리케이션 상태에서 설정 가져오기 또는 기본값 사용
+        const defaultOptions = {
+            baudRate: 115200,
+            dataBits: 8,
+            stopBits: 1,
+            parity: 'none',
+            flowControl: 'none',
+            bufferSize: 4096
+        };
+        
+        // 옵션 설정
+        let connectionOptions;
+        
+        if (this.appState) {
+            // 애플리케이션 상태에서 설정 가져오기
+            const stateSettings = this.appState.get('connection.settings');
+            connectionOptions = stateSettings || defaultOptions;
+        } else {
+            // 전달된 옵션 또는 기본값 사용
+            connectionOptions = options || defaultOptions;
+        }
 
         try {
-            await this.port.open(options);
+            await this.port.open(connectionOptions);
             
             // 읽기 스트림 설정
             const textDecoder = new TextDecoder();
@@ -71,6 +109,11 @@ export class SerialManager {
             
             // 쓰기 스트림 설정
             this.writer = this.port.writable.getWriter();
+            
+            // 애플리케이션 상태 업데이트
+            if (this.appState) {
+                this.appState.update('connection.port', this.port.getInfo());
+            }
             
             this._notifyConnectionChange(true, '연결됨');
             return true;
@@ -307,6 +350,12 @@ export class SerialManager {
      * @private
      */
     _notifyConnectionChange(isConnected, message) {
+        // 애플리케이션 상태 업데이트
+        if (this.appState) {
+            this.appState.update('connection.isConnected', isConnected);
+        }
+        
+        // 리스너에게 알림
         this.connectionListeners.forEach(callback => {
             try {
                 callback(isConnected, message);
@@ -325,15 +374,25 @@ export class SerialManager {
      */
     _notifyDataReceived(binaryData, textData, direction) {
         const timestamp = new Date();
+        const packet = {
+            binaryData: new Uint8Array(binaryData),  // 원본 데이터 복사본 전달
+            textData,
+            direction,
+            timestamp
+        };
         
+        // 애플리케이션 상태에 패킷 추가
+        if (this.appState && this.appState.get('session.id')) {
+            this.appState.addPacket({
+                ...packet,
+                isValid: true  // 기본적으로 유효한 것으로 간주, ModbusParser에서 검증 후 업데이트됨
+            });
+        }
+        
+        // 리스너에게 알림
         this.dataListeners.forEach(callback => {
             try {
-                callback({
-                    binaryData: new Uint8Array(binaryData),  // 원본 데이터 복사본 전달
-                    textData,
-                    direction,
-                    timestamp
-                });
+                callback(packet);
             } catch (error) {
                 console.error('데이터 수신 리스너 오류:', error);
             }
@@ -346,6 +405,12 @@ export class SerialManager {
      * @private
      */
     _notifyError(error) {
+        // 애플리케이션 상태에 오류 알림 추가
+        if (this.appState) {
+            this.appState.notify(`시리얼 포트 오류: ${error.message}`, 'error');
+        }
+        
+        // 리스너에게 알림
         this.errorListeners.forEach(callback => {
             try {
                 callback(error);

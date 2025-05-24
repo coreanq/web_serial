@@ -1,6 +1,6 @@
 # Task ID: 10
 # Title: Implement PWA Functionality
-# Status: pending
+# Status: in-progress
 # Dependencies: 1
 # Priority: low
 # Description: Add Progressive Web App capabilities to allow offline usage and improved user experience.

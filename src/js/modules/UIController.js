@@ -461,64 +461,185 @@ export class UIController {
     /**
      * 내보내기 대화상자 표시
      */
-    showExportDialog() {
-        // 기존 대화상자가 있는 경우 제거
+    async showExportDialog() {
+        // 이미 존재하는 대화상자 제거
         const existingDialog = document.getElementById('exportDialog');
         if (existingDialog) {
             document.body.removeChild(existingDialog);
         }
         
-        // 로그 데이터 가져오기
+        // 현재 로그 데이터 가져오기
         const logData = this.logManager.getLogData();
-        if (!logData || logData.length === 0) {
+        
+        // 로그가 없는 경우 경고
+        if (logData.length === 0) {
             alert('내보낼 로그 데이터가 없습니다.');
             return;
         }
         
+        // 통계 정보 계산
+        const statistics = this.dataStorage.calculateStatistics(logData);
+        
         // 대화상자 생성
         const dialog = document.createElement('div');
         dialog.id = 'exportDialog';
-        dialog.className = 'modal fade show';
-        dialog.style.display = 'block';
-        dialog.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        dialog.className = 'modal fade';
         dialog.setAttribute('tabindex', '-1');
+        dialog.setAttribute('aria-labelledby', 'exportDialogLabel');
+        dialog.setAttribute('aria-hidden', 'true');
         
         dialog.innerHTML = `
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content bg-dark text-light">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">로그 데이터 내보내기</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title" id="exportDialogLabel">로그 데이터 내보내기</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="exportFormat" class="form-label">내보내기 형식</label>
-                            <select class="form-select bg-dark text-light" id="exportFormat">
-                                <option value="csv" selected>CSV 파일 (*.csv)</option>
-                                <option value="json">JSON 파일 (*.json)</option>
-                                <option value="txt">텍스트 파일 (*.txt)</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="exportFilename" class="form-label">파일명</label>
-                            <input type="text" class="form-control bg-dark text-light" id="exportFilename" 
-                                value="modbus_log_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}"/>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="saveToLocalStorage" checked>
-                            <label class="form-check-label" for="saveToLocalStorage">
-                                로컬 저장소에도 저장
-                            </label>
-                        </div>
-                        <div class="mb-3" id="sessionNameContainer">
-                            <label for="sessionName" class="form-label">세션 이름</label>
-                            <input type="text" class="form-control bg-dark text-light" id="sessionName" 
-                                value="세션 ${new Date().toLocaleString()}"/>
+                        <ul class="nav nav-tabs" id="exportTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="export-tab" data-bs-toggle="tab" data-bs-target="#export-content" 
+                                    type="button" role="tab" aria-controls="export-content" aria-selected="true">내보내기</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-content" 
+                                    type="button" role="tab" aria-controls="stats-content" aria-selected="false">통계</button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content mt-3" id="exportTabContent">
+                            <div class="tab-pane fade show active" id="export-content" role="tabpanel" aria-labelledby="export-tab">
+                                <form>
+                                    <div class="mb-3">
+                                        <label for="exportFormat" class="form-label">내보내기 형식</label>
+                                        <select class="form-select" id="exportFormat">
+                                            <option value="csv">CSV</option>
+                                            <option value="json">JSON</option>
+                                            <option value="txt">텍스트</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="exportFilename" class="form-label">파일명</label>
+                                        <input type="text" class="form-control" id="exportFilename" 
+                                            value="modbus_log_${new Date().toISOString().slice(0, 10)}">
+                                    </div>
+                                    <div class="mb-3 form-check">
+                                        <input type="checkbox" class="form-check-input" id="saveToStorage" checked>
+                                        <label class="form-check-label" for="saveToStorage">로컬 저장소에 저장</label>
+                                    </div>
+                                    <div class="mb-3" id="sessionNameGroup">
+                                        <label for="sessionName" class="form-label">세션 이름</label>
+                                        <input type="text" class="form-control" id="sessionName" 
+                                            value="세션 ${new Date().toLocaleString()}">
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <div class="tab-pane fade" id="stats-content" role="tabpanel" aria-labelledby="stats-tab">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card mb-3">
+                                            <div class="card-header">기본 통계</div>
+                                            <div class="card-body">
+                                                <table class="table table-sm">
+                                                    <tbody>
+                                                        <tr>
+                                                            <th>총 패킷 수</th>
+                                                            <td>${statistics.totalPackets}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>송신 패킷</th>
+                                                            <td>${statistics.txPackets}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>수신 패킷</th>
+                                                            <td>${statistics.rxPackets}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>유효한 패킷</th>
+                                                            <td>${statistics.validPackets}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>유효하지 않은 패킷</th>
+                                                            <td>${statistics.invalidPackets}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>오류율</th>
+                                                            <td>${statistics.errorRate}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="card mb-3">
+                                            <div class="card-header">시간 통계</div>
+                                            <div class="card-body">
+                                                <table class="table table-sm">
+                                                    <tbody>
+                                                        <tr>
+                                                            <th>평균 응답 시간</th>
+                                                            <td>${statistics.avgResponseTime}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>최소 응답 시간</th>
+                                                            <td>${statistics.minResponseTime}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>최대 응답 시간</th>
+                                                            <td>${statistics.maxResponseTime}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>시작 시간</th>
+                                                            <td>${statistics.startTime ? new Date(statistics.startTime).toLocaleString() : 'N/A'}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>종료 시간</th>
+                                                            <td>${statistics.endTime ? new Date(statistics.endTime).toLocaleString() : 'N/A'}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>총 소요 시간</th>
+                                                            <td>${statistics.duration}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="card mb-3">
+                                    <div class="card-header">함수 코드 분포</div>
+                                    <div class="card-body">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>함수 코드</th>
+                                                    <th>개수</th>
+                                                    <th>비율</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${Object.entries(statistics.functionCodes || {}).map(([code, count]) => {
+                                                    const percentage = (count / statistics.totalPackets * 100).toFixed(2);
+                                                    return `<tr>
+                                                        <td>${code}</td>
+                                                        <td>${count}</td>
+                                                        <td>${percentage}%</td>
+                                                    </tr>`;
+                                                }).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                        <button type="button" class="btn btn-primary" id="confirmExport">내보내기</button>
+                        <button type="button" class="btn btn-primary" id="exportConfirmBtn">내보내기</button>
                     </div>
                 </div>
             </div>
@@ -526,39 +647,29 @@ export class UIController {
         
         document.body.appendChild(dialog);
         
-        // 닫기 버튼 이벤트 리스너
-        dialog.querySelector('.btn-close').addEventListener('click', () => {
-            document.body.removeChild(dialog);
-        });
+        // 부트스트랩 모달 초기화
+        const modalElement = document.getElementById('exportDialog');
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
         
-        // 취소 버튼 이벤트 리스너
-        dialog.querySelector('.btn-secondary').addEventListener('click', () => {
-            document.body.removeChild(dialog);
-        });
+        // 저장소 체크박스 이벤트 리스너
+        const saveToStorage = document.getElementById('saveToStorage');
+        const sessionNameGroup = document.getElementById('sessionNameGroup');
         
-        // 로컬 저장소 체크박스 이벤트 리스너
-        const saveToLocalStorage = dialog.querySelector('#saveToLocalStorage');
-        const sessionNameContainer = dialog.querySelector('#sessionNameContainer');
-        
-        saveToLocalStorage.addEventListener('change', (e) => {
-            sessionNameContainer.style.display = e.target.checked ? 'block' : 'none';
+        saveToStorage.addEventListener('change', () => {
+            sessionNameGroup.style.display = saveToStorage.checked ? 'block' : 'none';
         });
         
         // 내보내기 버튼 이벤트 리스너
-        dialog.querySelector('#confirmExport').addEventListener('click', async () => {
-            const format = dialog.querySelector('#exportFormat').value;
-            const filename = dialog.querySelector('#exportFilename').value;
-            const saveToStorage = dialog.querySelector('#saveToLocalStorage').checked;
-            const sessionName = dialog.querySelector('#sessionName').value;
+        const exportConfirmBtn = document.getElementById('exportConfirmBtn');
+        exportConfirmBtn.addEventListener('click', () => {
+            const format = document.getElementById('exportFormat').value;
+            const filename = document.getElementById('exportFilename').value;
+            const saveToStorageChecked = document.getElementById('saveToStorage').checked;
+            const sessionName = document.getElementById('sessionName').value;
             
-            // 로그 데이터 내보내기
-            try {
-                await this.exportLogData(logData, format, filename, saveToStorage, sessionName);
-                document.body.removeChild(dialog);
-            } catch (error) {
-                console.error('내보내기 오류:', error);
-                alert(`내보내기 오류: ${error.message}`);
-            }
+            this.exportLogData(logData, format, filename, saveToStorageChecked, sessionName);
+            modal.hide();
         });
     }
     
@@ -572,46 +683,81 @@ export class UIController {
      * @returns {Promise<void>}
      */
     async exportLogData(logData, format, filename, saveToStorage, sessionName) {
-        // 파일 확장자 추가
-        if (!filename.endsWith(`.${format}`)) {
-            filename += `.${format}`;
-        }
-        
-        // 데이터 내보내기
-        switch (format) {
-            case 'csv':
-                this.dataExporter.exportPacketsToCSV(logData, filename);
-                break;
-            case 'json':
-                this.dataExporter.exportPacketsToJSON(logData, filename);
-                break;
-            case 'txt':
-                // 텍스트 형식으로 내보내기
-                const textContent = this.dataExporter.toText(logData);
-                this.dataExporter._downloadFile(textContent, filename, 'text/plain;charset=utf-8;');
-                break;
-            default:
-                throw new Error(`지원되지 않는 형식: ${format}`);
-        }
-        
-        // 로컬 저장소에 저장
-        if (saveToStorage) {
-            try {
-                // 세션 생성
-                const sessionId = await this.dataStorage.createSession(sessionName);
-                
-                // 패킷 저장
-                await this.dataStorage.savePackets(sessionId, logData);
-                
-                // 통계 정보 저장
-                const statistics = this.dataExporter.calculateStatistics(logData);
-                await this.dataStorage.saveStatistics(sessionId, statistics);
-                
-                console.log(`세션 저장 완료: ${sessionId}`);
-            } catch (error) {
-                console.error('로컬 저장소 저장 오류:', error);
-                throw new Error(`로컬 저장소 저장 오류: ${error.message}`);
+        try {
+            let sessionId = null;
+            
+            // 로컬 저장소에 저장
+            if (saveToStorage) {
+                try {
+                    // 세션 생성
+                    sessionId = await this.dataStorage.createSession(sessionName);
+                    
+                    // 패킷 저장
+                    await this.dataStorage.savePackets(sessionId, logData.map(log => ({
+                        packet: log.packet,
+                        direction: log.direction,
+                        timestamp: log.timestamp,
+                        parsedData: log.parsedData
+                    })));
+                    
+                    // 통계 정보 저장
+                    const statistics = this.dataStorage.calculateStatistics(logData);
+                    await this.dataStorage.saveStatistics(sessionId, statistics);
+                    
+                    console.log(`세션 저장 완료: ${sessionId}`);
+                } catch (storageError) {
+                    console.error('세션 저장 오류:', storageError);
+                    alert(`세션 저장 오류: ${storageError.message}`);
+                }
             }
+            
+            // 파일 내보내기
+            if (format === 'csv' || format === 'json') {
+                try {
+                    // DataStorage의 내보내기 기능 사용
+                    if (sessionId) {
+                        // 세션 ID가 있으면 저장된 세션 데이터 사용
+                        const exportedFileName = await this.dataStorage.exportToFile(sessionId, format);
+                        alert(`파일이 성공적으로 내보내졌습니다: ${exportedFileName}`);
+                    } else {
+                        // 임시 세션 생성 후 내보내기
+                        const tempSessionId = await this.dataStorage.createSession('임시 세션');
+                        await this.dataStorage.savePackets(tempSessionId, logData.map(log => ({
+                            packet: log.packet,
+                            direction: log.direction,
+                            timestamp: log.timestamp,
+                            parsedData: log.parsedData
+                        })));
+                        
+                        const exportedFileName = await this.dataStorage.exportToFile(tempSessionId, format);
+                        
+                        // 임시 세션 삭제
+                        await this.dataStorage.deleteSession(tempSessionId);
+                        
+                        alert(`파일이 성공적으로 내보내졌습니다: ${exportedFileName}`);
+                    }
+                } catch (exportError) {
+                    console.error('파일 내보내기 오류:', exportError);
+                    
+                    // 기존 DataExporter로 폴백
+                    const exportData = this.dataExporter.exportData(logData, format);
+                    exportData.filename = filename + exportData.extension;
+                    this.dataExporter.downloadFile(exportData);
+                }
+            } else {
+                // txt 형식은 기존 DataExporter 사용
+                const exportData = this.dataExporter.exportData(logData, format);
+                exportData.filename = filename + exportData.extension;
+                this.dataExporter.downloadFile(exportData);
+            }
+            
+            // 저장 성공 메시지 (세션 저장한 경우만)
+            if (saveToStorage && sessionId) {
+                alert(`세션 '${sessionName}'이(가) 저장되었습니다.`);
+            }
+        } catch (error) {
+            console.error('내보내기 오류:', error);
+            alert(`내보내기 오류: ${error.message}`);
         }
     }
     
