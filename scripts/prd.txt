@@ -55,10 +55,56 @@ Modbus-RTU Serial Monitor는 Web Serial API를 활용한 웹 기반 시리얼 �
    - 로그 일시정지 → 특정 패킷 선택 → 상세 분석 → 결과 내보내기
 
 ### UI/UX 고려사항
-- 다크/라이트 테마 지원으로 다양한 환경에서 편안한 사용
+- Bootstrap 5.3.0을 로컬에 포함하여 사용 (CDN 사용하지 않음)
+- 다크 테마 기반의 전문적인 인터페이스
+- 좌측 사이드바와 메인 로그 영역의 2열 레이아웃
 - 반응형 디자인으로 태블릿 및 모바일 기기에서도 사용 가능
 - 키보드 단축키 지원으로 빠른 조작 가능
 - 실시간 업데이트 시에도 부드러운 스크롤 유지
+
+### 상세 UI 구성
+
+#### 1. 헤더 영역
+- 애플리케이션 타이틀 "Web Serial Online"
+- 다크 배경의 고정 헤더
+
+#### 2. 좌측 사이드바 (연결 설정 패널)
+- **Baud Rate**: 드롭다운 선택 (115200 기본값)
+- **Data Bits**: 드롭다운 선택 (8 기본값)
+- **Stop Bits**: 드롭다운 선택 (1 기본값)
+- **Parity Bits**: 드롭다운 선택 (None 기본값)
+- **Buffer**: 텍스트 입력 필드
+- **Flow Control**: 드롭다운 선택 (None 기본값)
+- **Serial Port 선택/연결 버튼**:
+  - "Select Serial Port" 버튼 (파란색)
+  - "Open Serial Port" 버튼
+  - 연결 상태 표시 ("No Serial Port Selected")
+
+#### 3. 메인 로그 영역
+- **상단 컨트롤 바**:
+  - Packet Timeout 설정 (ms 단위)
+  - Log Type 선택 (All/TX/RX)
+  - Auto Scroll 토글
+  - Clear 버튼
+  - Copy 버튼
+  - Export 버튼
+  - System Options 버튼
+  - Quick Send 버튼
+- **로그 테이블**:
+  - Select Group 체크박스 컬럼
+  - 장치 이름/타입 컬럼
+  - 액션 버튼 컬럼
+  - 스크롤 가능한 로그 영역
+
+#### 4. 하단 메시지 입력 영역
+- 메시지 입력 텍스트 영역
+- 입력 형식 옵션:
+  - Append Carriage Return Line Feed
+  - HEX Send
+  - Loop Send
+  - Send Interval(MS) 설정
+- Send 버튼 (파란색)
+- Contact me 링크
 
 ## Technical Architecture
 
@@ -186,15 +232,9 @@ Session {
    - 위험: 노이즈가 많은 환경에서 잘못된 패킷 구분
    - 완화: 적응형 타임아웃 알고리즘, 사용자 조정 가능한 파라미터
 
-### MVP 범위 설정
-- 초기에는 가장 일반적인 Modbus 기능 코드(01-06)만 지원
-- 복잡한 UI 기능은 후순위로 미룸
-- 기본적인 모니터링 기능에 집중
-
-### 리소스 제약
-- 단일 개발자 환경 고려한 단계적 개발
-- 오픈소스 라이브러리 적극 활용
-- 커뮤니티 피드백을 통한 우선순위 조정
+4. **Bootstrap 로컬 통합**
+   - 위험: 파일 크기 증가로 인한 초기 로딩 시간 증가
+   - 완화: 필요한 컴포넌트만 선택적으로 포함, 압축 및 최적화 적용
 
 ## Appendix
 
