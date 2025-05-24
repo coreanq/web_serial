@@ -1,0 +1,186 @@
+# Task ID: 6
+# Title: Implement Connection Settings UI
+# Status: done
+# Dependencies: 1, 2
+# Priority: medium
+# Description: Create the user interface for serial port selection and connection settings, including the left sidebar panel.
+# Details:
+1. Create the left sidebar UI for connection settings
+2. Implement dropdown selectors for Baud Rate, Data Bits, Stop Bits, Parity, and Flow Control
+3. Add buttons for port selection and connection/disconnection
+4. Implement status indicators for connection state
+5. Add event handlers for all UI elements
+
+Example implementation:
+```javascript
+// connectionUI.js
+export class ConnectionUI {
+  constructor(serialConnection) {
+    this.serialConnection = serialConnection;
+    this.isConnected = false;
+    
+    // Cache DOM elements
+    this.sidebar = document.querySelector('.sidebar');
+    
+    // Initialize UI
+    this._createUI();
+    this._attachEventListeners();
+  }
+
+  _createUI() {
+    this.sidebar.innerHTML = `
+      <div class="p-3 connection-panel">
+        <h5 class="mb-3">Connection Settings</h5>
+        
+        <div class="mb-3">
+          <label for="baudRate" class="form-label">Baud Rate</label>
+          <select class="form-select form-select-sm" id="baudRate">
+            <option value="9600">9600</option>
+            <option value="19200">19200</option>
+            <option value="38400">38400</option>
+            <option value="57600">57600</option>
+            <option value="115200" selected>115200</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="dataBits" class="form-label">Data Bits</label>
+          <select class="form-select form-select-sm" id="dataBits">
+            <option value="7">7</option>
+            <option value="8" selected>8</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="stopBits" class="form-label">Stop Bits</label>
+          <select class="form-select form-select-sm" id="stopBits">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="parity" class="form-label">Parity</label>
+          <select class="form-select form-select-sm" id="parity">
+            <option value="none" selected>None</option>
+            <option value="even">Even</option>
+            <option value="odd">Odd</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="flowControl" class="form-label">Flow Control</label>
+          <select class="form-select form-select-sm" id="flowControl">
+            <option value="none" selected>None</option>
+            <option value="hardware">Hardware</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="buffer" class="form-label">Buffer</label>
+          <input type="text" class="form-control form-control-sm" id="buffer" value="4096">
+        </div>
+        
+        <div class="connection-status mb-3 p-2 bg-dark text-light rounded">
+          <small id="statusText">No Serial Port Selected</small>
+        </div>
+        
+        <div class="d-grid gap-2">
+          <button id="selectPortBtn" class="btn btn-primary btn-sm">Select Serial Port</button>
+          <button id="connectBtn" class="btn btn-success btn-sm" disabled>Open Serial Port</button>
+        </div>
+      </div>
+    `;
+    
+    // Cache new DOM elements
+    this.statusText = document.getElementById('statusText');
+    this.selectPortBtn = document.getElementById('selectPortBtn');
+    this.connectBtn = document.getElementById('connectBtn');
+    this.baudRateSelect = document.getElementById('baudRate');
+    this.dataBitsSelect = document.getElementById('dataBits');
+    this.stopBitsSelect = document.getElementById('stopBits');
+    this.paritySelect = document.getElementById('parity');
+    this.flowControlSelect = document.getElementById('flowControl');
+    this.bufferInput = document.getElementById('buffer');
+  }
+
+  _attachEventListeners() {
+    // Select port button
+    this.selectPortBtn.addEventListener('click', async () => {
+      const selected = await this.serialConnection.selectPort();
+      if (selected) {
+        this.statusText.textContent = 'Port selected. Ready to connect.';
+        this.connectBtn.disabled = false;
+      }
+    });
+    
+    // Connect/disconnect button
+    this.connectBtn.addEventListener('click', async () => {
+      if (!this.isConnected) {
+        try {
+          const options = {
+            baudRate: parseInt(this.baudRateSelect.value),
+            dataBits: parseInt(this.dataBitsSelect.value),
+            stopBits: parseInt(this.stopBitsSelect.value),
+            parity: this.paritySelect.value,
+            flowControl: this.flowControlSelect.value
+          };
+          
+          await this.serialConnection.connect(options);
+          this._updateConnectionState(true);
+        } catch (error) {
+          this.statusText.textContent = `Connection error: ${error.message}`;
+        }
+      } else {
+        try {
+          await this.serialConnection.disconnect();
+          this._updateConnectionState(false);
+        } catch (error) {
+          this.statusText.textContent = `Disconnection error: ${error.message}`;
+        }
+      }
+    });
+    
+    // Listen for connection changes from the serial connection
+    this.serialConnection.onConnectionChange((connected) => {
+      this._updateConnectionState(connected);
+    });
+  }
+
+  _updateConnectionState(connected) {
+    this.isConnected = connected;
+    
+    if (connected) {
+      this.statusText.textContent = 'Connected';
+      this.connectBtn.textContent = 'Close Serial Port';
+      this.connectBtn.classList.replace('btn-success', 'btn-danger');
+      this.baudRateSelect.disabled = true;
+      this.dataBitsSelect.disabled = true;
+      this.stopBitsSelect.disabled = true;
+      this.paritySelect.disabled = true;
+      this.flowControlSelect.disabled = true;
+      this.bufferInput.disabled = true;
+    } else {
+      this.statusText.textContent = 'Disconnected';
+      this.connectBtn.textContent = 'Open Serial Port';
+      this.connectBtn.classList.replace('btn-danger', 'btn-success');
+      this.baudRateSelect.disabled = false;
+      this.dataBitsSelect.disabled = false;
+      this.stopBitsSelect.disabled = false;
+      this.paritySelect.disabled = false;
+      this.flowControlSelect.disabled = false;
+      this.bufferInput.disabled = false;
+    }
+  }
+}
+```
+
+# Test Strategy:
+1. Test UI rendering in different browsers
+2. Verify all form controls are properly initialized
+3. Test port selection functionality
+4. Verify connection/disconnection UI state changes
+5. Test with different connection parameters
+6. Verify error messages are displayed correctly
+7. Test responsive layout on different screen sizes
+8. Verify accessibility of all UI elements

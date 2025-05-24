@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Serial Online - Modbus-RTU Monitor</title>
+    <link rel="stylesheet" href="./src/css/bootstrap.min.css">
+    <link rel="stylesheet" href="./src/css/styles.css">
+</head>
+<body class="bg-dark text-light">
+    <!-- Header -->
+    <header class="navbar navbar-dark bg-dark border-bottom border-secondary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">Web Serial Online</span>
+        </div>
+    </header>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar for connection settings -->
+            <div class="col-md-3 col-lg-2 sidebar bg-dark border-end border-secondary p-3">
+                <h5 class="mb-3">Connection Settings</h5>
+                
+                <!-- Baud Rate -->
+                <div class="mb-3">
+                    <label for="baudRate" class="form-label">Baud Rate</label>
+                    <select class="form-select bg-dark text-light" id="baudRate">
+                        <option value="9600">9600</option>
+                        <option value="19200">19200</option>
+                        <option value="38400">38400</option>
+                        <option value="57600">57600</option>
+                        <option value="115200" selected>115200</option>
+                    </select>
+                </div>
+
+                <!-- Data Bits -->
+                <div class="mb-3">
+                    <label for="dataBits" class="form-label">Data Bits</label>
+                    <select class="form-select bg-dark text-light" id="dataBits">
+                        <option value="7">7</option>
+                        <option value="8" selected>8</option>
+                    </select>
+                </div>
+
+                <!-- Stop Bits -->
+                <div class="mb-3">
+                    <label for="stopBits" class="form-label">Stop Bits</label>
+                    <select class="form-select bg-dark text-light" id="stopBits">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                    </select>
+                </div>
+
+                <!-- Parity Bits -->
+                <div class="mb-3">
+                    <label for="parity" class="form-label">Parity Bits</label>
+                    <select class="form-select bg-dark text-light" id="parity">
+                        <option value="none" selected>None</option>
+                        <option value="even">Even</option>
+                        <option value="odd">Odd</option>
+                    </select>
+                </div>
+
+                <!-- Buffer -->
+                <div class="mb-3">
+                    <label for="buffer" class="form-label">Buffer</label>
+                    <input type="text" class="form-control bg-dark text-light" id="buffer" value="1024">
+                </div>
+
+                <!-- Flow Control -->
+                <div class="mb-3">
+                    <label for="flowControl" class="form-label">Flow Control</label>
+                    <select class="form-select bg-dark text-light" id="flowControl">
+                        <option value="none" selected>None</option>
+                        <option value="hardware">Hardware</option>
+                    </select>
+                </div>
+
+                <!-- Connection Buttons -->
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" id="selectPortBtn">Select Serial Port</button>
+                    <button class="btn btn-success" id="openPortBtn" disabled>Open Serial Port</button>
+                </div>
+
+                <!-- Connection Status -->
+                <div class="mt-3">
+                    <div class="d-flex align-items-center">
+                        <div id="connectionIndicator" class="me-2 rounded-circle" style="width: 12px; height: 12px; background-color: #6c757d;"></div>
+                        <small id="connectionStatus" class="text-muted">포트를 선택하세요</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main log area -->
+            <main class="col-md-9 col-lg-10 main-content p-3">
+                <!-- Control Bar -->
+                <div class="control-bar mb-3">
+                    <div class="row g-2">
+                        <div class="col-auto">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-dark text-light">Packet Timeout</span>
+                                <input type="number" class="form-control bg-dark text-light" id="packetTimeout" value="100" style="width: 80px;">
+                                <span class="input-group-text bg-dark text-light">ms</span>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm bg-dark text-light" id="logType">
+                                <option value="all" selected>Log Type: All</option>
+                                <option value="tx">Log Type: TX</option>
+                                <option value="rx">Log Type: RX</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="autoScroll" checked>
+                                <label class="form-check-label" for="autoScroll">Auto Scroll</label>
+                            </div>
+                        </div>
+                        <div class="col-auto ms-auto">
+                            <button class="btn btn-sm btn-outline-light" id="clearBtn">Clear</button>
+                            <button class="btn btn-sm btn-outline-light" id="copyBtn">Copy</button>
+                            <button class="btn btn-sm btn-outline-light" id="exportBtn">Export</button>
+                            <button class="btn btn-sm btn-outline-light" id="systemOptionsBtn">System Options</button>
+                            <button class="btn btn-sm btn-primary" id="quickSendBtn">Quick Send</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Log Viewer Controls -->
+                <div class="mt-3 mb-3">
+                    <div class="d-flex flex-wrap align-items-center">
+                        <div class="me-3 mb-2">
+                            <label for="packetTimeout" class="form-label small mb-0">패킷 타임아웃 (ms)</label>
+                            <input type="number" class="form-control form-control-sm" id="packetTimeout" value="50" min="10" max="1000">
+                        </div>
+                        
+                        <div class="me-3 mb-2">
+                            <label for="logType" class="form-label small mb-0">로그 필터</label>
+                            <select class="form-select form-select-sm" id="logType">
+                                <option value="all" selected>전체</option>
+                                <option value="tx">TX</option>
+                                <option value="rx">RX</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-check me-3 mb-2">
+                            <input class="form-check-input" type="checkbox" id="autoScroll" checked>
+                            <label class="form-check-label small" for="autoScroll">자동 스크롤</label>
+                        </div>
+                        
+                        <button id="clearBtn" class="btn btn-sm btn-outline-secondary me-2 mb-2">지우기</button>
+                        <button id="copyBtn" class="btn btn-sm btn-outline-secondary me-2 mb-2">복사</button>
+                        <button id="exportBtn" class="btn btn-sm btn-outline-secondary me-2 mb-2">내보내기</button>
+                        <button id="sessionManagerBtn" class="btn btn-sm btn-outline-secondary mb-2">세션 관리</button>
+                    </div>
+                </div>
+                
+                <!-- Log Table -->
+                <div class="log-container" style="height: calc(100vh - 350px); overflow-y: auto;">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover table-sm">
+                            <thead class="sticky-top bg-dark">
+                                <tr>
+                                    <th scope="col" width="30px"><input type="checkbox" id="selectAllPackets"></th>
+                                    <th scope="col" width="80px">시간</th>
+                                    <th scope="col" width="40px">Dir</th>
+                                    <th scope="col" width="50px">Slave</th>
+                                    <th scope="col" width="80px">Func</th>
+                                    <th scope="col">데이터</th>
+                                    <th scope="col" width="60px">CRC</th>
+                                    <th scope="col" width="60px">상태</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logTableBody">
+                                <!-- Log entries will be added here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div> 
+
+                <!-- Message Input Area -->
+                <div class="message-input-area mt-3">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <textarea class="form-control bg-dark text-light" id="messageInput" rows="3" placeholder="Enter message to send..."></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="appendCRLF">
+                                    <label class="form-check-label" for="appendCRLF">
+                                        Append Carriage Return Line Feed
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="hexSend">
+                                    <label class="form-check-label" for="hexSend">
+                                        HEX Send
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="loopSend">
+                                    <label class="form-check-label" for="loopSend">
+                                        Loop Send
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text bg-dark text-light">Send Interval(MS)</span>
+                                <input type="number" class="form-control bg-dark text-light" id="sendInterval" value="1000">
+                            </div>
+                            <button class="btn btn-primary w-100" id="sendBtn">Send</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="text-center mt-3">
+                    <small><a href="#" class="text-decoration-none">Contact me</a></small>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="./src/js/main.js"></script>
+</body>
+</html>

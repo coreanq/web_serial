@@ -1,0 +1,146 @@
+# Task ID: 9
+# Title: Implement Message Sending Interface
+# Status: pending
+# Dependencies: 3, 7
+# Priority: medium
+# Description: Create the interface and functionality for sending custom Modbus messages, including hex input and looped sending.
+# Details:
+1. Implement the message input area UI
+2. Add support for hex and text input modes
+3. Implement CRLF appending option
+4. Create loop sending functionality with interval control
+5. Add validation for input formats
+
+Example implementation:
+```javascript
+// messageSender.js
+export class MessageSender {
+  constructor(serialDataHandler) {
+    this.serialDataHandler = serialDataHandler;
+    this.loopInterval = null;
+    
+    // Cache DOM elements
+    this.messageInput = document.getElementById('messageInput');
+    this.sendBtn = document.getElementById('sendBtn');
+    this.hexSendCheckbox = document.getElementById('hexSend');
+    this.appendCRLFCheckbox = document.getElementById('appendCRLF');
+    this.loopSendCheckbox = document.getElementById('loopSend');
+    this.sendIntervalInput = document.getElementById('sendInterval');
+    
+    this._attachEventListeners();
+  }
+
+  _attachEventListeners() {
+    // Send button
+    this.sendBtn.addEventListener('click', () => {
+      this.sendMessage();
+    });
+    
+    // Enter key in textarea
+    this.messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        this.sendMessage();
+      }
+    });
+    
+    // Loop send checkbox
+    this.loopSendCheckbox.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        this.startLoopSend();
+      } else {
+        this.stopLoopSend();
+      }
+    });
+  }
+
+  async sendMessage() {
+    const message = this.messageInput.value.trim();
+    if (!message) return;
+    
+    const isHex = this.hexSendCheckbox.checked;
+    let dataToSend = message;
+    
+    // Validate hex format if hex mode is enabled
+    if (isHex) {
+      const hexPattern = /^([0-9A-Fa-f]{2}\s*)+$/;
+      if (!hexPattern.test(message)) {
+        alert('Invalid hex format. Please use pairs of hex digits (e.g., "01 03 00 00 00 0A C5 CD")');
+        return;
+      }
+    } else if (this.appendCRLFCheckbox.checked) {
+      // Append CRLF if needed
+      dataToSend += '\r\n';
+    }
+    
+    try {
+      await this.serialDataHandler.sendData(dataToSend, isHex);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert(`Failed to send message: ${error.message}`);
+    }
+  }
+
+  startLoopSend() {
+    if (this.loopInterval) return;
+    
+    const interval = parseInt(this.sendIntervalInput.value);
+    if (isNaN(interval) || interval < 100) {
+      alert('Send interval must be at least 100ms');
+      this.loopSendCheckbox.checked = false;
+      return;
+    }
+    
+    this.sendMessage(); // Send immediately first
+    
+    this.loopInterval = setInterval(() => {
+      this.sendMessage();
+    }, interval);
+    
+    // Disable inputs during loop sending
+    this.sendIntervalInput.disabled = true;
+  }
+
+  stopLoopSend() {
+    if (this.loopInterval) {
+      clearInterval(this.loopInterval);
+      this.loopInterval = null;
+      
+      // Re-enable inputs
+      this.sendIntervalInput.disabled = false;
+    }
+  }
+
+  validateHexInput(input) {
+    // Remove all whitespace
+    const hexString = input.replace(/\s/g, '');
+    
+    // Check if string has even length and contains only hex characters
+    return hexString.length % 2 === 0 && /^[0-9A-Fa-f]+$/.test(hexString);
+  }
+
+  // Helper to convert hex string to byte array
+  hexStringToBytes(hexString) {
+    // Remove all whitespace
+    const hex = hexString.replace(/\s/g, '');
+    
+    // Convert to byte array
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+      bytes[i/2] = parseInt(hex.substr(i, 2), 16);
+    }
+    
+    return bytes;
+  }
+}
+```
+
+# Test Strategy:
+1. Test sending messages in text mode
+2. Verify hex input validation
+3. Test CRLF appending functionality
+4. Verify loop sending with different intervals
+5. Test error handling for invalid inputs
+6. Verify keyboard shortcuts (Ctrl+Enter)
+7. Test with various Modbus message formats
+8. Verify UI state changes during loop sending

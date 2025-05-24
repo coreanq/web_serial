@@ -1,0 +1,126 @@
+# Task ID: 3
+# Title: Implement Serial Data Reception and Transmission
+# Status: done
+# Dependencies: 2
+# Priority: high
+# Description: Create a module to handle the reception and transmission of data through the serial connection, including buffer management.
+# Details:
+1. Extend the SerialConnection class to handle data reception
+2. Implement a circular buffer for received data
+3. Create methods for sending data in different formats (text, hex)
+4. Add support for different line endings (CR, LF, CRLF)
+5. Implement event-based notification for received data
+6. Add timeout handling for data reception
+
+Example implementation:
+```javascript
+// serialDataHandler.js
+import { SerialConnection } from './serialConnection.js';
+
+export class SerialDataHandler extends SerialConnection {
+  constructor() {
+    super();
+    this.receiveBuffer = new Uint8Array(4096);
+    this.bufferPosition = 0;
+    this.dataListeners = [];
+    this.isReading = false;
+  }
+
+  startReading() {
+    if (this.isReading || !this.isConnected) return;
+    
+    this.isReading = true;
+    this._readLoop();
+  }
+
+  async _readLoop() {
+    while (this.isReading && this.reader) {
+      try {
+        const { value, done } = await this.reader.read();
+        
+        if (done) {
+          this.isReading = false;
+          break;
+        }
+        
+        if (value) {
+          this._processReceivedData(value);
+        }
+      } catch (error) {
+        console.error('Error reading data:', error);
+        this.isReading = false;
+        break;
+      }
+    }
+  }
+
+  _processReceivedData(data) {
+    // Add data to buffer
+    for (let i = 0; i < data.length; i++) {
+      this.receiveBuffer[this.bufferPosition] = data[i];
+      this.bufferPosition = (this.bufferPosition + 1) % this.receiveBuffer.length;
+    }
+    
+    // Notify listeners
+    const dataView = new Uint8Array(data);
+    this.dataListeners.forEach(callback => callback({
+      direction: 'RX',
+      timestamp: new Date(),
+      data: dataView
+    }));
+  }
+
+  async sendData(data, isHex = false) {
+    if (!this.isConnected || !this.writer) {
+      throw new Error('Not connected');
+    }
+
+    let dataToSend;
+    if (isHex) {
+      // Convert hex string to bytes
+      const hexString = data.replace(/\s/g, '');
+      dataToSend = new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    } else {
+      // Convert string to bytes
+      dataToSend = new TextEncoder().encode(data);
+    }
+
+    try {
+      await this.writer.write(dataToSend);
+      
+      // Notify listeners about sent data
+      this.dataListeners.forEach(callback => callback({
+        direction: 'TX',
+        timestamp: new Date(),
+        data: dataToSend
+      }));
+      
+      return true;
+    } catch (error) {
+      console.error('Error sending data:', error);
+      throw error;
+    }
+  }
+
+  onDataReceived(callback) {
+    this.dataListeners.push(callback);
+    return () => {
+      this.dataListeners = this.dataListeners.filter(cb => cb !== callback);
+    };
+  }
+
+  stopReading() {
+    this.isReading = false;
+  }
+}
+```
+
+# Test Strategy:
+1. Test data reception with various input sizes
+2. Verify buffer management with large data streams
+3. Test sending data in both text and hex formats
+4. Verify event notifications are triggered correctly
+5. Test with different baud rates to ensure timing is correct
+6. Verify data integrity by sending and receiving known patterns
+7. Test error handling during transmission and reception
+8. Measure performance with high-speed data streams

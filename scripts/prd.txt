@@ -110,10 +110,12 @@ Modbus-RTU Serial Monitor는 Web Serial API를 활용한 웹 기반 시리얼 �
 
 ### 시스템 컴포넌트
 1. **Frontend (SPA)**
-   - React 또는 Vue.js 기반의 Single Page Application
+   - 바닐라 JavaScript 기반의 Single Page Application
+   - 모듈 패턴과 ES6 모듈을 활용한 구조화된 코드
    - Web Serial API를 통한 시리얼 통신 처리
    - Service Worker를 통한 PWA 기능 구현
    - IndexedDB를 활용한 로컬 데이터 저장
+   - Bootstrap 5.3.0을 로컬에 포함하여 UI 구성
 
 2. **Modbus Parser Module**
    - 바이너리 데이터 스트림 처리 엔진

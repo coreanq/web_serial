@@ -1,0 +1,165 @@
+# Task ID: 4
+# Title: Implement Modbus-RTU Packet Parser
+# Status: done
+# Dependencies: 3
+# Priority: high
+# Description: Create a module to parse and validate Modbus-RTU protocol packets, including CRC verification and packet boundary detection.
+# Details:
+1. Implement CRC16 calculation for Modbus-RTU
+2. Create packet boundary detection based on timeout
+3. Implement packet structure parsing (slave address, function code, data, CRC)
+4. Add validation for packet integrity
+5. Create data structures for parsed packets
+
+Example implementation:
+```javascript
+// modbusParser.js
+export class ModbusParser {
+  constructor(packetTimeoutMs = 50) {
+    this.packetTimeoutMs = packetTimeoutMs;
+    this.buffer = [];
+    this.lastByteTime = 0;
+    this.packetListeners = [];
+  }
+
+  processBytes(bytes, timestamp) {
+    const currentTime = timestamp || Date.now();
+    
+    // Check if we need to finalize the previous packet due to timeout
+    if (this.buffer.length > 0 && (currentTime - this.lastByteTime) > this.packetTimeoutMs) {
+      this._finalizePacket();
+    }
+    
+    // Add new bytes to buffer
+    for (const byte of bytes) {
+      this.buffer.push(byte);
+    }
+    
+    this.lastByteTime = currentTime;
+  }
+
+  _finalizePacket() {
+    if (this.buffer.length < 4) {
+      // Not enough bytes for a valid Modbus packet (at least slave address, function code, and 2 CRC bytes)
+      this.buffer = [];
+      return;
+    }
+    
+    const packet = new Uint8Array(this.buffer);
+    this.buffer = [];
+    
+    // Parse the packet
+    const parsedPacket = this._parseModbusPacket(packet);
+    
+    // Notify listeners
+    if (parsedPacket) {
+      this.packetListeners.forEach(callback => callback(parsedPacket));
+    }
+  }
+
+  _parseModbusPacket(packet) {
+    if (packet.length < 4) return null;
+    
+    const slaveAddress = packet[0];
+    const functionCode = packet[1];
+    const data = packet.slice(2, packet.length - 2);
+    const receivedCrc = (packet[packet.length - 1] << 8) | packet[packet.length - 2];
+    const calculatedCrc = this._calculateCRC16(packet.slice(0, packet.length - 2));
+    const isValid = receivedCrc === calculatedCrc;
+    
+    return {
+      timestamp: new Date(),
+      rawData: packet,
+      parsedData: {
+        slaveAddress,
+        functionCode,
+        data,
+        crc: receivedCrc,
+        isValid
+      },
+      interpretation: this._interpretModbusPacket(slaveAddress, functionCode, data, isValid)
+    };
+  }
+
+  _calculateCRC16(buffer) {
+    let crc = 0xFFFF;
+    
+    for (let pos = 0; pos < buffer.length; pos++) {
+      crc ^= buffer[pos];
+      
+      for (let i = 8; i !== 0; i--) {
+        if ((crc & 0x0001) !== 0) {
+          crc >>= 1;
+          crc ^= 0xA001;
+        } else {
+          crc >>= 1;
+        }
+      }
+    }
+    
+    return crc;
+  }
+
+  _interpretModbusPacket(slaveAddress, functionCode, data, isValid) {
+    if (!isValid) return 'Invalid CRC';
+    
+    let interpretation = `Slave: ${slaveAddress}, Function: `;
+    
+    switch (functionCode) {
+      case 1:
+        interpretation += 'Read Coils (01)';
+        break;
+      case 2:
+        interpretation += 'Read Discrete Inputs (02)';
+        break;
+      case 3:
+        interpretation += 'Read Holding Registers (03)';
+        break;
+      case 4:
+        interpretation += 'Read Input Registers (04)';
+        break;
+      case 5:
+        interpretation += 'Write Single Coil (05)';
+        break;
+      case 6:
+        interpretation += 'Write Single Register (06)';
+        break;
+      case 15:
+        interpretation += 'Write Multiple Coils (15)';
+        break;
+      case 16:
+        interpretation += 'Write Multiple Registers (16)';
+        break;
+      default:
+        if (functionCode > 128) {
+          interpretation += `Exception Response (${functionCode - 128})`;
+        } else {
+          interpretation += `Unknown (${functionCode})`;
+        }
+    }
+    
+    return interpretation;
+  }
+
+  onPacketDetected(callback) {
+    this.packetListeners.push(callback);
+    return () => {
+      this.packetListeners = this.packetListeners.filter(cb => cb !== callback);
+    };
+  }
+
+  setPacketTimeout(timeoutMs) {
+    this.packetTimeoutMs = timeoutMs;
+  }
+}
+```
+
+# Test Strategy:
+1. Test CRC16 calculation with known Modbus packets
+2. Verify packet boundary detection with various timeout values
+3. Test parsing of different Modbus function codes
+4. Verify error detection for invalid packets
+5. Test with real Modbus device data samples
+6. Verify handling of exception responses
+7. Test with fragmented packets to ensure proper reassembly
+8. Benchmark parsing performance with large packet streams

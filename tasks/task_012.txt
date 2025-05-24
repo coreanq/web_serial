@@ -1,0 +1,162 @@
+# Task ID: 12
+# Title: Implement Main Application Integration
+# Status: pending
+# Dependencies: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+# Priority: high
+# Description: Integrate all modules into a cohesive application and implement the main entry point.
+# Details:
+1. Create the main application class to coordinate all modules
+2. Implement initialization sequence
+3. Set up event handling between components
+4. Add error handling and recovery mechanisms
+5. Implement application lifecycle management
+
+Example implementation:
+```javascript
+// main.js
+import { SerialConnection } from './modules/serialConnection.js';
+import { SerialDataHandler } from './modules/serialDataHandler.js';
+import { ModbusParser } from './modules/modbusParser.js';
+import { ModbusInterpreter } from './modules/modbusInterpreter.js';
+import { ConnectionUI } from './modules/connectionUI.js';
+import { LogViewerUI } from './modules/logViewerUI.js';
+import { DataStorage } from './modules/dataStorage.js';
+import { MessageSender } from './modules/messageSender.js';
+import { AppState } from './modules/appState.js';
+
+class ModbusMonitorApp {
+  constructor() {
+    // Initialize state manager
+    this.appState = new AppState();
+    
+    // Initialize modules
+    this.serialConnection = new SerialConnection();
+    this.serialDataHandler = new SerialDataHandler(this.serialConnection);
+    this.modbusParser = new ModbusParser(this.appState.get('monitoring.packetTimeout'));
+    this.modbusInterpreter = new ModbusInterpreter();
+    this.dataStorage = new DataStorage();
+    
+    // Set data storage reference in app state
+    this.appState.setDataStorage(this.dataStorage);
+    
+    // Initialize UI components
+    this.connectionUI = new ConnectionUI(this.serialConnection, this.appState);
+    this.logViewerUI = new LogViewerUI(this.appState);
+    this.messageSender = new MessageSender(this.serialDataHandler, this.appState);
+    
+    // Set up event listeners
+    this._setupEventListeners();
+    
+    // Register service worker
+    this._registerServiceWorker();
+    
+    // Initialize UI based on state
+    this._initializeUI();
+  }
+
+  _setupEventListeners() {
+    // Listen for connection changes
+    this.serialConnection.onConnectionChange((isConnected) => {
+      this.appState.update('connection.isConnected', isConnected);
+      
+      if (isConnected) {
+        // Start a new session when connected
+        this.appState.startSession();
+        
+        // Start reading data
+        this.serialDataHandler.startReading();
+        
+        // Update monitoring state
+        this.appState.update('monitoring.isActive', true);
+      } else {
+        // End session when disconnected
+        if (this.appState.get('session.id')) {
+          this.appState.endSession();
+        }
+        
+        // Stop reading data
+        this.serialDataHandler.stopReading();
+        
+        // Update monitoring state
+        this.appState.update('monitoring.isActive', false);
+      }
+    });
+    
+    // Listen for received data
+    this.serialDataHandler.onDataReceived((data) => {
+      // Process data with Modbus parser
+      this.modbusParser.processBytes(data.data, data.timestamp);
+    });
+    
+    // Listen for detected Modbus packets
+    this.modbusParser.onPacketDetected((packet) => {
+      // Add interpretation
+      packet.interpretation = this.modbusInterpreter.interpretPacket(packet);
+      
+      // Add to app state
+      this.appState.addPacket(packet);
+      
+      // Update UI
+      this.logViewerUI.addPacket(packet);
+    });
+    
+    // Listen for packet timeout changes
+    this.appState.subscribe('monitoring.packetTimeout', (timeout) => {
+      this.modbusParser.setPacketTimeout(timeout);
+    });
+    
+    // Listen for errors
+    window.addEventListener('error', (event) => {
+      this.appState.notify(`Error: ${event.message}`, 'error');
+      console.error('Application error:', event);
+    });
+    
+    // Listen for unhandled promise rejections
+    window.addEventListener('unhandledrejection', (event) => {
+      this.appState.notify(`Promise error: ${event.reason}`, 'error');
+      console.error('Unhandled promise rejection:', event);
+    });
+  }
+
+  _initializeUI() {
+    // Apply theme
+    document.body.classList.toggle('dark-theme', this.appState.get('ui.theme') === 'dark');
+    
+    // Set initial values from state
+    const packetTimeout = this.appState.get('monitoring.packetTimeout');
+    this.modbusParser.setPacketTimeout(packetTimeout);
+    
+    // Display welcome notification
+    this.appState.notify('Welcome to Modbus-RTU Serial Monitor', 'info', 3000);
+  }
+
+  _registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then((registration) => {
+            console.log('ServiceWorker registration successful with scope:', registration.scope);
+          })
+          .catch((error) => {
+            console.error('ServiceWorker registration failed:', error);
+          });
+      });
+    }
+  }
+}
+
+// Initialize application when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  window.app = new ModbusMonitorApp();
+});
+```
+
+# Test Strategy:
+1. Test complete application initialization
+2. Verify integration between all modules
+3. Test error handling and recovery
+4. Verify application state management
+5. Test full communication flow from serial connection to UI
+6. Verify service worker registration
+7. Test application with real Modbus devices
+8. Perform end-to-end testing of all user flows
