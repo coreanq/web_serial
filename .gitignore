@@ -64,3 +64,4 @@ sessions/
 *.session
 
 .cursor
+.roo
