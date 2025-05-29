@@ -101,6 +101,7 @@ export class LogManager {
             interpretation
         };
         
+
         this.packets.push(packetInfo);
         
         // 필터링 적용
@@ -119,31 +120,41 @@ export class LogManager {
     displayPacket(packetInfo) {
         const { timestamp, direction, packet, interpretation } = packetInfo;
         
+        console.log("packetInfo", packetInfo )
+        
         const row = document.createElement('tr');
         row.className = direction === 'TX' ? 'table-primary' : 'table-success';
         
-        // 슬레이브 주소와 함수 코드 추출
-        const slaveAddress = packet.length > 0 ? packet[0] : '';
-        const functionCode = packet.length > 1 ? packet[1] : '';
+        // 파싱된 패킷 객체에서 정보 추출
+        const slaveAddress = packet.slaveAddress !== undefined ? packet.slaveAddress : '';
+        const functionCode = packet.functionCode !== undefined ? packet.functionCode : '';
         
-        // 데이터 바이트 표시
-        const dataBytes = packet.length > 2 ? packet.slice(2, -2) : [];
-        const dataHex = Array.from(dataBytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
+        // 데이터 바이트 표시 (packet.data는 이미 숫자 배열)
+        const dataHex = packet.data && Array.isArray(packet.data) ? 
+            packet.data.map(b => b.toString(16).padStart(2, '0')).join(' ') : '';
         
-        // CRC 값 추출
-        const crcBytes = packet.length >= 2 ? packet.slice(-2) : [];
-        const crcHex = crcBytes.length === 2 ? 
-            ((crcBytes[0] << 8) | crcBytes[1]).toString(16).padStart(4, '0') : '';
+        // CRC 값 추출 (packet.crc.value는 이미 계산된 CRC 숫자)
+        const crcHex = packet.crc && packet.crc.value !== undefined ?
+            packet.crc.value.toString(16).padStart(4, '0') : '';
+
+        // CRC 유효성
+        const crcStatus = packet.crc && packet.crc.isValid ? 'Valid' : 'Invalid';
+        
+        console.log( "slaveAddress", slaveAddress)
+        console.log( "functionCode", functionCode)
+        console.log( "dataHex", dataHex)
+        console.log( "crcHex", crcHex)
+        console.log( "crcStatus", crcStatus)
         
         row.innerHTML = `
             <td><input type="checkbox" class="packet-select"></td>
             <td>${timestamp.toLocaleTimeString()}</td>
             <td>${direction}</td>
             <td>${slaveAddress}</td>
-            <td>${functionCode} (0x${functionCode.toString(16).padStart(2, '0')})</td>
+            <td>${functionCode} (0x${Number(functionCode).toString(16).padStart(2, '0')})</td>
             <td>${dataHex}</td>
             <td>${crcHex}</td>
-            <td>Valid</td>
+            <td>${crcStatus}</td>
         `;
         
         // 패킷 해석 정보 툴팁으로 추가
