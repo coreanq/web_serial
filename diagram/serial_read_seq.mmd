@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant UIController
+    participant SerialManager
+    participant navigator.serial
+
+    SerialManager->>navigator.serial: open()
+    navigator.serial-->>SerialManager: open()
+
+    loop readCheck
+    SerialManager-->>navigator.serial: readLoop()
+    activate navigator.serial
+    navigator.serial->navigator.serial: read()
+    navigator.serial->>SerialManager: processReceivedData()
+    SerialManager->>+SerialManager: _notifyDataReceived()
+    SerialManager->>-UIController: onDataReceived()
+    deactivate navigator.serial
+    end
+    

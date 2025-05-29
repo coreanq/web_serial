@@ -4,6 +4,8 @@ import { ModbusParser } from './modules/ModbusParser.js';
 import { ModbusInterpreter } from './modules/ModbusInterpreter.js';
 import { UIController } from './modules/UIController.js';
 import { MessageSender } from './modules/MessageSender.js';
+import { LogManager } from './modules/LogManager.js';
+import { DataExporter } from './modules/DataExporter.js';
 import { DataStorage } from './modules/DataStorage.js';
 import { AppState } from './modules/AppState.js';
 
@@ -35,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modbusParser = new ModbusParser();
     const modbusInterpreter = new ModbusInterpreter();
     const dataStorage = new DataStorage(appState);
+    const logManager = new LogManager(modbusInterpreter, modbusParser);
+    const dataExporter = new DataExporter();
     
     // 초기 알림 표시
     appState.notify('애플리케이션이 초기화되었습니다.', 'info');
@@ -46,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPwaInstallPrompt();
     
     // UI 컨트롤러 초기화
-    const uiController = new UIController(serialManager, modbusParser, modbusInterpreter, dataStorage, appState);
+    const uiController = new UIController(serialManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter);
     uiController.init();
     
     // 메시지 센더 초기화

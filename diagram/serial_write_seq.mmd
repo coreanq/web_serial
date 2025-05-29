@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant UIController
+    participant SerialManager
+    participant navigator.serial
+
+    UIController->>SerialManager: SendData()
+    SerialManager->>navigator.serial: write()
+
+    SerialManager->>+SerialManager: _notifyDataReceived()
+    SerialManager->>-UIController: onDataReceived()
+    

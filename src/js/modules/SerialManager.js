@@ -22,6 +22,7 @@ export class SerialManager {
         this.receiveBuffer = new Uint8Array(4096); // 4KB 버퍼
         this.bufferPosition = 0;
         this.lastReceiveTime = 0;
+        this.lastTxData = null;  // 마지막으로 전송된 데이터를 저장할 속성 추가
         
         // 애플리케이션 상태 관리자
         this.appState = appState;
@@ -249,6 +250,9 @@ export class SerialManager {
                 throw new Error('지원되지 않는 데이터 형식입니다.');
             }
             
+            // 마지막으로 전송된 데이터 저장 (디버깅 및 로깅용)
+            this.lastTxData = new Uint8Array(dataToSend);
+            
             await this.writer.write(dataToSend);
             
             // 전송 데이터 알림
@@ -418,5 +422,13 @@ export class SerialManager {
                 console.error('오류 리스너 오류:', err);
             }
         });
+    }
+    
+    /**
+     * 마지막으로 전송된 데이터를 가져옵니다.
+     * @returns {Uint8Array|null} 마지막으로 전송된 데이터 또는 전송된 데이터가 없을 경우 null
+     */
+    getLastTxData() {
+        return this.lastTxData ? new Uint8Array(this.lastTxData) : null;
     }
 }

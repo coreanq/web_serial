@@ -12,14 +12,19 @@ export class UIController {
      * @param {SerialManager} serialManager 시리얼 관리자 인스턴스
      * @param {ModbusParser} modbusParser Modbus 파서 인스턴스
      * @param {ModbusInterpreter} modbusInterpreter Modbus 함수 코드 인터프리터 인스턴스
+     * @param {DataStorage} dataStorage 데이터 저장소 인스턴스
+     * @param {AppState} appState 애플리케이션 상태 관리자 인스턴스
+     * @param {LogManager} logManager 로그 관리자 인스턴스
+     * @param {DataExporter} dataExporter 데이터 내보내기 인스턴스
      */
-    constructor(serialManager, modbusParser, modbusInterpreter) {
+    constructor(serialManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter) {
         this.serialManager = serialManager;
         this.modbusParser = modbusParser;
         this.modbusInterpreter = modbusInterpreter;
-        this.logManager = new LogManager(modbusInterpreter);
-        this.dataExporter = new DataExporter();
-        this.dataStorage = new DataStorage();
+        this.dataStorage = dataStorage;
+        this.appState = appState;
+        this.logManager = logManager;
+        this.dataExporter = dataExporter;
         
         // UI 요소
         this.elements = {
@@ -193,8 +198,11 @@ export class UIController {
                     this.logManager.addPacketToLog(packet, 'RX');
                 });
             } else if (direction === 'tx') {
-                // 송신 데이터는 그대로 로그에 추가
-                this.logManager.addPacketToLog(binaryData, 'TX');
+                const packets = this.modbusParser.parseData(binaryData);
+                packets.forEach(packet => {
+                    console.log('TX Packet:', packet);
+                    this.logManager.addPacketToLog(packet, 'TX');
+                });
             }
         });
         
@@ -312,7 +320,7 @@ export class UIController {
             }
             
             // 전송한 데이터를 Modbus 패킷으로 처리
-            const txData = this.serialManager.lastTxData;
+            const txData = this.serialManager.getLastTxData();
             if (txData && txData.length > 0) {
                 console.log('TX Data:', txData);
                 this.logManager.addPacketToLog(txData, 'TX');

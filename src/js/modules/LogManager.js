@@ -2,13 +2,17 @@
  * LogManager.js
  * 로그 데이터를 관리하고 표시하는 모듈
  */
+import { ModbusInterpreter } from './ModbusInterpreter.js';
+import { ModbusParser } from './ModbusParser.js';
+
 export class LogManager {
     /**
      * 생성자
      * @param {ModbusInterpreter} modbusInterpreter Modbus 인터프리터 인스턴스
      */
-    constructor(modbusInterpreter) {
+    constructor(modbusInterpreter, modbusParser) {
         this.modbusInterpreter = modbusInterpreter;
+        this.modbusParser = modbusParser; // 주입받은 ModbusParser 인스턴스 사용
         this.packets = [];
         this.autoScroll = true;
         this.filterType = 'all'; // 'all', 'tx', 'rx'
@@ -75,15 +79,25 @@ export class LogManager {
      * @param {Object} packet 패킷 데이터
      * @param {string} direction 방향 ('TX' 또는 'RX')
      */
-    addPacketToLog(packet, direction) {
+    addPacketToLog(packetData, direction) { // 변수명을 packetData로 변경하여 명확성 확보
         const timestamp = new Date();
-        const interpretation = this.modbusInterpreter.interpretPacket(packet, direction);
+        let parsedPacket;
+
+        if (packetData instanceof Uint8Array) {
+            // Uint8Array인 경우, ModbusParser를 사용하여 파싱
+            parsedPacket = this.modbusParser.parsePacket(packetData, direction);
+        } else {
+            // 이미 파싱된 객체인 경우 그대로 사용
+            parsedPacket = packetData;
+        }
+
+        const interpretation = this.modbusInterpreter.interpretPacket(parsedPacket, direction);
         
-        // 패킷 정보 저장
+        // 패킷 정보 저장 (parsedPacket을 저장하도록 변경)
         const packetInfo = {
             timestamp,
             direction,
-            packet,
+            packet: parsedPacket, // 파싱된 패킷 객체를 저장
             interpretation
         };
         
