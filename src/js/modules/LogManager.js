@@ -177,7 +177,7 @@ export class LogManager {
 
         row.innerHTML = `
             <td><input type="checkbox" class="packet-select"></td>
-            <td>${new Date(timestamp).toLocaleTimeString()}</td>
+            <td>${new Date(timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}</td>
             <td>${direction}</td>
             <td>${packetDataHtml}</td>
         `;
