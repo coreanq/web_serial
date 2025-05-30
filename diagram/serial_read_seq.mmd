@@ -1,18 +1,29 @@
+---
+id: e180e8f2-269b-452c-b2d9-9df026a60434
+---
 sequenceDiagram
+    participant ModbusParser
     participant UIController
     participant SerialManager
     participant navigator.serial
 
+    UIController-->>SerialManager: connectPort()
+    activate SerialManager
+    SerialManager->>SerialManager: connect()
     SerialManager->>navigator.serial: open()
     navigator.serial-->>SerialManager: open()
+    SerialManager-->>navigator.serial: readLoop()
+    note over SerialManager, navigator.serial: readLoop 등록 
+    SerialManager-->>UIController: connectPort()
+    deactivate SerialManager
 
     loop readCheck
-    SerialManager-->>navigator.serial: readLoop()
-    activate navigator.serial
     navigator.serial->navigator.serial: read()
     navigator.serial->>SerialManager: processReceivedData()
     SerialManager->>+SerialManager: _notifyDataReceived()
     SerialManager->>-UIController: onDataReceived()
-    deactivate navigator.serial
-    end
+    UIController->>ModbusParser: parseData()
+    ModbusParser->>ModbusParser: parseData()
+    ModbusParser-->>UIController: parseData()
     
+    end

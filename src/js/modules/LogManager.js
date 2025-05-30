@@ -76,7 +76,7 @@ export class LogManager {
     
     /**
      * 로그 테이블에 패킷 추가
-     * @param {Object} packet 패킷 데이터
+     * @param {Object} packetData 패킷 데이터
      * @param {string} direction 방향 ('TX' 또는 'RX')
      */
     addPacketToLog(packetData, direction) { // 변수명을 packetData로 변경하여 명확성 확보
@@ -91,26 +91,18 @@ export class LogManager {
             parsedPacket = packetData;
         }
 
-        const interpretation = this.modbusInterpreter.interpretPacket(parsedPacket, direction);
+        console.log("addPacketToLog parsedPacket", parsedPacket);
+        const interpretation = this.modbusInterpreter.interpretPacket(parsedPacket);
         
-        // 패킷 정보 저장 (parsedPacket을 저장하도록 변경)
-        const packetInfo = {
-            timestamp,
-            direction,
-            packet: parsedPacket, // 파싱된 패킷 객체를 저장
-            interpretation, 
-            rawBytes: packetData
-        };
-        
-
-        this.packets.push(packetInfo);
+        parsedPacket.interpretedData = interpretation;
+        this.packets.push(parsedPacket);
         
         // 필터링 적용
         if (this.filterType === 'all' || 
             (this.filterType === 'tx' && direction === 'TX') || 
             (this.filterType === 'rx' && direction === 'RX')) {
             // UI에 표시
-            this.displayPacket(packetInfo);
+            this.displayPacket(parsedPacket);
         }
     }
     
@@ -119,22 +111,26 @@ export class LogManager {
      * @param {Object} packetInfo 패킷 정보
      */
     displayPacket(packetInfo) {
-        const { timestamp, direction, packet, interpretation, rawBytes } = packetInfo;
+        const { timestamp, direction, interpretedData, raw, slaveAddress, functionCode, data, crc } = packetInfo;
+        console.log("displayPacket packetInfo", packetInfo);
+
         const row = document.createElement('tr');
         row.className = direction === 'TX' ? 'table-primary' : 'table-success';
 
         let fullPacketBytes = [];
-        if (rawBytes && Array.isArray(rawBytes)) {
-            fullPacketBytes = [...rawBytes];
-        } else if (packet && typeof packet.slaveAddress === 'number' && typeof packet.functionCode === 'number') {
-            fullPacketBytes.push(packet.slaveAddress);
-            fullPacketBytes.push(packet.functionCode);
-            if (Array.isArray(packet.data)) {
-                fullPacketBytes.push(...packet.data);
+        if (raw instanceof Uint8Array) {
+            fullPacketBytes = Array.from(raw); // Uint8Array를 일반 배열로 변환하여 사용
+            // console.log("displayPacket raw (from Uint8Array):", fullPacketBytes);
+        } else if (typeof slaveAddress === 'number' && typeof functionCode === 'number') {
+            console.warn("displayPacket: 'raw' field was not a Uint8Array or was missing, reconstructing from parts.");
+            fullPacketBytes.push(slaveAddress);
+            fullPacketBytes.push(functionCode);
+            if (data instanceof Uint8Array) {
+                fullPacketBytes.push(...Array.from(data)); // Uint8Array를 일반 배열로 변환하여 사용
             }
-            if (packet.crc && typeof packet.crc.value === 'number') {
-                fullPacketBytes.push(packet.crc.value & 0xFF);      // CRC Low
-                fullPacketBytes.push((packet.crc.value >> 8) & 0xFF); // CRC High
+            if (crc && typeof crc.value === 'number') {
+                fullPacketBytes.push(crc.value & 0xFF);      // CRC Low
+                fullPacketBytes.push((crc.value >> 8) & 0xFF); // CRC High
             }
         } else {
             console.warn("Cannot construct fullPacketBytes from packetInfo:", packetInfo);
@@ -181,14 +177,14 @@ export class LogManager {
 
         row.innerHTML = `
             <td><input type="checkbox" class="packet-select"></td>
-            <td>${timestamp.toLocaleTimeString()}</td>
+            <td>${new Date(timestamp).toLocaleTimeString()}</td>
             <td>${direction}</td>
             <td>${packetDataHtml}</td>
         `;
 
         // Add interpretation as a tooltip if available
-        if (interpretation) {
-            row.title = interpretation;
+        if (interpretedData) {
+            row.title = interpretedData;
         }
         
         row.addEventListener('click', () => this._showPacketDetails(packetInfo));
@@ -204,7 +200,7 @@ export class LogManager {
      * @param {Object} packetInfo 패킷 정보
      */
     _showPacketDetails(packetInfo) {
-        const { direction, packet, interpretation, fullPacketBytes } = packetInfo;
+        const { direction, packet, interpretedData, fullPacketBytes } = packetInfo;
         
         // 패킷 데이터를 HEX와 ASCII로 표시
         const hexData = Array.from(fullPacketBytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
@@ -228,7 +224,7 @@ export class LogManager {
                         </div>
                         <div class="modal-body">
                             <h6>해석 정보</h6>
-                            <pre class="bg-dark text-light p-3 rounded">${interpretation}</pre>
+                            <pre class="bg-dark text-light p-3 rounded">${interpretedData}</pre>
                             
                             <h6>HEX 데이터</h6>
                             <pre class="bg-dark text-light p-3 rounded">${hexData}</pre>

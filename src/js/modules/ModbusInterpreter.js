@@ -63,11 +63,11 @@ export class ModbusInterpreter {
     
     /**
      * Modbus 패킷 해석
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      */
-    interpretPacket(packet) {
-        if (!packet) return null;
+    interpretPacket(parsedPacket) {
+        if (!parsedPacket) return null;
         
         const interpretation = {
             summary: '',
@@ -77,36 +77,36 @@ export class ModbusInterpreter {
         
         try {
             // 예외 응답 처리
-            if (packet.isError) {
-                return this._interpretExceptionResponse(packet, interpretation);
+            if (parsedPacket.isError) {
+                return this._interpretExceptionResponse(parsedPacket, interpretation);
             }
             
             // 함수 코드별 해석
-            const functionCode = packet.functionCode;
+            const functionCode = parsedPacket.functionCode;
             
             switch (functionCode) {
                 case 0x01: // Read Coils
                 case 0x02: // Read Discrete Inputs
-                    return this._interpretReadBits(packet, interpretation);
+                    return this._interpretReadBits(parsedPacket, interpretation);
                     
                 case 0x03: // Read Holding Registers
                 case 0x04: // Read Input Registers
-                    return this._interpretReadRegisters(packet, interpretation);
+                    return this._interpretReadRegisters(parsedPacket, interpretation);
                     
                 case 0x05: // Write Single Coil
-                    return this._interpretWriteSingleCoil(packet, interpretation);
+                    return this._interpretWriteSingleCoil(parsedPacket, interpretation);
                     
                 case 0x06: // Write Single Register
-                    return this._interpretWriteSingleRegister(packet, interpretation);
+                    return this._interpretWriteSingleRegister(parsedPacket, interpretation);
                     
                 case 0x0F: // Write Multiple Coils
-                    return this._interpretWriteMultipleCoils(packet, interpretation);
+                    return this._interpretWriteMultipleCoils(parsedPacket, interpretation);
                     
                 case 0x10: // Write Multiple Registers
-                    return this._interpretWriteMultipleRegisters(packet, interpretation);
+                    return this._interpretWriteMultipleRegisters(parsedPacket, interpretation);
                     
                 case 0x08: // Diagnostics
-                    return this._interpretDiagnostics(packet, interpretation);
+                    return this._interpretDiagnostics(parsedPacket, interpretation);
                     
                 default:
                     interpretation.summary = `${this.getFunctionName(functionCode)}`;
@@ -126,14 +126,14 @@ export class ModbusInterpreter {
     
     /**
      * 예외 응답 해석
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @param {Object} interpretation 해석 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      * @private
      */
-    _interpretExceptionResponse(packet, interpretation) {
-        const originalFunctionCode = packet.functionCode - 0x80;
-        const exceptionCode = packet.data[0];
+    _interpretExceptionResponse(parsedPacket, interpretation) {
+        const originalFunctionCode = parsedPacket.functionCode - 0x80;
+        const exceptionCode = parsedPacket.data[0];
         
         interpretation.summary = `예외 응답: ${this.getExceptionName(exceptionCode)}`;
         interpretation.details = {
@@ -153,14 +153,14 @@ export class ModbusInterpreter {
     
     /**
      * Read Coils/Discrete Inputs 해석 (함수 코드 0x01, 0x02)
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @param {Object} interpretation 해석 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      * @private
      */
-    _interpretReadBits(packet, interpretation) {
-        const functionCode = packet.functionCode;
-        const data = packet.data;
+    _interpretReadBits(parsedPacket, interpretation) {
+        const functionCode = parsedPacket.functionCode;
+        const data = parsedPacket.raw;
         const functionName = this.getFunctionName(functionCode);
         
         interpretation.summary = functionName;
@@ -220,14 +220,14 @@ export class ModbusInterpreter {
     
     /**
      * Read Holding/Input Registers 해석 (함수 코드 0x03, 0x04)
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @param {Object} interpretation 해석 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      * @private
      */
-    _interpretReadRegisters(packet, interpretation) {
-        const functionCode = packet.functionCode;
-        const data = packet.data;
+    _interpretReadRegisters(parsedPacket, interpretation) {
+        const functionCode = parsedPacket.functionCode;
+        const data = parsedPacket.raw;
         const functionName = this.getFunctionName(functionCode);
         
         interpretation.summary = functionName;
@@ -289,14 +289,14 @@ export class ModbusInterpreter {
     
     /**
      * Write Single Coil 해석 (함수 코드 0x05)
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @param {Object} interpretation 해석 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      * @private
      */
-    _interpretWriteSingleCoil(packet, interpretation) {
-        const data = packet.data;
-        const functionName = this.getFunctionName(packet.functionCode);
+    _interpretWriteSingleCoil(parsedPacket, interpretation) {
+        const data = parsedPacket.raw;
+        const functionName = this.getFunctionName(parsedPacket.functionCode);
         
         interpretation.summary = functionName;
         
@@ -324,14 +324,14 @@ export class ModbusInterpreter {
     
     /**
      * Write Single Register 해석 (함수 코드 0x06)
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @param {Object} interpretation 해석 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      * @private
      */
-    _interpretWriteSingleRegister(packet, interpretation) {
-        const data = packet.data;
-        const functionName = this.getFunctionName(packet.functionCode);
+    _interpretWriteSingleRegister(parsedPacket, interpretation) {
+        const data = parsedPacket.raw;
+        const functionName = this.getFunctionName(parsedPacket.functionCode);
         
         interpretation.summary = functionName;
         
@@ -358,14 +358,14 @@ export class ModbusInterpreter {
     
     /**
      * Write Multiple Coils 해석 (함수 코드 0x0F)
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @param {Object} interpretation 해석 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      * @private
      */
-    _interpretWriteMultipleCoils(packet, interpretation) {
-        const data = packet.data;
-        const functionName = this.getFunctionName(packet.functionCode);
+    _interpretWriteMultipleCoils(parsedPacket, interpretation) {
+        const data = parsedPacket.raw;
+        const functionName = this.getFunctionName(parsedPacket.functionCode);
         
         interpretation.summary = functionName;
         
@@ -432,14 +432,14 @@ export class ModbusInterpreter {
     
     /**
      * Write Multiple Registers 해석 (함수 코드 0x10)
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @param {Object} interpretation 해석 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      * @private
      */
-    _interpretWriteMultipleRegisters(packet, interpretation) {
-        const data = packet.data;
-        const functionName = this.getFunctionName(packet.functionCode);
+    _interpretWriteMultipleRegisters(parsedPacket, interpretation) {
+        const data = parsedPacket.raw;
+        const functionName = this.getFunctionName(parsedPacket.functionCode);
         
         interpretation.summary = functionName;
         
@@ -506,14 +506,14 @@ export class ModbusInterpreter {
     
     /**
      * Diagnostics 해석 (함수 코드 0x08)
-     * @param {Object} packet Modbus 패킷 객체
+     * @param {Object} parsedPacket Modbus 패킷 객체
      * @param {Object} interpretation 해석 객체
      * @returns {Object} 해석된 정보를 포함한 객체
      * @private
      */
-    _interpretDiagnostics(packet, interpretation) {
-        const data = packet.data;
-        const functionName = this.getFunctionName(packet.functionCode);
+    _interpretDiagnostics(parsedPacket, interpretation) {
+        const data = parsedPacket.raw;
+        const functionName = this.getFunctionName(parsedPacket.functionCode);
         
         interpretation.summary = functionName;
         

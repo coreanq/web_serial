@@ -34,48 +34,71 @@ export class ModbusParser {
         
         // 버퍼 및 상태 변수
         this.buffer = new Uint8Array(0);
-        this.packetTimeoutMs = 100; // 기본 패킷 타임아웃 (ms)
-        this.lastByteTime = 0;
+        this.rxPacketTimeoutMs = 10; // 기본 RX 패킷 타임아웃 (ms)
+        this.rxLastByteTime = 0;
+        this.txPacketTimeoutMs = 10; // 기본 TX 패킷 타임아웃 (ms) - 필요시 setTxPacketTimeout으로 조정
+        this.txLastByteTime = 0;
     }
     
     /**
-     * 패킷 타임아웃 설정
+     * RX 패킷 타임아웃 설정
      * @param {number} timeoutMs 타임아웃 (밀리초)
      */
-    setPacketTimeout(timeoutMs) {
-        this.packetTimeoutMs = timeoutMs;
+    setRxPacketTimeout(timeoutMs) {
+        this.rxPacketTimeoutMs = timeoutMs;
+    }
+
+    /**
+     * TX 패킷 타임아웃 설정
+     * @param {number} timeoutMs 타임아웃 (밀리초)
+     */
+    setTxPacketTimeout(timeoutMs) {
+        this.txPacketTimeoutMs = timeoutMs;
     }
     
     /**
      * 데이터를 버퍼에 추가하고 패킷 파싱 시도
-     * @param {Uint8Array} data 수신된 데이터
+     * @param {Uint8Array} rawData 수신된 데이터
      * @returns {Array} 파싱된 패킷 배열
      */
-    parseData(data) {
+    parseData(rawData, direction) {
         const now = Date.now();
-        
-        // 타임아웃 체크: 마지막 바이트 수신 후 타임아웃 시간이 지났으면 패킷 완성
-        if (this.buffer.length > 0 && (now - this.lastByteTime) > this.packetTimeoutMs) {
-            // 현재 버퍼에서 패킷 추출 시도
-            const packets = this._finalizePacket();
-            
-            // 새 데이터를 버퍼에 설정
-            this.buffer = new Uint8Array(data);
-            this.lastByteTime = now;
-            
-            return packets;
+        let packets = [];
+
+        if (direction === 'tx') {
+            this.txLastByteTime = now;
+            const txPacketObject = {
+                raw: rawData, 
+                hex: this.bytesToHexString(rawData),
+                direction: 'tx',
+                timestamp: now,
+                slaveAddress: rawData.length > 0 ? rawData[0] : undefined,
+                functionCode: rawData.length > 1 ? rawData[1] : undefined,
+                functionName: rawData.length > 1 ? this.getFunctionName(rawData[1]) : "N/A",
+                interpretedData: null // TX 데이터는 이 파서에서 해석하지 않음
+            };
+            return [txPacketObject]; // 배열 형태로 반환하여 RX 경로와 일관성 유지
         }
+
+        // --- RX Data Handling --- 
+        if (this.buffer.length > 0 && (now - this.rxLastByteTime) > this.rxPacketTimeoutMs) {
+            const oldPackets = this._finalizePacket();
+            packets = packets.concat(oldPackets);
+            if (this.buffer.length > 0) {
+                 this.buffer = new Uint8Array(0);
+            }
+        }
+
+        const newCombinedBuffer = new Uint8Array(this.buffer.length + rawData.length);
+        newCombinedBuffer.set(this.buffer);
+        newCombinedBuffer.set(rawData, this.buffer.length);
+        this.buffer = newCombinedBuffer;
+        this.rxLastByteTime = now;
+
+        const newPackets = this.extractPackets();
+        packets = packets.concat(newPackets);
         
-        // 새 데이터를 버퍼에 추가
-        const newBuffer = new Uint8Array(this.buffer.length + data.length);
-        newBuffer.set(this.buffer);
-        newBuffer.set(data, this.buffer.length);
-        this.buffer = newBuffer;
-        
-        this.lastByteTime = now;
-        
-        // 패킷 추출 시도
-        return this.extractPackets();
+        return packets;
     }
     
     /**
@@ -85,11 +108,9 @@ export class ModbusParser {
      */
     _finalizePacket() {
         if (this.buffer.length < 4) {
-            // Modbus-RTU 패킷의 최소 길이가 아님 (슬레이브 주소 + 함수 코드 + CRC 2바이트)
             return [];
         }
         
-        // 패킷 추출 시도
         return this.extractPackets();
     }
     
@@ -97,35 +118,26 @@ export class ModbusParser {
      * 버퍼에서 완전한 Modbus-RTU 패킷 추출
      * @returns {Array} 파싱된 패킷 배열
      */
-    extractPackets() {
+    extractPackets() { 
         const packets = [];
         
-        // 최소 패킷 길이 (슬레이브 주소 + 함수 코드 + CRC) = 4바이트
         while (this.buffer.length >= 4) {
-            // 패킷 길이 추정
             let packetLength = this.estimatePacketLength(this.buffer);
             
-            // 패킷 길이를 결정할 수 없거나 버퍼에 완전한 패킷이 없는 경우
             if (packetLength === -1 || packetLength > this.buffer.length) {
                 break;
             }
             
-            // 패킷 추출
             const packetData = this.buffer.slice(0, packetLength);
             
-            // CRC 검증
             const isValidCRC = this.validateCRC(packetData);
-            
-            // 패킷 파싱
-            const packet = this.parsePacket(packetData, isValidCRC);
-            if (packet) {
-                packets.push(packet);
+            const parsedPacket = this.parsePacket(packetData, isValidCRC, 'rx'); 
+            if (parsedPacket) {
+                packets.push(parsedPacket);
                 
-                // 디버깅용 로그
-                console.log('Modbus 패킷 감지:', packet);
+                console.log('Modbus 패킷 감지:', parsedPacket);
             }
             
-            // 처리된 패킷을 버퍼에서 제거
             this.buffer = this.buffer.slice(packetLength);
         }
         
@@ -142,37 +154,34 @@ export class ModbusParser {
         
         const functionCode = data[1];
         
-        // 오류 응답 (0x80 이상의 함수 코드)
         if (functionCode >= 0x80) {
-            return 5; // 슬레이브 주소(1) + 함수 코드(1) + 오류 코드(1) + CRC(2)
+            return 5; 
         }
         
-        // 함수 코드별 패킷 길이 추정
         switch (functionCode) {
-            case 0x01: // Read Coils
-            case 0x02: // Read Discrete Inputs
+            case 0x01: 
+            case 0x02: 
                 if (data.length < 3) return -1;
-                return 5 + data[2]; // 슬레이브 주소(1) + 함수 코드(1) + 바이트 수(1) + 데이터(n) + CRC(2)
+                return 5 + data[2]; 
                 
-            case 0x03: // Read Holding Registers
-            case 0x04: // Read Input Registers
+            case 0x03: 
+            case 0x04: 
                 if (data.length < 3) return -1;
-                return 5 + data[2]; // 슬레이브 주소(1) + 함수 코드(1) + 바이트 수(1) + 데이터(n) + CRC(2)
+                return 5 + data[2]; 
                 
-            case 0x05: // Write Single Coil
-            case 0x06: // Write Single Register
-                return 8; // 슬레이브 주소(1) + 함수 코드(1) + 주소(2) + 값(2) + CRC(2)
+            case 0x05: 
+            case 0x06: 
+                return 8; 
                 
-            case 0x0F: // Write Multiple Coils
-            case 0x10: // Write Multiple Registers
+            case 0x0F: 
+            case 0x10: 
                 if (data.length < 8) return -1;
-                return 9 + data[6]; // 슬레이브 주소(1) + 함수 코드(1) + 시작 주소(2) + 수량(2) + 바이트 수(1) + 데이터(n) + CRC(2)
+                return 9 + data[6]; 
                 
-            case 0x08: // Diagnostics
-                return 8; // 슬레이브 주소(1) + 함수 코드(1) + 서브함수(2) + 데이터(2) + CRC(2)
+            case 0x08: 
+                return 8; 
                 
             default:
-                // 알 수 없는 함수 코드는 최소 길이로 가정
                 return 8;
         }
     }
@@ -190,7 +199,6 @@ export class ModbusParser {
         
         const isValid = calculatedCRC === receivedCRC;
         
-        // 디버깅용 로그
         if (!isValid) {
             console.log(`CRC 오류: 계산값=${calculatedCRC.toString(16)}, 수신값=${receivedCRC.toString(16)}`);
         }
@@ -226,38 +234,59 @@ export class ModbusParser {
      * Modbus-RTU 패킷 파싱
      * @param {Uint8Array} data 패킷 데이터
      * @param {boolean} isValidCRC CRC 유효 여부
+     * @param {string} direction 데이터 방향 ('rx' 또는 'tx')
      * @returns {Object} 파싱된 패킷 정보
      */
-    parsePacket(data, isValidCRC) {
-        if (data.length < 4) return null;
-        
+    parsePacket(data, isValidCRC, direction = 'rx') {
+        if (direction === 'rx' && data.length < 4) return null;
+        if (data.length === 0) return null; 
+
         const slaveAddress = data[0];
-        const functionCode = data[1];
-        const timestamp = new Date().toLocaleTimeString();
+        const functionCode = data.length > 1 ? data[1] : undefined; 
         
-        // 패킷 기본 정보
+        const payload = (direction === 'rx' && data.length >= 4) ? data.slice(2, data.length - 2) :
+                        (direction === 'tx' && data.length >= 2) ? data.slice(2) : new Uint8Array(0);
+        
+        let crcReceivedHex = "N/A";
+        let crcCalculatedHex = "N/A";
+        let actualIsValidCRC = direction === 'tx'; 
+
+        if (direction === 'rx') {
+            if (data.length >= 2) { 
+                const crcReceived = (data[data.length - 2] << 8) | data[data.length - 1];
+                crcReceivedHex = this.toHexString(crcReceived, 4);
+                const crcCalculated = this.calculateCRC16(data.slice(0, data.length - 2));
+                crcCalculatedHex = this.toHexString(crcCalculated, 4);
+            }
+            actualIsValidCRC = isValidCRC; 
+        }
+
         const packet = {
-            timestamp,
+            raw: data,
+            hex: this.bytesToHexString(data),
             slaveAddress,
             functionCode,
-            functionName: this.getFunctionName(functionCode),
-            data: Array.from(data.slice(2, data.length - 2)),
-            crc: {
-                value: (data[data.length - 1] << 8) | data[data.length - 2],
-                isValid: isValidCRC
-            },
-            rawData: Array.from(data),
-            isError: functionCode >= 0x80
+            functionName: functionCode !== undefined ? this.getFunctionName(functionCode) : "N/A",
+            payload, 
+            crcReceived: crcReceivedHex,
+            crcCalculated: crcCalculatedHex,
+            isValidCRC: actualIsValidCRC,
+            direction,
+            timestamp: Date.now(),
+            interpreted: null,
+            isError: direction === 'rx' && functionCode !== undefined && functionCode >= 0x80
         };
-        
-        // 오류 응답 처리
-        if (packet.isError) {
-            const errorCode = data[2];
-            packet.errorCode = errorCode;
-            packet.errorMessage = this.errorCodes[errorCode] || "Unknown Error";
-        } else {
-            // 함수 코드별 데이터 해석
-            this._interpretFunctionData(packet);
+
+        if (direction === 'rx') {
+            if (packet.isError) {
+                if (payload.length > 0) { 
+                    const errorCode = payload[0];
+                    packet.errorCode = errorCode;
+                    packet.errorMessage = this.errorCodes[errorCode] || "Unknown Error";
+                }
+            } else if (packet.isValidCRC) {
+                this._interpretFunctionData(packet); 
+            }
         }
         
         return packet;
@@ -270,7 +299,7 @@ export class ModbusParser {
      */
     _interpretFunctionData(packet) {
         const functionCode = packet.functionCode;
-        const data = packet.data;
+        const data = packet.payload;
         
         // 해석된 데이터를 저장할 객체
         packet.interpreted = {};
@@ -291,7 +320,7 @@ export class ModbusParser {
                         }
                     }
                     
-                    packet.interpreted = {
+                    packet.interpretedData = {
                         byteCount,
                         values
                     };
@@ -312,7 +341,7 @@ export class ModbusParser {
                         }
                     }
                     
-                    packet.interpreted = {
+                    packet.interpretedData = {
                         byteCount,
                         registers
                     };
@@ -324,7 +353,7 @@ export class ModbusParser {
                     const address = (data[0] << 8) | data[1];
                     const value = (data[2] === 0xFF && data[3] === 0x00) ? 1 : 0;
                     
-                    packet.interpreted = {
+                    packet.interpretedData = {
                         address,
                         value
                     };
@@ -336,7 +365,7 @@ export class ModbusParser {
                     const address = (data[0] << 8) | data[1];
                     const value = (data[2] << 8) | data[3];
                     
-                    packet.interpreted = {
+                    packet.interpretedData = {
                         address,
                         value
                     };
@@ -349,7 +378,7 @@ export class ModbusParser {
                     const address = (data[0] << 8) | data[1];
                     const quantity = (data[2] << 8) | data[3];
                     
-                    packet.interpreted = {
+                    packet.interpretedData = {
                         address,
                         quantity
                     };

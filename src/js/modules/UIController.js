@@ -192,15 +192,15 @@ export class UIController {
             
             // Modbus 패킷 파싱 시도
             if (direction === 'rx') {
-                const packets = this.modbusParser.parseData(binaryData);
+                const packets = this.modbusParser.parseData(binaryData, 'rx');
                 packets.forEach(packet => {
                     console.log('RX Packet:', packet);
                     this.logManager.addPacketToLog(packet, 'RX');
                 });
             } else if (direction === 'tx') {
-                const packets = this.modbusParser.parseData(binaryData);
+                const packets = this.modbusParser.parseData(binaryData, 'tx');
                 packets.forEach(packet => {
-                    console.log('TX Packet:', packet);
+                    console.log('TX Packet', packet);
                     this.logManager.addPacketToLog(packet, 'TX');
                 });
             }
@@ -318,13 +318,8 @@ export class UIController {
                 this.elements.messageInput.value = '';
             this.elements.messageInput.focus();
             }
-            
-            // 전송한 데이터를 Modbus 패킷으로 처리
-            const txData = this.serialManager.getLastTxData();
-            if (txData && txData.length > 0) {
-                console.log('TX Data:', txData);
-                this.logManager.addPacketToLog(txData, 'TX');
-            }
+            // add log 의 경우 _onDataReceived()를 호출하여 addPacketToLog()을 호출하므로 필요 없음 
+
         } catch (error) {
             console.error('메시지 전송 오류:', error);
             this.updateConnectionStatus(`전송 오류: ${error.message}`, true);
