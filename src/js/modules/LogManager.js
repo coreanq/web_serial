@@ -98,7 +98,8 @@ export class LogManager {
             timestamp,
             direction,
             packet: parsedPacket, // 파싱된 패킷 객체를 저장
-            interpretation
+            interpretation, 
+            rawBytes: packetData
         };
         
 
@@ -118,62 +119,83 @@ export class LogManager {
      * @param {Object} packetInfo 패킷 정보
      */
     displayPacket(packetInfo) {
-        const { timestamp, direction, packet, interpretation } = packetInfo;
-        
-        console.log("packetInfo", packetInfo )
-        
+        const { timestamp, direction, packet, interpretation, rawBytes } = packetInfo;
         const row = document.createElement('tr');
         row.className = direction === 'TX' ? 'table-primary' : 'table-success';
-        
-        // 파싱된 패킷 객체에서 정보 추출
-        const slaveAddress = packet.slaveAddress !== undefined ? packet.slaveAddress : '';
-        const functionCode = packet.functionCode !== undefined ? packet.functionCode : '';
-        
-        // 데이터 바이트 표시 (packet.data는 이미 숫자 배열)
-        const dataHex = packet.data && Array.isArray(packet.data) ? 
-            packet.data.map(b => b.toString(16).padStart(2, '0')).join(' ') : '';
-        
-        // CRC 값 추출 (packet.crc.value는 이미 계산된 CRC 숫자)
-        const crcHex = packet.crc && packet.crc.value !== undefined ?
-            packet.crc.value.toString(16).padStart(4, '0') : '';
 
-        // CRC 유효성
-        const crcStatus = packet.crc && packet.crc.isValid ? 'Valid' : 'Invalid';
+        let fullPacketBytes = [];
+        if (rawBytes && Array.isArray(rawBytes)) {
+            fullPacketBytes = [...rawBytes];
+        } else if (packet && typeof packet.slaveAddress === 'number' && typeof packet.functionCode === 'number') {
+            fullPacketBytes.push(packet.slaveAddress);
+            fullPacketBytes.push(packet.functionCode);
+            if (Array.isArray(packet.data)) {
+                fullPacketBytes.push(...packet.data);
+            }
+            if (packet.crc && typeof packet.crc.value === 'number') {
+                fullPacketBytes.push(packet.crc.value & 0xFF);      // CRC Low
+                fullPacketBytes.push((packet.crc.value >> 8) & 0xFF); // CRC High
+            }
+        } else {
+            console.warn("Cannot construct fullPacketBytes from packetInfo:", packetInfo);
+        }
         
-        console.log( "slaveAddress", slaveAddress)
-        console.log( "functionCode", functionCode)
-        console.log( "dataHex", dataHex)
-        console.log( "crcHex", crcHex)
-        console.log( "crcStatus", crcStatus)
-        
+        // Store fullPacketBytes in packetInfo for potential use in _showPacketDetails
+        packetInfo.fullPacketBytes = fullPacketBytes; 
+
+        const hexSendCheckbox = document.getElementById('hexSend');
+        const isHexSendChecked = hexSendCheckbox ? hexSendCheckbox.checked : false;
+
+        const hexStrWithDec = this._bytesToHexString(fullPacketBytes); // 수정된 함수 사용
+        const asciiStr = this._bytesToAsciiString(fullPacketBytes);
+        // const decStr = this._bytesToDecimalString(fullPacketBytes); // 이 줄은 더 이상 필요 없음
+
+        let packetDataHtml = `
+            <table class="packet-data-table" style="width: 100%; border-collapse: collapse;">
+        `;
+
+        if (isHexSendChecked) { // 송신 시 HEX 우선
+            packetDataHtml += `
+                <tr>
+                    <td style="font-weight: bold; width: 45px; padding-right: 5px; vertical-align: top;">HEX:</td>
+                    <td style="word-break: break-all; vertical-align: top;">${hexStrWithDec}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold; width: 45px; padding-right: 5px; vertical-align: top;">ASC:</td>
+                    <td style="word-break: break-all; vertical-align: top;">${asciiStr}</td>
+                </tr>
+            `;
+        } else { // 수신 시 또는 기본 ASC 우선
+            packetDataHtml += `
+                <tr>
+                    <td style="font-weight: bold; width: 45px; padding-right: 5px; vertical-align: top;">ASC:</td>
+                    <td style="word-break: break-all; vertical-align: top;">${asciiStr}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold; width: 45px; padding-right: 5px; vertical-align: top;">HEX:</td>
+                    <td style="word-break: break-all; vertical-align: top;">${hexStrWithDec}</td>
+                </tr>
+            `;
+        }
+        packetDataHtml += '</table>';
+
         row.innerHTML = `
             <td><input type="checkbox" class="packet-select"></td>
             <td>${timestamp.toLocaleTimeString()}</td>
             <td>${direction}</td>
-            <td>${slaveAddress}</td>
-            <td>${functionCode} (0x${Number(functionCode).toString(16).padStart(2, '0')})</td>
-            <td>${dataHex}</td>
-            <td>${crcHex}</td>
-            <td>${crcStatus}</td>
+            <td>${packetDataHtml}</td>
         `;
+
+        // Add interpretation as a tooltip if available
+        if (interpretation) {
+            row.title = interpretation;
+        }
         
-        // 패킷 해석 정보 툴팁으로 추가
-        row.title = interpretation;
-        
-        // 패킷 상세 정보 표시를 위한 클릭 이벤트 추가
-        row.addEventListener('click', (e) => {
-            // 체크박스 클릭은 무시
-            if (e.target.type === 'checkbox') return;
-            
-            // 패킷 상세 정보 표시
-            this._showPacketDetails(packetInfo);
-        });
-        
+        row.addEventListener('click', () => this._showPacketDetails(packetInfo));
+
         this.logTableBody.appendChild(row);
-        
-        // 자동 스크롤 처리
-        if (this.autoScroll) {
-            this._scrollToBottom();
+        if (this.autoScrollCheckbox.checked) {
+            this.logContainer.scrollTop = this.logContainer.scrollHeight;
         }
     }
     
@@ -182,11 +204,11 @@ export class LogManager {
      * @param {Object} packetInfo 패킷 정보
      */
     _showPacketDetails(packetInfo) {
-        const { direction, packet, interpretation } = packetInfo;
+        const { direction, packet, interpretation, fullPacketBytes } = packetInfo;
         
         // 패킷 데이터를 HEX와 ASCII로 표시
-        const hexData = Array.from(packet).map(b => b.toString(16).padStart(2, '0')).join(' ');
-        let asciiData = Array.from(packet).map(b => {
+        const hexData = Array.from(fullPacketBytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        let asciiData = Array.from(fullPacketBytes).map(b => {
             // 출력 가능한 ASCII 문자만 표시
             if (b >= 32 && b <= 126) {
                 return String.fromCharCode(b);
@@ -379,5 +401,61 @@ export class LogManager {
      */
     getLogData() {
         return this.packets;
+    }
+
+    /**
+     * 바이트 배열을 16진수 문자열로 변환합니다.
+     * @param {Uint8Array} bytes - 변환할 바이트 배열
+     * @returns {string} 16진수 문자열 (예: "0A 1B 2C")
+     */
+    _bytesToHexString(bytes) {
+        if (!bytes) return '';
+        return Array.from(bytes).map(byte => {
+            const hex = byte.toString(16).padStart(2, '0').toUpperCase();
+            const dec = byte.toString(10);
+            return `${hex}<span style="color: gray;">(${dec})</span>`; // 공백 제거 및 span 추가
+        }).join(' '); // 각 바이트 표현 사이에는 공백 유지
+    }
+
+    /**
+     * 바이트 배열을 10진수 문자열로 변환합니다.
+     * @param {Uint8Array} bytes - 변환할 바이트 배열
+     * @returns {string} 10진수 문자열 (예: "10 27 44")
+     */
+    _bytesToDecimalString(bytes) {
+        if (!bytes) return '';
+        return Array.from(bytes).map(byte => byte.toString(10)).join(' ');
+    }
+
+    /**
+     * 바이트 배열을 ASCII 문자열로 변환합니다. 
+     * 제어 문자는 Symbolic 이름으로 표시하고, 제어 문자임을 시각적으로 표시합니다.
+     * @param {Uint8Array} bytes - 변환할 바이트 배열
+     * @returns {string} ASCII 문자열 (제어 문자는 [NAME] 형식으로 표시)
+     */
+    _bytesToAsciiString(bytes) {
+        if (!bytes) return '';
+        
+        // ASCII 제어 문자와 해당 이름 매핑 (0-31, 127)
+        const controlChars = {
+            0: 'NUL', 1: 'SOH', 2: 'STX', 3: 'ETX', 4: 'EOT', 5: 'ENQ', 6: 'ACK', 7: 'BEL',
+            8: 'BS', 9: 'HT', 10: 'LF', 11: 'VT', 12: 'FF', 13: 'CR', 14: 'SO', 15: 'SI',
+            16: 'DLE', 17: 'DC1', 18: 'DC2', 19: 'DC3', 20: 'DC4', 21: 'NAK', 22: 'SYN', 23: 'ETB',
+            24: 'CAN', 25: 'EM', 26: 'SUB', 27: 'ESC', 28: 'FS', 29: 'GS', 30: 'RS', 31: 'US',
+            127: 'DEL'
+        };
+        
+        return Array.from(bytes).map(byte => {
+            if (byte >= 32 && byte <= 126) {
+                // 출력 가능한 ASCII 문자
+                return String.fromCharCode(byte);
+            } else if (controlChars[byte] !== undefined) {
+                // 제어 문자인 경우 [NAME] 형식으로 표시하고 제어 문자임을 시각적으로 표시
+                return `<span class="control-char" title="Control Character: ${controlChars[byte]} (${byte})">[${controlChars[byte]}]</span>`;
+            } else {
+                // 그 외의 바이트 (128-255) -> 확장 ASCII는 그대로 표시
+                return String.fromCharCode(byte);
+            }
+        }).join('');
     }
 }

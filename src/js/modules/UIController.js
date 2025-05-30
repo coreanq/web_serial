@@ -316,7 +316,7 @@ export class UIController {
             // 메시지 입력창 초기화
             if (!this.elements.loopSend.checked) {
                 this.elements.messageInput.value = '';
-                this.elements.messageInput.focus();
+            this.elements.messageInput.focus();
             }
             
             // 전송한 데이터를 Modbus 패킷으로 처리

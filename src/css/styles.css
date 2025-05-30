@@ -88,6 +88,24 @@ body {
     background: #6c757d;
 }
 
+/* Control character styles */
+.control-char {
+    color: #ff6b6b;
+    font-weight: bold;
+    background-color: rgba(255, 107, 107, 0.1);
+    padding: 0 2px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    cursor: help;
+    position: relative;
+    display: inline-block;
+}
+
+.control-char:hover {
+    background-color: rgba(255, 107, 107, 0.2);
+    border-color: rgba(255, 107, 107, 0.5);
+}
+
 /* Status indicators */
 .status-connected {
     color: #198754;
