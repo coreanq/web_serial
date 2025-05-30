@@ -115,7 +115,7 @@ export class LogManager {
         console.log("displayPacket packetInfo", packetInfo);
 
         const row = document.createElement('tr');
-        row.className = direction === 'TX' ? 'table-primary' : 'table-success';
+        row.className = direction === 'tx' ? 'table-primary' : 'table-success';
 
         let fullPacketBytes = [];
         if (raw instanceof Uint8Array) {
