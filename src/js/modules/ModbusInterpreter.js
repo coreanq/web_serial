@@ -59,8 +59,18 @@ export class ModbusInterpreter {
             0x0012: "Return Bus Character Overrun Count (0012h)",
             0x0014: "Clear Overrun Counter and Flag (0014h)"
         };
+        this.packetTimeout = 1000; // Default packet timeout in ms
     }
     
+    /**
+     * Modbus 패킷 타임아웃 설정
+     * @param {number} timeout 패킷 타임아웃 (ms)
+     */
+    setPacketTimeout(timeout) {
+        this.packetTimeout = timeout;
+        // console.log(`ModbusInterpreter: Packet timeout set to ${timeout}ms`); // 디버깅용
+    }
+
     /**
      * Modbus 패킷 해석
      * @param {Object} parsedPacket Modbus 패킷 객체
