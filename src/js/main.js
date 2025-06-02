@@ -34,8 +34,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 클래스 인스턴스 생성
     const serialManager = new SerialManager(appState);
-    const modbusParser = new ModbusParser();
-    const modbusInterpreter = new ModbusInterpreter();
+
+    // Packet Timeout 초기 값 읽기 (UIController 생성 전)
+    const packetTimeoutInput = document.getElementById('packetTimeout');
+    const initialPacketTimeout = packetTimeoutInput ? parseInt(packetTimeoutInput.value, 10) : 1000; // 기본값 1000ms
+
+    const modbusParser = new ModbusParser(initialPacketTimeout, initialPacketTimeout); // rx, tx 동일하게 설정
+    const modbusInterpreter = new ModbusInterpreter(initialPacketTimeout);
     const dataStorage = new DataStorage(appState);
     const logManager = new LogManager(modbusInterpreter, modbusParser);
     const dataExporter = new DataExporter();

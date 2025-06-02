@@ -3,7 +3,7 @@
  * Modbus-RTU 프로토콜 패킷을 파싱하는 모듈
  */
 export class ModbusParser {
-    constructor() {
+    constructor(rxPacketTimeoutMs = 10, txPacketTimeoutMs = 10) {
         // Modbus 함수 코드 정의
         this.functionCodes = {
             1: "Read Coils (01h)",
@@ -34,27 +34,13 @@ export class ModbusParser {
         
         // 버퍼 및 상태 변수
         this.buffer = new Uint8Array(0);
-        this.rxPacketTimeoutMs = 10; // 기본 RX 패킷 타임아웃 (ms)
+        this.rxPacketTimeoutMs = rxPacketTimeoutMs;
         this.rxLastByteTime = 0;
-        this.txPacketTimeoutMs = 10; // 기본 TX 패킷 타임아웃 (ms) - 필요시 setTxPacketTimeout으로 조정
+        this.txPacketTimeoutMs = txPacketTimeoutMs;
         this.txLastByteTime = 0;
     }
     
-    /**
-     * RX 패킷 타임아웃 설정
-     * @param {number} timeoutMs 타임아웃 (밀리초)
-     */
-    setRxPacketTimeout(timeoutMs) {
-        this.rxPacketTimeoutMs = timeoutMs;
-    }
 
-    /**
-     * TX 패킷 타임아웃 설정
-     * @param {number} timeoutMs 타임아웃 (밀리초)
-     */
-    setTxPacketTimeout(timeoutMs) {
-        this.txPacketTimeoutMs = timeoutMs;
-    }
     
     /**
      * 데이터를 버퍼에 추가하고 패킷 파싱 시도

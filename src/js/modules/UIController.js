@@ -20,9 +20,9 @@ export class UIController {
      */
     constructor(serialManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter, messageSender) {
         this.messageSender = messageSender; // MessageSender 인스턴스 주입
+        this.modbusParser = modbusParser; // ModbusParser 인스턴스 저장
+        this.modbusInterpreter = modbusInterpreter; // ModbusInterpreter 인스턴스 저장
         this.serialManager = serialManager;
-        this.modbusParser = modbusParser;
-        this.modbusInterpreter = modbusInterpreter;
         this.dataStorage = dataStorage;
         this.appState = appState;
         this.logManager = logManager;
@@ -140,26 +140,23 @@ export class UIController {
             element.addEventListener('change', () => {
                 // 연결 설정이 변경되면 현재 설정을 표시
                 this.updateConnectionSettingsSummary();
+                this.updatePacketTimeouts(); // 초기 값으로 parser와 interpreter 업데이트
             });
         });
         
         // 패킷 타임아웃 설정 변경 이벤트 처리
         this.elements.packetTimeout.addEventListener('change', () => {
-            const packetTimeout = parseInt(this.elements.packetTimeout.value, 10);
-            
-            // 연결된 상태에서만 즉시 적용
-            if (this.serialManager.isConnected()) {
-                this.modbusParser.setPacketTimeout(packetTimeout);
-                this.updateConnectionStatus(`패킷 타임아웃 설정됨: ${packetTimeout}ms`, false);
-            }
+            this.updatePacketTimeouts();
         });
         
         // 로그 지우기 버튼
-        this.elements.clearBtn.addEventListener('click', () => {
-            this.elements.logTableBody.innerHTML = '';
-            // TODO: LogManager를 통해 로그 데이터도 실제로 비우도록 수정 필요
-        });
-        
+        this.elements.clearBtn.addEventListener('click', () => this.logManager.clearLog());
+
+        // 패킷 타임아웃 설정 변경 이벤트 처리
+        if (this.elements.packetTimeout) {
+            this.elements.packetTimeout.addEventListener('change', () => this.updatePacketTimeouts());
+        }
+
         // 시리얼 연결 상태 변경 리스너
         this.serialManager.onConnectionChange((isConnected, message) => {
             this.updateConnectionUI(isConnected);
@@ -187,6 +184,11 @@ export class UIController {
             }
         });
         
+        // 패킷 타임아웃 설정 변경 이벤트 처리
+        if (this.elements.packetTimeout) {
+            this.elements.packetTimeout.addEventListener('change', () => this.updatePacketTimeouts());
+        }
+
         // 시리얼 오류 리스너
         this.serialManager.onError((error) => {
             this.updateConnectionStatus(`오류: ${error.message}`, true);
@@ -194,6 +196,7 @@ export class UIController {
         
         // 초기 UI 상태 설정
         this.updateConnectionUI(false);
+        this.updatePacketTimeouts(); // 초기 값으로 parser와 interpreter 업데이트
     }
     
     /**
@@ -222,7 +225,7 @@ export class UIController {
                 
                 // 패킷 타임아웃 설정 적용
                 const packetTimeout = parseInt(this.elements.packetTimeout.value, 10);
-                this.modbusParser.setPacketTimeout(packetTimeout);
+                this.updatePacketTimeouts();
                 
                 // 연결 상태 표시
                 this.updateConnectionStatus(`연결됨: ${options.baudRate} baud, ${options.dataBits}${options.parity.charAt(0).toUpperCase()}${options.stopBits}`, false);
@@ -272,6 +275,31 @@ export class UIController {
         } catch (error) {
             this.updateConnectionStatus(`연결 해제 오류: ${error.message}`, true);
             return false;
+        }
+    }
+
+    /**
+     * 패킷 타임아웃 UI 요소의 값에 따라 ModbusParser와 ModbusInterpreter의 타임아웃 값을 업데이트합니다.
+     */
+    updatePacketTimeouts() {
+        if (!this.elements.packetTimeout) return;
+
+        const timeoutValue = parseInt(this.elements.packetTimeout.value, 10);
+        if (isNaN(timeoutValue) || timeoutValue <= 0) {
+            console.error("UIController: Invalid packet timeout value:", this.elements.packetTimeout.value);
+            // 유효하지 않은 경우, UI 값을 이전 유효 값으로 되돌리거나 기본값을 설정할 수 있습니다.
+            // 예: if (this.modbusParser && this.modbusParser.rxPacketTimeoutMs) this.elements.packetTimeout.value = this.modbusParser.rxPacketTimeoutMs;
+            return;
+        }
+
+        if (this.modbusParser) {
+            this.modbusParser.rxPacketTimeoutMs = timeoutValue;
+            this.modbusParser.txPacketTimeoutMs = timeoutValue; // UI에서는 하나의 값만 제공하므로 동일하게 설정
+            // console.log(`UIController: ModbusParser timeouts updated to ${timeoutValue}ms`);
+        }
+        if (this.modbusInterpreter) {
+            this.modbusInterpreter.packetTimeoutMs = timeoutValue;
+            // console.log(`UIController: ModbusInterpreter timeout updated to ${timeoutValue}ms`);
         }
     }
     

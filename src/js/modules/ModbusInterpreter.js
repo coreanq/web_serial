@@ -3,7 +3,7 @@
  * Modbus 함수 코드 및 데이터를 해석하여 사용자가 이해하기 쉬운 정보를 제공하는 모듈
  */
 export class ModbusInterpreter {
-    constructor() {
+    constructor(packetTimeoutMs = 1000) {
         // 표준 Modbus 함수 코드 정의
         this.functionCodes = {
             0x01: "Read Coils (01h)",
@@ -59,17 +59,10 @@ export class ModbusInterpreter {
             0x0012: "Return Bus Character Overrun Count (0012h)",
             0x0014: "Clear Overrun Counter and Flag (0014h)"
         };
-        this.packetTimeout = 1000; // Default packet timeout in ms
+        this.packetTimeoutMs = packetTimeoutMs; // Default packet timeout in ms
     }
     
-    /**
-     * Modbus 패킷 타임아웃 설정
-     * @param {number} timeout 패킷 타임아웃 (ms)
-     */
-    setPacketTimeout(timeout) {
-        this.packetTimeout = timeout;
-        // console.log(`ModbusInterpreter: Packet timeout set to ${timeout}ms`); // 디버깅용
-    }
+
 
     /**
      * Modbus 패킷 해석
