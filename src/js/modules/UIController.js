@@ -18,11 +18,12 @@ export class UIController {
      * @param {DataExporter} dataExporter 데이터 내보내기 인스턴스
      * @param {MessageSender} messageSender 메시지 전송자 인스턴스
      */
-    constructor(serialManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter, messageSender) {
+    constructor(serialManager, tcpManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter, messageSender) {
+        this.serialManager = serialManager;
+        this.tcpManager = tcpManager;
         this.messageSender = messageSender; // MessageSender 인스턴스 주입
         this.modbusParser = modbusParser; // ModbusParser 인스턴스 저장
         this.modbusInterpreter = modbusInterpreter; // ModbusInterpreter 인스턴스 저장
-        this.serialManager = serialManager;
         this.dataStorage = dataStorage;
         this.appState = appState;
         this.logManager = logManager;
@@ -49,7 +50,23 @@ export class UIController {
             exportBtn: document.getElementById('exportBtn'),
             logType: document.getElementById('logType'),
             autoScroll: document.getElementById('autoScroll'),
-            packetTimeout: document.getElementById('packetTimeout'),
+            // packetTimeout: document.getElementById('packetTimeout'), // responseTimeout으로 대체됨
+
+            // 새로운 연결 UI 요소들
+            connectionType: document.getElementById('connectionType'),
+            serialSettingsContainer: document.getElementById('serialSettingsContainer'),
+            tcpSettingsContainer: document.getElementById('tcpSettingsContainer'),
+            ipAddress: document.getElementById('ipAddress'),
+            serverPort: document.getElementById('serverPort'),
+            connectTimeoutTcp: document.getElementById('connectTimeoutTcp'),
+            ipv4: document.getElementById('ipv4'),
+            ipv6: document.getElementById('ipv6'),
+            connectTcpBtn: document.getElementById('connectTcpBtn'),
+            commonModbusSettingsContainer: document.getElementById('commonModbusSettingsContainer'),
+            modbusRtuMode: document.getElementById('modbusRtuMode'),
+            modbusAsciiMode: document.getElementById('modbusAsciiMode'),
+            responseTimeout: document.getElementById('responseTimeout'), // 기존 packetTimeout 대체
+            delayBetweenPolls: document.getElementById('delayBetweenPolls'),
             
             // 메시지 입력 영역
             messageInput: document.getElementById('messageInput'),
@@ -67,12 +84,49 @@ export class UIController {
         
         // 상태 변수
         this.loopSendIntervalId = null;
+        this.isInitialized = false;
+    }
+    
+    setSerialManager(serialManager) {
+        this.serialManager = serialManager;
+        if (this.serialManager && this.isInitialized) { // init 이후에 설정될 경우 대비
+            this.serialManager.onData(this.handleSerialData.bind(this));
+            this.serialManager.onError(this.handleSerialError.bind(this));
+        }
+    }
+
+    setTcpManager(tcpManager) {
+        this.tcpManager = tcpManager;
+        if (this.tcpManager && this.isInitialized) { // init 이후에 설정될 경우 대비
+            this.tcpManager.onData(this.handleTcpData.bind(this));
+            this.tcpManager.onError(this.handleTcpError.bind(this));
+            this.tcpManager.onClose(this.handleTcpClose.bind(this));
+        }
+    }
+
+    setMessageSender(messageSender) {
+        this.messageSender = messageSender;
     }
     
     /**
      * UI 초기화 및 이벤트 리스너 설정
      */
     init() {
+        this.isInitialized = true;
+        // Connection Type 변경 이벤트 리스너
+        if (this.elements.connectionType) {
+            this.elements.connectionType.addEventListener('change', (event) => {
+                const type = event.target.value;
+                if (type === 'serial') {
+                    this.elements.serialSettingsContainer.style.display = 'block';
+                    this.elements.tcpSettingsContainer.style.display = 'none';
+                } else if (type === 'tcp') {
+                    this.elements.serialSettingsContainer.style.display = 'none';
+                    this.elements.tcpSettingsContainer.style.display = 'block';
+                }
+            });
+        }
+
         // 시리얼 포트 선택 버튼
         this.elements.selectPortBtn.addEventListener('click', async () => {
             try {
@@ -144,10 +198,12 @@ export class UIController {
             });
         });
         
-        // 패킷 타임아웃 설정 변경 이벤트 처리
-        this.elements.packetTimeout.addEventListener('change', () => {
-            this.updatePacketTimeouts();
-        });
+        // 응답 타임아웃 설정 변경 이벤트 처리 (기존 packetTimeout)
+        if (this.elements.responseTimeout) {
+            this.elements.responseTimeout.addEventListener('change', () => {
+                this.updatePacketTimeouts();
+            });
+        }
         
         // 로그 지우기 버튼
         this.elements.clearBtn.addEventListener('click', () => this.logManager.clearLog());
@@ -197,6 +253,19 @@ export class UIController {
         // 초기 UI 상태 설정
         this.updateConnectionUI(false);
         this.updatePacketTimeouts(); // 초기 값으로 parser와 interpreter 업데이트
+        
+        // TCP/IP 연결 버튼 이벤트 리스너
+        if (this.elements.connectTcpBtn) {
+            this.elements.connectTcpBtn.addEventListener('click', async () => {
+                // TODO: 현재 TCP 연결 상태 확인 로직 필요 (예: this.tcpManager.isConnected())
+                const isTcpConnected = false; // 임시 값
+                if (isTcpConnected) {
+                    await this.disconnectTcpIp();
+                } else {
+                    await this.connectTcpIp();
+                }
+            });
+        }
     }
     
     /**
@@ -215,6 +284,12 @@ export class UIController {
                 bufferSize: parseInt(this.elements.buffer.value, 10)
             };
             
+            // 공통 Modbus 설정 읽기
+            const modbusMode = this.elements.modbusRtuMode && this.elements.modbusRtuMode.checked ? 'rtu' : 'ascii';
+            const delayBetweenPolls = this.elements.delayBetweenPolls ? parseInt(this.elements.delayBetweenPolls.value, 10) : 1000;
+            console.log(`Serial Connect - Modbus Mode: ${modbusMode}, Delay: ${delayBetweenPolls}ms`);
+            // TODO: 이 값들을 실제 Modbus 통신 로직에 활용
+
             // 연결 시도
             const connected = await this.serialManager.connect(options);
             
@@ -279,16 +354,128 @@ export class UIController {
     }
 
     /**
+     * TCP/IP 연결
+     * @returns {Promise<boolean>} 연결 성공 여부
+     */
+    async connectTcpIp() {
+        if (!this.tcpManager) {
+            this.updateConnectionStatus('TCP Manager가 초기화되지 않았습니다.', true);
+            return false;
+        }
+        this.updateConnectionStatus('TCP/IP 연결 시도 중...', false);
+        this.elements.connectTcpBtn.disabled = true;
+
+        const options = {
+            ipAddress: this.elements.ipAddress.value,
+            port: parseInt(this.elements.serverPort.value, 10),
+            connectTimeout: parseInt(this.elements.connectTimeoutTcp.value, 10),
+            ipVersion: this.elements.ipv4.checked ? 'ipv4' : 'ipv6',
+            modbusMode: this.elements.modbusRtuMode && this.elements.modbusRtuMode.checked ? 'rtu' : 'ascii',
+            delayBetweenPolls: this.elements.delayBetweenPolls ? parseInt(this.elements.delayBetweenPolls.value, 10) : 1000
+        };
+        // responseTimeout은 MessageSender 또는 ModbusParser/Interpreter에서 직접 사용
+
+        if (!options.ipAddress || isNaN(options.port) || options.port <= 0 || isNaN(options.connectTimeout)) {
+            this.updateConnectionStatus('TCP/IP 설정 오류: IP 주소, 포트, 연결 타임아웃을 확인하세요.', true);
+            this.elements.connectTcpBtn.disabled = false;
+            return false;
+        }
+
+        const connected = await this.tcpManager.connect(options);
+        this.updateConnectionUI(connected);
+        if (connected) {
+            this.elements.connectTcpBtn.textContent = 'Disconnect TCP/IP';
+            this.elements.connectTcpBtn.classList.replace('btn-success', 'btn-danger');
+        } else {
+            // 연결 실패 시 TcpManager의 onError 또는 onClose에서 상태 메시지 업데이트
+            // updateConnectionUI(false)는 TcpManager의 콜백에서 호출될 수 있음
+        }
+        this.elements.connectTcpBtn.disabled = false; // 연결 시도 후 버튼 항상 활성화
+        return connected;
+    }
+
+    /**
+     * TCP/IP 연결 해제
+     * @returns {Promise<boolean>} 연결 해제 성공 여부
+     */
+    async disconnectTcpIp() {
+        if (!this.tcpManager) {
+            this.updateConnectionStatus('TCP Manager가 초기화되지 않았습니다.', true);
+            return false;
+        }
+        this.updateConnectionStatus('TCP/IP 연결 해제 중...', false);
+        this.tcpManager.disconnect();
+        // 실제 상태 업데이트는 TcpManager의 onClose 콜백에서 처리됩니다.
+        // this.updateConnectionUI(false); // onClose에서 호출될 것
+        this.elements.connectTcpBtn.textContent = 'Connect TCP/IP';
+        this.elements.connectTcpBtn.classList.replace('btn-danger', 'btn-success');
+        this.elements.connectTcpBtn.disabled = false;
+        return true; // 비동기 작업이 아니므로 즉시 반환 (실제 해제는 비동기일 수 있음)
+    }
+
+    handleSerialData(data) {
+        const { binaryData, textData, direction, timestamp } = data;
+        console.log(`데이터 ${direction === 'tx' ? '송신' : '수신'}:`, binaryData, textData);
+        
+        // Modbus 패킷 파싱 시도
+        if (direction === 'rx') {
+            const packets = this.modbusParser.parseData(binaryData, 'rx');
+            packets.forEach(packet => {
+                console.log('RX Packet:', packet);
+                this.logManager.addPacketToLog(packet, 'RX');
+            });
+        } else if (direction === 'tx') {
+            const packets = this.modbusParser.parseData(binaryData, 'tx');
+            packets.forEach(packet => {
+                console.log('TX Packet', packet);
+                this.logManager.addPacketToLog(packet, 'TX');
+            });
+        }
+    }
+
+    handleSerialError(error) {
+        console.error('UIController: Serial Error:', error);
+        this.updateConnectionStatus(`시리얼 오류: ${error.message}`, true);
+        this.updateConnectionUI(false); // 오류 발생 시 UI 업데이트
+    }
+
+    handleTcpData(data) {
+        // console.log('UIController: TCP Data Received:', data);
+        if (this.modbusInterpreter) {
+            this.modbusInterpreter.parseResponse(data);
+        }
+    }
+
+    handleTcpError(error) {
+        console.error('UIController: TCP Error:', error);
+        // TcpManager 내부에서 이미 updateConnectionStatus를 호출할 수 있으므로, 여기서는 중복 호출을 피하거나 추가 정보만 로깅
+        // this.updateConnectionStatus(`TCP 오류: ${error.message}`, true);
+        this.updateConnectionUI(false); // 오류 발생 시 UI 업데이트
+    }
+
+    handleTcpClose(wasClean) {
+        console.log(`UIController: TCP connection closed. Was clean: ${wasClean}`);
+        // TcpManager 내부에서 이미 updateConnectionStatus를 호출할 수 있으므로, 여기서는 중복 호출을 피하거나 추가 정보만 로깅
+        // if (!wasClean) {
+        //     this.updateConnectionStatus('TCP 연결이 비정상적으로 종료되었습니다.', true);
+        // }
+        this.updateConnectionUI(false); // 연결 종료 시 UI 업데이트
+        this.elements.connectTcpBtn.textContent = 'Connect TCP/IP';
+        this.elements.connectTcpBtn.classList.replace('btn-danger', 'btn-success');
+        this.elements.connectTcpBtn.disabled = false;
+    }
+    
+    /**
      * 패킷 타임아웃 UI 요소의 값에 따라 ModbusParser와 ModbusInterpreter의 타임아웃 값을 업데이트합니다.
      */
     updatePacketTimeouts() {
-        if (!this.elements.packetTimeout) return;
+        if (!this.elements.responseTimeout) return;
 
-        const timeoutValue = parseInt(this.elements.packetTimeout.value, 10);
+        const timeoutValue = parseInt(this.elements.responseTimeout.value, 10);
         if (isNaN(timeoutValue) || timeoutValue <= 0) {
-            console.error("UIController: Invalid packet timeout value:", this.elements.packetTimeout.value);
+            console.error("UIController: Invalid response timeout value:", this.elements.responseTimeout.value);
             // 유효하지 않은 경우, UI 값을 이전 유효 값으로 되돌리거나 기본값을 설정할 수 있습니다.
-            // 예: if (this.modbusParser && this.modbusParser.rxPacketTimeoutMs) this.elements.packetTimeout.value = this.modbusParser.rxPacketTimeoutMs;
+            // 예: if (this.modbusParser && this.modbusParser.rxPacketTimeoutMs) this.elements.responseTimeout.value = this.modbusParser.rxPacketTimeoutMs;
             return;
         }
 
@@ -346,37 +533,61 @@ export class UIController {
      * @param {boolean} isConnected 연결 상태
      */
     updateConnectionUI(isConnected) {
-        // 연결 설정 필드 비활성화/활성화
-        this.elements.baudRate.disabled = isConnected;
-        this.elements.dataBits.disabled = isConnected;
-        this.elements.stopBits.disabled = isConnected;
-        this.elements.parity.disabled = isConnected;
-        this.elements.buffer.disabled = isConnected;
-        this.elements.flowControl.disabled = isConnected;
-        
-        // 포트 선택 버튼 비활성화/활성화
-        this.elements.selectPortBtn.disabled = isConnected;
-        
-        // 연결 버튼 텍스트 변경
-        if (isConnected) {
-            this.elements.openPortBtn.textContent = '닫기';
-            this.elements.openPortBtn.classList.replace('btn-success', 'btn-danger');
-            this.elements.connectionStatus.classList.add('status-connected');
-            this.elements.connectionStatus.classList.remove('text-muted');
-            
-            // 연결 상태 표시기 색상 변경 (연결됨 - 초록색)
-            this.elements.connectionIndicator.style.backgroundColor = '#198754';
-        } else {
-            this.elements.openPortBtn.textContent = '열기';
-            this.elements.openPortBtn.classList.replace('btn-danger', 'btn-success');
-            this.elements.connectionStatus.classList.remove('status-connected');
-            this.elements.connectionStatus.classList.add('text-muted');
-            
-            // 연결 상태 표시기 색상 변경 (연결 해제 - 회색)
-            this.elements.connectionIndicator.style.backgroundColor = '#6c757d';
+        const connectionType = this.elements.connectionType ? this.elements.connectionType.value : 'serial';
+
+        // 기본적으로 모든 설정 UI를 숨김 처리하고 시작
+        if (this.elements.serialSettingsContainer) this.elements.serialSettingsContainer.style.display = 'none';
+        if (this.elements.tcpSettingsContainer) this.elements.tcpSettingsContainer.style.display = 'none';
+
+        if (connectionType === 'serial') {
+            if (this.elements.serialSettingsContainer) this.elements.serialSettingsContainer.style.display = 'block';
+            this.disableSerialUI(isConnected);
+            this.disableTcpUI(true); // TCP 설정은 항상 비활성화 및 숨김
+            if (this.elements.tcpSettingsContainer) this.elements.tcpSettingsContainer.style.display = 'none';
+            if (this.elements.openPortBtn) this.elements.openPortBtn.disabled = false; // 시리얼 연결 버튼은 연결 시도 후 항상 활성화
+            if (this.elements.connectTcpBtn) this.elements.connectTcpBtn.disabled = true; // TCP 연결 버튼은 비활성화
+
+        } else if (connectionType === 'tcp') {
+            if (this.elements.tcpSettingsContainer) this.elements.tcpSettingsContainer.style.display = 'block';
+            this.disableTcpUI(isConnected);
+            this.disableSerialUI(true); // 시리얼 설정은 항상 비활성화 및 숨김
+            if (this.elements.serialSettingsContainer) this.elements.serialSettingsContainer.style.display = 'none';
+            if (this.elements.connectTcpBtn) this.elements.connectTcpBtn.disabled = false; // TCP 연결 버튼은 연결 시도 후 항상 활성화
+            if (this.elements.openPortBtn) this.elements.openPortBtn.disabled = true; // 시리얼 연결 버튼은 비활성화
+            if (this.elements.selectPortBtn) this.elements.selectPortBtn.disabled = true; // 시리얼 포트 선택 버튼 비활성화
         }
+
+        // 공통 Modbus 설정 UI
+        if (this.elements.modbusRtuMode) this.elements.modbusRtuMode.disabled = isConnected;
+        if (this.elements.modbusAsciiMode) this.elements.modbusAsciiMode.disabled = isConnected;
+        // responseTimeout, delayBetweenPolls는 연결 상태와 관계없이 현재는 활성화 상태 유지
+        // if (this.elements.responseTimeout) this.elements.responseTimeout.disabled = isConnected;
+        // if (this.elements.delayBetweenPolls) this.elements.delayBetweenPolls.disabled = isConnected;
+
+        // 연결 유형 선택 드롭다운은 연결 중에는 비활성화
+        if (this.elements.connectionType) this.elements.connectionType.disabled = isConnected;
     }
-    
+
+    disableSerialUI(disable) {
+        if (this.elements.baudRate) this.elements.baudRate.disabled = disable;
+        if (this.elements.dataBits) this.elements.dataBits.disabled = disable;
+        if (this.elements.stopBits) this.elements.stopBits.disabled = disable;
+        if (this.elements.parity) this.elements.parity.disabled = disable;
+        if (this.elements.flowControl) this.elements.flowControl.disabled = disable;
+        if (this.elements.buffer) this.elements.buffer.disabled = disable;
+        if (this.elements.selectPortBtn) this.elements.selectPortBtn.disabled = disable;
+        // openPortBtn의 disabled 상태는 updateConnectionUI에서 직접 관리
+    }
+
+    disableTcpUI(disable) {
+        if (this.elements.ipAddress) this.elements.ipAddress.disabled = disable;
+        if (this.elements.serverPort) this.elements.serverPort.disabled = disable;
+        if (this.elements.connectTimeoutTcp) this.elements.connectTimeoutTcp.disabled = disable;
+        if (this.elements.ipv4) this.elements.ipv4.disabled = disable;
+        if (this.elements.ipv6) this.elements.ipv6.disabled = disable;
+        // connectTcpBtn의 disabled 상태는 updateConnectionUI에서 직접 관리
+    }
+
     /**
      * 연결 상태 메시지 업데이트
      * @param {string} message 상태 메시지

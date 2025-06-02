@@ -25,65 +25,130 @@
             <div class="col-md-3 col-lg-2 sidebar bg-dark border-end border-secondary p-3">
                 <h5 class="mb-3">Connection Settings</h5>
                 
-                <!-- Baud Rate -->
+                <!-- Connection Type -->
                 <div class="mb-3">
-                    <label for="baudRate" class="form-label">Baud Rate</label>
-                    <select class="form-select bg-dark text-light" id="baudRate">
-                        <option value="9600">9600</option>
-                        <option value="19200">19200</option>
-                        <option value="38400">38400</option>
-                        <option value="57600">57600</option>
-                        <option value="115200" selected>115200</option>
+                    <label for="connectionType" class="form-label">Connection</label>
+                    <select class="form-select bg-dark text-light" id="connectionType">
+                        <option value="serial" selected>Modbus RTU (Serial)</option>
+                        <option value="tcp">Modbus TCP/IP</option>
                     </select>
                 </div>
 
-                <!-- Data Bits -->
-                <div class="mb-3">
-                    <label for="dataBits" class="form-label">Data Bits</label>
-                    <select class="form-select bg-dark text-light" id="dataBits">
-                        <option value="7">7</option>
-                        <option value="8" selected>8</option>
-                    </select>
+                <!-- Serial Settings (Initially visible) -->
+                <div id="serialSettingsContainer">
+                    <h6 class="mt-3 mb-2 text-secondary">Serial Settings</h6>
+                    <!-- Baud Rate -->
+                    <div class="mb-3">
+                        <label for="baudRate" class="form-label">Baud Rate</label>
+                        <select class="form-select bg-dark text-light" id="baudRate">
+                            <option value="9600">9600</option>
+                            <option value="19200">19200</option>
+                            <option value="38400">38400</option>
+                            <option value="57600">57600</option>
+                            <option value="115200" selected>115200</option>
+                        </select>
+                    </div>
+                    <!-- Data Bits -->
+                    <div class="mb-3">
+                        <label for="dataBits" class="form-label">Data Bits</label>
+                        <select class="form-select bg-dark text-light" id="dataBits">
+                            <option value="7">7</option>
+                            <option value="8" selected>8</option>
+                        </select>
+                    </div>
+                    <!-- Stop Bits -->
+                    <div class="mb-3">
+                        <label for="stopBits" class="form-label">Stop Bits</label>
+                        <select class="form-select bg-dark text-light" id="stopBits">
+                            <option value="1" selected>1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <!-- Parity Bits -->
+                    <div class="mb-3">
+                        <label for="parity" class="form-label">Parity Bits</label>
+                        <select class="form-select bg-dark text-light" id="parity">
+                            <option value="none" selected>None</option>
+                            <option value="even">Even</option>
+                            <option value="odd">Odd</option>
+                        </select>
+                    </div>
+                    <!-- Buffer (Serial specific) -->
+                    <div class="mb-3">
+                        <label for="buffer" class="form-label">Buffer Size</label>
+                        <input type="text" class="form-control bg-dark text-light" id="buffer" value="1024">
+                    </div>
+                    <!-- Flow Control (Serial specific) -->
+                    <div class="mb-3">
+                        <label for="flowControl" class="form-label">Flow Control</label>
+                        <select class="form-select bg-dark text-light" id="flowControl">
+                            <option value="none" selected>None</option>
+                            <option value="hardware">Hardware</option>
+                        </select>
+                    </div>
+                    <!-- Serial Connection Buttons -->
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary btn-sm" id="selectPortBtn">Select Port</button>
+                        <button class="btn btn-success btn-sm" id="openPortBtn" disabled>Open Port</button>
+                    </div>
                 </div>
 
-                <!-- Stop Bits -->
-                <div class="mb-3">
-                    <label for="stopBits" class="form-label">Stop Bits</label>
-                    <select class="form-select bg-dark text-light" id="stopBits">
-                        <option value="1" selected>1</option>
-                        <option value="2">2</option>
-                    </select>
+                <!-- TCP/IP Settings (Initially hidden) -->
+                <div id="tcpSettingsContainer" style="display: none;">
+                    <h6 class="mt-3 mb-2 text-secondary">Remote Modbus Server</h6>
+                    <div class="mb-2">
+                        <label for="ipAddress" class="form-label">IP Address or Node Name</label>
+                        <input type="text" class="form-control form-control-sm bg-dark text-light" id="ipAddress" value="192.168.12.100">
+                    </div>
+                    <div class="row gx-2">
+                        <div class="col-md-5 mb-2">
+                            <label for="serverPort" class="form-label">Server Port</label>
+                            <input type="number" class="form-control form-control-sm bg-dark text-light" id="serverPort" value="502">
+                        </div>
+                        <div class="col-md-7 mb-2">
+                            <label for="connectTimeoutTcp" class="form-label">Connect Timeout [ms]</label>
+                            <input type="number" class="form-control form-control-sm bg-dark text-light" id="connectTimeoutTcp" value="3000">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label d-block">IP Version</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="ipVersion" id="ipv4" value="ipv4" checked>
+                            <label class="form-check-label" for="ipv4">IPv4</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="ipVersion" id="ipv6" value="ipv6">
+                            <label class="form-check-label" for="ipv6">IPv6</label>
+                        </div>
+                    </div>
+                     <!-- TCP Connection Button -->
+                    <div class="d-grid gap-2 mt-2">
+                        <button class="btn btn-success btn-sm" id="connectTcpBtn">Connect TCP/IP</button>
+                    </div>
                 </div>
 
-                <!-- Parity Bits -->
-                <div class="mb-3">
-                    <label for="parity" class="form-label">Parity Bits</label>
-                    <select class="form-select bg-dark text-light" id="parity">
-                        <option value="none" selected>None</option>
-                        <option value="even">Even</option>
-                        <option value="odd">Odd</option>
-                    </select>
-                </div>
-
-                <!-- Buffer -->
-                <div class="mb-3">
-                    <label for="buffer" class="form-label">Buffer</label>
-                    <input type="text" class="form-control bg-dark text-light" id="buffer" value="1024">
-                </div>
-
-                <!-- Flow Control -->
-                <div class="mb-3">
-                    <label for="flowControl" class="form-label">Flow Control</label>
-                    <select class="form-select bg-dark text-light" id="flowControl">
-                        <option value="none" selected>None</option>
-                        <option value="hardware">Hardware</option>
-                    </select>
-                </div>
-
-                <!-- Connection Buttons -->
-                <div class="d-grid gap-2">
-                    <button class="btn btn-primary" id="selectPortBtn">Select Serial Port</button>
-                    <button class="btn btn-success" id="openPortBtn" disabled>Open Serial Port</button>
+                <!-- Common Modbus Settings -->
+                <div id="commonModbusSettingsContainer" class="mt-3">
+                    <h6 class="mb-2 text-secondary">Modbus Settings</h6>
+                    <div class="mb-2">
+                        <label class="form-label d-block">Mode</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="modbusMode" id="modbusRtuMode" value="rtu" checked>
+                            <label class="form-check-label" for="modbusRtuMode">RTU</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="modbusMode" id="modbusAsciiMode" value="ascii">
+                            <label class="form-check-label" for="modbusAsciiMode">ASCII</label>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label for="responseTimeout" class="form-label">Response Timeout [ms]</label>
+                        <input type="number" class="form-control form-control-sm bg-dark text-light" id="responseTimeout" value="1000">
+                    </div>
+                    <div class="mb-2">
+                        <label for="delayBetweenPolls" class="form-label">Delay Between Polls [ms]</label>
+                        <input type="number" class="form-control form-control-sm bg-dark text-light" id="delayBetweenPolls" value="1000">
+                    </div>
                 </div>
 
                 <!-- Connection Status -->

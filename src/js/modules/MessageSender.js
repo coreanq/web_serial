@@ -5,25 +5,32 @@
 export class MessageSender {
     /**
      * MessageSender 생성자
+     * @param {UIController} uiController UI 컨트롤러 인스턴스
      * @param {SerialManager} serialManager 시리얼 관리자 인스턴스
-     * @param {HTMLTextAreaElement} messageInputElement 메시지 입력 요소
-     * @param {Object} options 옵션 객체
+     * @param {TcpManager} tcpManager TCP 관리자 인스턴스
+     * @param {ModbusParser} modbusParser Modbus 파서 인스턴스
+     * @param {ModbusInterpreter} modbusInterpreter Modbus 인터프리터 인스턴스
+     * @param {Object} options 옵션 객체 (주로 UI 요소 ID 포함)
      */
-    constructor(serialManager, messageInputElement, options = {}) {
+    constructor(uiController, serialManager, tcpManager, modbusParser, modbusInterpreter, options = {}) {
+        this.uiController = uiController; // UIController 인스턴스 저장
         this.serialManager = serialManager;
+        this.tcpManager = tcpManager; // TcpManager 인스턴스 저장
+        this.modbusParser = modbusParser;
+        this.modbusInterpreter = modbusInterpreter;
         this.loopInterval = null;
         this.isLooping = false;
+        this.transactionId = 0; // Modbus TCP 트랜잭션 ID
         
         // DOM 요소 캐싱
         this.elements = {
-            messageInput: messageInputElement,
+            messageInput: options.messageInputElement || document.getElementById('messageInput'),
             sendBtn: options.sendButton || document.getElementById('sendBtn'),
             hexSend: options.hexCheckbox || document.getElementById('hexSend'),
             appendCRLF: options.crlfCheckbox || document.getElementById('appendCRLF'),
             loopSend: options.loopCheckbox || document.getElementById('loopSend'),
             sendInterval: options.intervalInput || document.getElementById('sendInterval'),
             messageStatus: options.statusElement || document.getElementById('messageStatus'),
-            messageInput: options.messageInputElement || document.getElementById('messageInput'),
             quickSendBtn: options.quickSendButton || document.getElementById('quickSendBtn'),
             quickSendList: document.getElementById('quickSendList')
         };
@@ -256,52 +263,108 @@ export class MessageSender {
             }
         } catch (error) {
             console.error('빠른 전송 메시지 로드 오류:', error);
+            this._showStatus('빠른 전송 메시지 로드 중 오류 발생', 'error');
         }
     }
-    
+        
     /**
      * 메시지 전송
      * @returns {Promise<boolean>} 전송 성공 여부
      */
     async sendMessage() {
-        if (!this.serialManager.isConnected()) {
-            this._showStatus('먼저 시리얼 포트에 연결하세요.', 'error');
+        const connectionType = this.uiController.getConnectionType();
+        let isConnected = false;
+
+        if (connectionType === 'serial') {
+            isConnected = this.serialManager && this.serialManager.isConnected();
+        } else if (connectionType === 'tcp') {
+            isConnected = this.tcpManager && this.tcpManager.isConnected();
+        }
+
+        if (!isConnected) {
+            this._showStatus(`${connectionType === 'serial' ? '시리얼 포트가' : 'TCP/IP가'} 연결되지 않았습니다.`, 'error');
             return false;
         }
-        
+
         const message = this.elements.messageInput.value.trim();
         if (!message) {
             this._showStatus('전송할 메시지를 입력하세요.', 'warning');
             return false;
         }
-        
+
         const isHex = this.elements.hexSend.checked;
-        const appendCRLF = this.elements.appendCRLF.checked;
-        
-        // 16진수 모드일 때 입력값 검증
+        const appendCRLF = this.elements.appendCRLF.checked; // 시리얼 전용 옵션으로 남겨둘 수 있음
+
         if (isHex && !this._validateHexInput(message)) {
             this._showStatus('유효하지 않은 16진수 형식입니다. 올바른 형식으로 입력하세요.', 'error');
             return false;
         }
-        
+
+        let dataToSend;
+        if (isHex) {
+            dataToSend = this._hexStringToBytes(message);
+        } else {
+            dataToSend = message;
+            if (connectionType === 'serial' && appendCRLF) {
+                dataToSend += '\r\n';
+            }
+        }
+
         try {
-            // 메시지 전송
-            const success = await this.serialManager.sendData(message, isHex, appendCRLF);
-            
+            let success = false;
+            if (connectionType === 'serial') {
+                // SerialManager의 sendData는 문자열, 16진수 여부, CRLF 추가 여부를 인자로 받음
+                success = await this.serialManager.sendData(message, isHex, appendCRLF); 
+            } else if (connectionType === 'tcp') {
+                // TcpManager의 sendMessage는 Uint8Array 또는 문자열을 직접 받음 (구현에 따라 다름)
+                // 여기서는 TcpManager가 Uint8Array를 기대한다고 가정 (hex 모드에서 변환된 데이터)
+                // 또는 문자열을 보내고 TcpManager 내부에서 변환할 수도 있음.
+                // 현재 TcpManager.sendMessage는 ArrayBuffer를 받으므로 변환 필요
+                // Modbus TCP 프레이밍
+                // 사용자 입력은 UnitID + PDU (Hex 문자열)로 가정
+                // dataToSend는 _hexStringToBytes를 통해 Uint8Array로 변환된 상태 (UnitID + PDU)
+                if (dataToSend.length < 1) {
+                    this._showStatus('TCP 모드에서는 Unit ID를 포함한 PDU를 입력해야 합니다.', 'error');
+                    return false;
+                }
+
+                const unitId = dataToSend[0];
+                const pdu = dataToSend.slice(1);
+
+                const mbapHeader = new Uint8Array(7);
+                const view = new DataView(mbapHeader.buffer);
+
+                // Transaction ID (2 bytes)
+                view.setUint16(0, this.transactionId, false); // Big-endian
+                this.transactionId = (this.transactionId + 1) % 0xFFFF; // 롤오버
+
+                // Protocol ID (2 bytes) - 0x0000 for Modbus
+                view.setUint16(2, 0x0000, false);
+
+                // Length (2 bytes) - Unit ID (1) + PDU length
+                view.setUint16(4, 1 + pdu.length, false);
+
+                // Unit ID (1 byte)
+                view.setUint8(6, unitId);
+
+                // ADU = MBAP Header + PDU
+                const adu = new Uint8Array(mbapHeader.length + pdu.length);
+                adu.set(mbapHeader, 0);
+                adu.set(pdu, mbapHeader.length);
+
+                success = this.tcpManager.sendMessage(adu.buffer); // TcpManager는 ArrayBuffer를 받음
+            }
+
             if (success) {
                 this._showStatus('메시지 전송 완료', 'success');
-                
-                // 루프 전송 모드가 아닐 때만 입력 필드 초기화
                 if (!this.isLooping) {
-                    // 현재 입력값을 히스토리에 저장하고 입력 필드 초기화
-                    this._addToHistory(message);
-                    // 입력 필드 포커스
+                    this._addToHistory(message); // 원본 메시지 저장
+                    // this.elements.messageInput.value = ''; // 필요시 주석 해제
                     this.elements.messageInput.focus();
                 }
-                
                 return true;
             } else {
-                this._showStatus('메시지 전송 실패', 'error');
+                this._showStatus(`메시지 전송 실패 (${connectionType})`, 'error');
                 return false;
             }
         } catch (error) {
@@ -315,8 +378,16 @@ export class MessageSender {
      * 루프 전송 시작
      */
     startLoopSend() {
-        if (!this.serialManager.isConnected()) {
-            this._showStatus('먼저 시리얼 포트에 연결하세요.', 'error');
+        const connectionType = this.uiController.getConnectionType();
+        let isConnected = false;
+        if (connectionType === 'serial') {
+            isConnected = this.serialManager && this.serialManager.isConnected();
+        } else if (connectionType === 'tcp') {
+            isConnected = this.tcpManager && this.tcpManager.isConnected();
+        }
+
+        if (!isConnected) {
+            this._showStatus(`먼저 ${connectionType === 'serial' ? '시리얼 포트에' : 'TCP/IP에'} 연결하세요.`, 'error');
             this.elements.loopSend.checked = false;
             return;
         }

@@ -8,6 +8,7 @@ import { LogManager } from './modules/LogManager.js';
 import { DataExporter } from './modules/DataExporter.js';
 import { DataStorage } from './modules/DataStorage.js';
 import { AppState } from './modules/AppState.js';
+import { TcpManager } from './modules/TcpManager.js';
 
 // 서비스 워커 등록
 if ('serviceWorker' in navigator) {
@@ -54,20 +55,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // PWA 설치 관련 초기화
     initPwaInstallPrompt();
     
-    // UIController 인스턴스 생성 (MessageSender는 나중에 설정)
+    // UIController 인스턴스 생성 (tcpManager와 messageSender는 나중에 설정)
     const uiController = new UIController(
         serialManager,
+        null, // tcpManager는 아래에서 생성 후 설정
         modbusParser,
         modbusInterpreter,
         dataStorage,
         appState,
         logManager,
         dataExporter,
-        null // MessageSender는 아래에서 생성 후 설정
+        null // messageSender는 아래에서 생성 후 설정
     );
 
-    // MessageSender 인스턴스 생성 (UIController의 elements 사용)
-    const messageSender = new MessageSender(serialManager, {
+    // TcpManager 인스턴스 생성
+    const tcpManager = new TcpManager(uiController);
+    uiController.setTcpManager(tcpManager); // UIController에 TcpManager 설정
+
+    // MessageSender 인스턴스 생성 (UIController의 elements 사용 및 모든 의존성 주입)
+    const messageSender = new MessageSender(
+        uiController,
+        serialManager,
+        tcpManager,
+        modbusParser,
+        modbusInterpreter,
+        {
         messageInput: uiController.elements.messageInput,
         sendBtn: uiController.elements.sendBtn,
         hexSend: uiController.elements.hexSend,
@@ -79,8 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
         quickSendList: uiController.elements.quickSendList
     });
 
-    // UIController에 MessageSender 설정
-    uiController.messageSender = messageSender;
+    // UIController에 MessageSender 설정 (이미 생성자에서 주입되었거나, 필요시 명시적 setter 사용 가능)
+    // uiController.messageSender = messageSender; // MessageSender 생성 시 uiController를 전달하므로, UIController 내부에서 messageSender를 받도록 수정했거나, 아래처럼 명시적 설정
+    uiController.setMessageSender(messageSender);
 
     // MessageSender 초기화 (이벤트 리스너 등 설정)
     messageSender.init();
