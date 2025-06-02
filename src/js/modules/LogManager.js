@@ -26,6 +26,7 @@ export class LogManager {
         this.copyBtn = document.getElementById('copyBtn');
         this.exportBtn = document.getElementById('exportBtn');
         this.selectAllCheckbox = document.getElementById('selectAllPackets');
+        this.hexSendCheckbox = document.getElementById('hexSend'); // hexSend 체크박스 참조 추가
         
         // 이벤트 리스너 추가
         this._attachEventListeners();
@@ -139,7 +140,7 @@ export class LogManager {
         // Store fullPacketBytes in packetInfo for potential use in _showPacketDetails
         packetInfo.fullPacketBytes = fullPacketBytes; 
 
-        const hexSendCheckbox = document.getElementById('hexSend');
+        const hexSendCheckbox = this.hexSendCheckbox; 
         const isHexSendChecked = hexSendCheckbox ? hexSendCheckbox.checked : false;
 
         const hexStrWithDec = this._bytesToHexString(fullPacketBytes); // 수정된 함수 사용
@@ -167,10 +168,6 @@ export class LogManager {
                     <td style="font-weight: bold; width: 45px; padding-right: 5px; vertical-align: top;">ASC:</td>
                     <td style="word-break: break-all; vertical-align: top;">${asciiStr}</td>
                 </tr>
-                <tr>
-                    <td style="font-weight: bold; width: 45px; padding-right: 5px; vertical-align: top;">HEX:</td>
-                    <td style="word-break: break-all; vertical-align: top;">${hexStrWithDec}</td>
-                </tr>
             `;
         }
         packetDataHtml += '</table>';
@@ -184,12 +181,21 @@ export class LogManager {
 
         // Add interpretation as a tooltip if available
         if (interpretedData) {
-            row.title = interpretedData;
+            console.log("interpretedData", interpretedData);
+            row.setAttribute('data-bs-toggle', 'tooltip');
+            row.setAttribute('data-bs-html', 'true');
+            row.setAttribute('data-bs-placement', 'top'); // 툴팁 위치 (top, bottom, left, right)
+            row.setAttribute('title', this._formatInterpretedDataToHtml(interpretedData));
         }
         
         row.addEventListener('click', () => this._showPacketDetails(packetInfo));
 
         this.logTableBody.appendChild(row);
+
+        // 새로 추가된 행에 대해 Bootstrap Tooltip 초기화
+        if (interpretedData) {
+            new bootstrap.Tooltip(row, { customClass: 'opaque-tooltip' });
+        }
         if (this.autoScrollCheckbox.checked) {
             this.logContainer.scrollTop = this.logContainer.scrollHeight;
         }
@@ -429,6 +435,23 @@ export class LogManager {
      * @param {Uint8Array} bytes - 변환할 바이트 배열
      * @returns {string} ASCII 문자열 (제어 문자는 [NAME] 형식으로 표시)
      */
+    _formatInterpretedDataToHtml(data) {
+        if (typeof data === 'string') {
+            return data; // 이미 문자열이면 그대로 반환
+        }
+        if (typeof data === 'object' && data !== null) {
+            let html = '<ul style="list-style-type: none; padding: 0; margin: 0; text-align: left;">';
+            for (const key in data) {
+                if (Object.hasOwnProperty.call(data, key)) {
+                    html += `<li style="margin-bottom: 3px;"><strong>${key}:</strong> ${data[key]}</li>`;
+                }
+            }
+            html += '</ul>';
+            return html;
+        }
+        return ''; // 그 외의 경우는 빈 문자열 반환
+    }
+
     _bytesToAsciiString(bytes) {
         if (!bytes) return '';
         

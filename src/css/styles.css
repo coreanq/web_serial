@@ -349,3 +349,10 @@ body {
 .retry-button {
     padding: 0.75rem 2rem;
 }
+
+/* Opaque Tooltip Style */
+.tooltip.opaque-tooltip .tooltip-inner {
+    opacity: 1 !important; /* Bootstrap 기본 투명도 덮어쓰기 */
+    background-color: #343a40; /* 어두운 배경색, 필요에 따라 조정 */
+    color: #fff; /* 밝은 텍스트 색상 */
+}
