@@ -16,8 +16,10 @@ export class UIController {
      * @param {AppState} appState 애플리케이션 상태 관리자 인스턴스
      * @param {LogManager} logManager 로그 관리자 인스턴스
      * @param {DataExporter} dataExporter 데이터 내보내기 인스턴스
+     * @param {MessageSender} messageSender 메시지 전송자 인스턴스
      */
-    constructor(serialManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter) {
+    constructor(serialManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter, messageSender) {
+        this.messageSender = messageSender; // MessageSender 인스턴스 주입
         this.serialManager = serialManager;
         this.modbusParser = modbusParser;
         this.modbusInterpreter = modbusInterpreter;
@@ -152,31 +154,10 @@ export class UIController {
             }
         });
         
-        // 메시지 전송 버튼
-        this.elements.sendBtn.addEventListener('click', () => {
-            this.sendMessage();
-        });
-        
-        // 메시지 입력 영역에서 Enter 키 처리
-        this.elements.messageInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                this.sendMessage();
-            }
-        });
-        
         // 로그 지우기 버튼
         this.elements.clearBtn.addEventListener('click', () => {
             this.elements.logTableBody.innerHTML = '';
-        });
-        
-        // 루프 전송 체크박스
-        this.elements.loopSend.addEventListener('change', (event) => {
-            if (event.target.checked) {
-                this.startLoopSend();
-            } else {
-                this.stopLoopSend();
-            }
+            // TODO: LogManager를 통해 로그 데이터도 실제로 비우도록 수정 필요
         });
         
         // 시리얼 연결 상태 변경 리스너
@@ -297,32 +278,14 @@ export class UIController {
     /**
      * 메시지 전송
      */
-    sendMessage() {
-        if (!this.serialManager.isConnected()) {
-            this.updateConnectionStatus('먼저 시리얼 포트에 연결하세요.', true);
-            return;
-        }
-        
-        const message = this.elements.messageInput.value.trim();
-        if (!message) return;
-        
-        const isHex = this.elements.hexSend.checked;
-        const appendCRLF = this.elements.appendCRLF.checked;
-        
-        try {
-            // 메시지 전송
-            this.serialManager.sendData(message, isHex, appendCRLF);
-            
-            // 메시지 입력창 초기화
-            if (!this.elements.loopSend.checked) {
-                this.elements.messageInput.value = '';
-            this.elements.messageInput.focus();
-            }
-            // add log 의 경우 _onDataReceived()를 호출하여 addPacketToLog()을 호출하므로 필요 없음 
-
-        } catch (error) {
-            console.error('메시지 전송 오류:', error);
-            this.updateConnectionStatus(`전송 오류: ${error.message}`, true);
+    async sendMessage() {
+        if (this.messageSender) {
+            return await this.messageSender.sendMessage();
+        } else {
+            console.error('MessageSender not initialized in UIController');
+            // MessageSender가 없는 경우의 폴백 로직 (또는 오류 명시)
+            this.updateConnectionStatus('오류: 메시지 전송 기능이 초기화되지 않았습니다.', true);
+            return false;
         }
     }
     
@@ -330,26 +293,24 @@ export class UIController {
      * 루프 전송 시작
      */
     startLoopSend() {
-        if (this.loopSendIntervalId) {
-            clearInterval(this.loopSendIntervalId);
+        if (this.messageSender) {
+            this.messageSender.startLoopSend();
+        } else {
+            console.error('MessageSender not initialized in UIController');
+            this.updateConnectionStatus('오류: 루프 전송 기능이 초기화되지 않았습니다.', true);
         }
-        
-        const interval = parseInt(this.elements.sendInterval.value, 10);
-        this.loopSendIntervalId = setInterval(() => {
-            this.sendMessage();
-        }, interval);
     }
     
     /**
      * 루프 전송 중지
      */
     stopLoopSend() {
-        if (this.loopSendIntervalId) {
-            clearInterval(this.loopSendIntervalId);
-            this.loopSendIntervalId = null;
+        if (this.messageSender) {
+            this.messageSender.stopLoopSend();
+        } else {
+            console.error('MessageSender not initialized in UIController');
+            this.updateConnectionStatus('오류: 루프 전송 중지 기능이 초기화되지 않았습니다.', true);
         }
-        
-        this.elements.loopSend.checked = false;
     }
     
     /**

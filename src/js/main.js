@@ -77,8 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // UIController에 MessageSender 설정
     uiController.messageSender = messageSender;
 
-    // UI 컨트롤러 초기화 (이제 MessageSender가 제대로 설정됨)
-    uiController.init(); // MessageSender.init()은 이 안에서 호출됨
+    // MessageSender 초기화 (이벤트 리스너 등 설정)
+    messageSender.init();
+
+    // UI 컨트롤러 초기화
+    uiController.init();
     
     // 상태 변경 구독 예시
     appState.subscribe('connection.isConnected', (isConnected) => {

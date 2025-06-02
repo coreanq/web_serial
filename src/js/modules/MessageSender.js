@@ -23,6 +23,7 @@ export class MessageSender {
             loopSend: options.loopCheckbox || document.getElementById('loopSend'),
             sendInterval: options.intervalInput || document.getElementById('sendInterval'),
             messageStatus: options.statusElement || document.getElementById('messageStatus'),
+            messageInput: options.messageInputElement || document.getElementById('messageInput'),
             quickSendBtn: options.quickSendButton || document.getElementById('quickSendBtn'),
             quickSendList: document.getElementById('quickSendList')
         };

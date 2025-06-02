@@ -92,7 +92,7 @@ export class LogManager {
             parsedPacket = packetData;
         }
 
-        console.log("addPacketToLog parsedPacket", parsedPacket);
+        // console.log("addPacketToLog parsedPacket", parsedPacket);
         const interpretation = this.modbusInterpreter.interpretPacket(parsedPacket);
         
         parsedPacket.interpretedData = interpretation;
@@ -113,7 +113,7 @@ export class LogManager {
      */
     displayPacket(packetInfo) {
         const { timestamp, direction, interpretedData, raw, slaveAddress, functionCode, data, crc } = packetInfo;
-        console.log("displayPacket packetInfo", packetInfo);
+        // console.log("displayPacket packetInfo", packetInfo);
 
         const row = document.createElement('tr');
         row.className = direction === 'tx' ? 'table-primary' : 'table-success';
@@ -181,7 +181,7 @@ export class LogManager {
 
         // Add interpretation as a tooltip if available
         if (interpretedData) {
-            console.log("interpretedData", interpretedData);
+            // console.log("interpretedData", interpretedData);
             row.setAttribute('data-bs-toggle', 'tooltip');
             row.setAttribute('data-bs-html', 'true');
             row.setAttribute('data-bs-placement', 'top'); // 툴팁 위치 (top, bottom, left, right)
