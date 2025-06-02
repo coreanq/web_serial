@@ -49,21 +49,36 @@ document.addEventListener('DOMContentLoaded', () => {
     // PWA 설치 관련 초기화
     initPwaInstallPrompt();
     
-    // UI 컨트롤러 초기화
-    const uiController = new UIController(serialManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter);
-    uiController.init();
-    
-    // 메시지 센더 초기화
-    const messageSender = new MessageSender(serialManager, document.getElementById('messageInput'), {
-        statusElement: document.getElementById('messageStatus'),
-        sendButton: document.getElementById('sendBtn'),
-        quickSendButton: document.getElementById('quickSendBtn'),
-        hexCheckbox: document.getElementById('hexSend'),
-        crlfCheckbox: document.getElementById('appendCRLF'),
-        loopCheckbox: document.getElementById('loopSend'),
-        intervalInput: document.getElementById('sendInterval')
+    // UIController 인스턴스 생성 (MessageSender는 나중에 설정)
+    const uiController = new UIController(
+        serialManager,
+        modbusParser,
+        modbusInterpreter,
+        dataStorage,
+        appState,
+        logManager,
+        dataExporter,
+        null // MessageSender는 아래에서 생성 후 설정
+    );
+
+    // MessageSender 인스턴스 생성 (UIController의 elements 사용)
+    const messageSender = new MessageSender(serialManager, {
+        messageInput: uiController.elements.messageInput,
+        sendBtn: uiController.elements.sendBtn,
+        hexSend: uiController.elements.hexSend,
+        appendCRLF: uiController.elements.appendCRLF,
+        loopSend: uiController.elements.loopSend,
+        sendInterval: uiController.elements.sendInterval,
+        messageStatus: uiController.elements.messageStatus,
+        quickSendBtn: uiController.elements.quickSendBtn,
+        quickSendList: uiController.elements.quickSendList
     });
-    messageSender.init();
+
+    // UIController에 MessageSender 설정
+    uiController.messageSender = messageSender;
+
+    // UI 컨트롤러 초기화 (이제 MessageSender가 제대로 설정됨)
+    uiController.init(); // MessageSender.init()은 이 안에서 호출됨
     
     // 상태 변경 구독 예시
     appState.subscribe('connection.isConnected', (isConnected) => {
