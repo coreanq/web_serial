@@ -1,8 +1,11 @@
 # 제품 요구사항 문서 (PRD)
 
-*   사용자가 Web Serial API를 통해 시리얼 포트를 쉽게 열고 닫을 수 있도록 합니다.
-*   Single Page Application 으로 구성하며, PWA 로 사용되는 것을 목표로 한다. 
-*   사용자가 Web Serial API를 통해 시리얼 포트를 통해 수신되는 데이터를 Modbus-RTU 패킷 단위로 구분합니다.
-*   Modbus-RTU 프로토콜에 따라 시리얼 통신 패킷을 정확하게 파싱하고 모니터링합니다.
-*   송수신되는 Modbus-RTU 패킷의 내용을 사용자 친화적인 형태로 표시합니다.
-*   개발자 및 엔지니어가 Modbus-RTU 통신 문제를 디버깅하고 분석하는 데 유용한 도구를 제공합니다.
+* Modbus Monitor 할수 있도록 합니다. 
+* Web Serial API를 통해 시리얼 포트를 쉽게 열고 닫을 수 있도록 합니다.
+* TCP/IP를 통해 시리얼 포트를 쉽게 열고 닫을 수 있도록 합니다.
+* Modbus 프로토콜은 RTU, ASCII 를 지원합니다. 
+* Single Page Application 으로 구성합니다. 
+* 사용자가 Web Serial API를 통해 시리얼 포트를 통해 수신되는 데이터를 Modbus RTU/ASCII 패킷 단위로 구분합니다.
+* Modbus RTU/ASCII 프로토콜에 따라 시리얼 통신 패킷을 정확하게 파싱하고 모니터링합니다.
+* 송수신되는 Modbus RTU/ASCII 패킷의 내용을 사용자 친화적인 형태로 표시합니다.
+* 개발자 및 엔지니어가 Modbus RTU/ASCII 통신 문제를 디버깅하고 분석하는 데 유용한 도구를 제공합니다.
