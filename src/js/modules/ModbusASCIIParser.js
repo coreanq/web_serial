@@ -40,25 +40,37 @@ export class ModbusASCIIParser {
     
     /**
      * 데이터를 버퍼에 추가하고 패킷 파싱 시도
-     * @param {string} asciiData 수신된 ASCII 데이터
+     * @param {Uint8Array|string} asciiData 수신된 ASCII 데이터 (Uint8Array 또는 문자열)
      * @param {string} direction 데이터 방향 ('rx' 또는 'tx')
      * @returns {Array} 파싱된 패킷 배열
      */
     parseData(asciiData, direction) {
         const now = Date.now();
         let packets = [];
+        
+        // Uint8Array를 문자열로 변환
+        let asciiString = asciiData;
+        if (asciiData instanceof Uint8Array) {
+            // TextDecoder를 사용하여 Uint8Array를 문자열로 변환
+            const textDecoder = new TextDecoder('ascii');
+            asciiString = textDecoder.decode(asciiData);
+            console.log('ModbusASCIIParser: Uint8Array를 문자열로 변환:', asciiString);
+        }
+        
+        console.log('ModbusASCIIParser: parseData 호출', asciiString, direction)
 
+        // 송신(TX) 데이터 처리
         if (direction === 'tx') {
             const txPacketObject = {
-                raw: asciiData,
+                raw: asciiString, // 변환된 문자열 사용
                 direction: 'tx',
                 timestamp: now,
-                // TX 데이터는 바로 파싱하지 않고 원시 데이터만 저장
+                isValid: false // 기본값은 유효하지 않음
             };
             
             // TX 데이터가 유효한 Modbus ASCII 형식인 경우 파싱 시도
-            if (asciiData.startsWith(':')) {
-                const parsedFrame = this.parseFrame(asciiData);
+            if (asciiString.startsWith(':') && asciiString.endsWith('\r\n')) {
+                const parsedFrame = this.parseFrame(asciiString); // asciiString 사용
                 if (parsedFrame) {
                     txPacketObject.slaveAddress = parsedFrame.address;
                     txPacketObject.functionCode = parsedFrame.functionCode;
@@ -66,22 +78,36 @@ export class ModbusASCIIParser {
                     txPacketObject.data = parsedFrame.data;
                     txPacketObject.lrc = parsedFrame.lrc;
                     txPacketObject.isValid = parsedFrame.isValid;
+                    txPacketObject.isError = parsedFrame.functionCode >= 0x80;
+                    
+                    // 오류 응답인 경우 오류 정보 추가
+                    if (txPacketObject.isError && parsedFrame.data.length > 0) {
+                        const errorCode = parsedFrame.data[0];
+                        txPacketObject.errorCode = errorCode;
+                        txPacketObject.errorMessage = this.errorCodes[errorCode] || "Unknown Error";
+                    }
+                    
+                    // 유효한 패킷인 경우 해석된 데이터 추가
+                    if (txPacketObject.isValid && !txPacketObject.isError) {
+                        txPacketObject.interpretedData = this._interpretFunctionData(parsedFrame);
+                    }
                 }
             }
             
             return [txPacketObject];
         }
 
-        // --- RX Data Handling ---
+        // 수신(RX) 데이터 처리
         // 타임아웃 체크: 마지막 바이트 수신 후 일정 시간이 지나면 버퍼 처리
         if (this.buffer.length > 0 && (now - this.lastByteTime) > this.packetTimeoutMs) {
+            console.log(`타임아웃 발생: ${now - this.lastByteTime}ms 동안 데이터 없음, 버퍼 처리 시도`);
             const oldPackets = this._finalizePacket();
             packets = packets.concat(oldPackets);
             this.buffer = '';
         }
 
         // 새 데이터를 버퍼에 추가
-        this.buffer += asciiData;
+        this.buffer += asciiString; // asciiString 사용
         this.lastByteTime = now;
 
         // 완전한 패킷 추출 시도
@@ -175,19 +201,39 @@ export class ModbusASCIIParser {
      * @returns {Object|null} 파싱된 프레임 또는 null
      */
     parseFrame(asciiString) {
-        // 유효한 시작 및 종료 문자 확인
-        if (!asciiString.startsWith(':') || !asciiString.endsWith('\r\n')) {
+        // 유효한 시작 문자 확인
+        if (!asciiString.startsWith(':')) {
+            console.warn('Modbus ASCII 프레임이 ":"(콜론)으로 시작하지 않음:', asciiString);
+            return null;
+        }
+        
+        // 유효한 종료 문자 확인
+        if (!asciiString.endsWith('\r\n')) {
+            console.warn('Modbus ASCII 프레임이 CR+LF로 끝나지 않음:', asciiString);
             return null;
         }
         
         // 시작 및 종료 문자 제거
         const content = asciiString.slice(1, -2);
         
+        // 내용이 비어있는지 확인
+        if (content.length === 0) {
+            console.warn('Modbus ASCII 프레임의 내용이 비어있음');
+            return null;
+        }
+        
         // ASCII 16진수를 바이너리로 변환
         const buffer = this.hexStringToBuffer(content);
         
+        // 변환 결과 확인
+        if (buffer.length === 0) {
+            console.warn('유효하지 않은 16진수 ASCII 문자열:', content);
+            return null;
+        }
+        
         // 최소 내용은 3바이트 (주소, 함수 코드, LRC)
         if (buffer.length < 3) {
+            console.warn('Modbus ASCII 프레임이 너무 짧음. 최소 3바이트 필요:', buffer);
             return null;
         }
         
@@ -200,7 +246,9 @@ export class ModbusASCIIParser {
         const isValid = receivedLRC === calculatedLRC;
         
         if (!isValid) {
-            console.log(`LRC 오류: 계산값=${calculatedLRC.toString(16)}, 수신값=${receivedLRC.toString(16)}`);
+            console.warn(`LRC 오류: 계산값=0x${calculatedLRC.toString(16).padStart(2, '0').toUpperCase()}, 수신값=0x${receivedLRC.toString(16).padStart(2, '0').toUpperCase()}`);
+        } else {
+            console.log(`유효한 Modbus ASCII 프레임 감지: 주소=${address}, 함수코드=0x${functionCode.toString(16).padStart(2, '0').toUpperCase()}, 데이터 길이=${data.length}`);
         }
         
         return {
@@ -214,33 +262,50 @@ export class ModbusASCIIParser {
     
     /**
      * ASCII 16진수 문자열을 바이너리 버퍼로 변환
-     * @param {string} hexString 16진수 문자열
-     * @returns {Uint8Array} 바이너리 버퍼
+     * Modbus ASCII 프로토콜에서는 데이터가 ASCII 형태의 16진수 문자로 전송되므로
+     * 이를 실제 바이너리 값으로 변환하는 과정이 필요함
+     * 
+     * @param {string} hexString 16진수 문자열 ("01020304")
+     * @returns {Uint8Array} 변환된 바이너리 버퍼 ([0x01, 0x02, 0x03, 0x04])
      */
     hexStringToBuffer(hexString) {
-        // 공백 제거 및 대문자로 변환
+        // 공백, 탭, 줄바꿈 등 모든 공백 문자 제거 및 대문자로 변환
         const cleanHex = hexString.replace(/\s/g, '').toUpperCase();
         
-        // 문자열 길이가 짝수인지 확인
-        if (cleanHex.length % 2 !== 0) {
-            console.error('16진수 문자열 길이가 짝수가 아닙니다:', hexString);
+        // 문자열이 비어있는지 확인
+        if (cleanHex.length === 0) {
+            console.warn('hexStringToBuffer: 빈 문자열이 전달되었습니다.');
             return new Uint8Array(0);
+        }
+        
+        // 문자열 길이가 짝수인지 확인 (16진수는 2문자가 1바이트를 표현)
+        if (cleanHex.length % 2 !== 0) {
+            console.warn('hexStringToBuffer: 16진수 문자열 길이가 짝수가 아닙니다:', hexString);
+            // 짝수가 아닌 경우 앞쪽에 0 추가 (0F -> 0F, F -> 0F)
+            const paddedHex = cleanHex.length % 2 !== 0 ? '0' + cleanHex : cleanHex;
+            return this.hexStringToBuffer(paddedHex);
         }
         
         // 문자열이 유효한 16진수인지 확인
         if (!/^[0-9A-F]*$/.test(cleanHex)) {
-            console.error('유효하지 않은 16진수 문자열:', hexString);
+            console.warn('hexStringToBuffer: 유효하지 않은 16진수 문자열:', hexString);
             return new Uint8Array(0);
         }
         
+        // 바이트 버퍼 생성
         const buffer = new Uint8Array(cleanHex.length / 2);
         
-        for (let i = 0; i < cleanHex.length; i += 2) {
-            const byteValue = parseInt(cleanHex.substr(i, 2), 16);
-            buffer[i / 2] = byteValue;
+        // 2문자씩 추출하여 16진수 값으로 변환
+        try {
+            for (let i = 0; i < cleanHex.length; i += 2) {
+                const byteValue = parseInt(cleanHex.substr(i, 2), 16);
+                buffer[i / 2] = byteValue;
+            }
+            return buffer;
+        } catch (error) {
+            console.error('hexStringToBuffer: 16진수 변환 오류:', error);
+            return new Uint8Array(0);
         }
-        
-        return buffer;
     }
     
     /**
@@ -255,20 +320,27 @@ export class ModbusASCIIParser {
     }
     
     /**
-     * Modbus LRC 계산
-     * @param {Uint8Array} buffer LRC를 계산할 데이터
-     * @returns {number} 계산된 LRC 값
+     * Modbus ASCII 프로토콜의 LRC(Longitudinal Redundancy Check) 계산
+     * LRC는 모든 바이트를 더한 후 2의 보수를 취하여 계산함
+     * 
+     * @param {Uint8Array} buffer LRC를 계산할 데이터 (주소, 함수 코드, 데이터)
+     * @returns {number} 계산된 LRC 값 (1바이트)
      */
     calculateLRC(buffer) {
+        if (!buffer || buffer.length === 0) {
+            console.warn('calculateLRC: 빈 버퍼가 전달되었습니다.');
+            return 0;
+        }
+        
         let lrc = 0;
         
         // 모든 바이트 값을 더함
         for (let i = 0; i < buffer.length; i++) {
-            lrc += buffer[i];
+            lrc = (lrc + buffer[i]) & 0xFF; // 8비트 범위로 유지
         }
         
-        // 2의 보수 취함 (256에서 하위 8비트를 뺌)
-        lrc = (256 - (lrc & 0xFF)) & 0xFF;
+        // 2의 보수 취함 (256에서 하위 8비트를 뺐)
+        lrc = (256 - lrc) & 0xFF;
         
         return lrc;
     }
