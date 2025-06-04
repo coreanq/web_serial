@@ -1,0 +1,34 @@
+# Task ID: 6
+# Title: Develop Packet Monitoring UI
+# Status: pending
+# Dependencies: 3, 4, 5
+# Priority: medium
+# Description: Create a user interface to display Modbus packet data in a user-friendly format
+# Details:
+Implement a UI component to display Modbus packet data in a tabular format. Show timestamp, direction (TX/RX), protocol type (RTU/ASCII), device address, function code, data, and validation status. Provide human-readable descriptions of function codes and data based on Modbus specifications. Implement auto-scrolling with the ability to pause. Add filtering options by device address, function code, and direction. Include a clear button to reset the display. The UI should update in real-time as packets are sent and received:
+
+```javascript
+function renderPacketRow(packet) {
+  return (
+    <tr className={packet.isValid ? 'valid' : 'invalid'}>
+      <td>{packet.timestamp.toISOString()}</td>
+      <td>{packet.direction}</td>
+      <td>{packet.protocol}</td>
+      <td>{packet.address}</td>
+      <td>{packet.functionCode} - {getFunctionDescription(packet.functionCode)}</td>
+      <td>{formatData(packet.data, packet.functionCode)}</td>
+      <td>{packet.isValid ? 'Valid' : 'Invalid'}</td>
+    </tr>
+  );
+}
+
+function formatData(data, functionCode) {
+  // Format data based on function code
+  // For example, for function code 3 (Read Holding Registers),
+  // display the register values in a readable format
+  // ...
+}
+```
+
+# Test Strategy:
+Test with various Modbus packets to verify correct display. Verify that filtering works correctly. Test auto-scrolling and pause functionality. Verify that the UI updates in real-time. Test with both valid and invalid packets to ensure proper display.

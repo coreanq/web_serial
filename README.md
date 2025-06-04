@@ -1,15 +1,17 @@
-# Web Serial Online - Modbus-RTU Monitor
+# Web Serial Online - Modbus-RTU/ASCII Monitor
 
-웹 기반 Modbus-RTU 시리얼 모니터 애플리케이션입니다. Web Serial API를 사용하여 브라우저에서 직접 시리얼 포트와 통신할 수 있습니다.
+웹 기반 Modbus-RTU/ASCII 시리얼 모니터 애플리케이션입니다. Web Serial API를 사용하여 브라우저에서 직접 시리얼 포트와 통신하거나 TCP/IP를 통한 Modbus-RTU 통신도 지원합니다.
 
 ## 주요 기능
 
 - 🔌 Web Serial API를 통한 시리얼 포트 연결
-- 📊 실시간 Modbus-RTU 패킷 모니터링
+- 🌐 TCP/IP를 통한 Modbus-RTU 연결
+- 📊 실시간 Modbus-RTU/ASCII 패킷 모니터링
 - 🔍 패킷 파싱 및 분석
 - 💾 데이터 내보내기 (CSV, JSON)
 - 🌙 다크 테마 UI
 - 📱 반응형 디자인
+- 🔄 PWA 지원
 
 ## 시스템 요구사항
 
@@ -24,9 +26,24 @@ git clone https://github.com/yourusername/chrome_serial_mon.git
 cd chrome_serial_mon
 ```
 
-2. 개발 서버 실행:
+2. 의존성 설치:
 ```bash
-node server.js
+npm install
+```
+
+3. 개발 서버 실행:
+```bash
+npm run dev
+```
+
+4. 프로덕션 빌드:
+```bash
+npm run build
+```
+
+5. 프로덕션 서버 실행:
+```bash
+npm start
 ```
 
 3. 브라우저에서 `http://localhost:3000` 접속

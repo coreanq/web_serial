@@ -1,0 +1,42 @@
+# Task ID: 8
+# Title: Implement Protocol Analysis and Debugging Tools
+# Status: pending
+# Dependencies: 6, 7
+# Priority: medium
+# Description: Develop tools to help users analyze and debug Modbus communications
+# Details:
+Implement advanced debugging tools for Modbus communications. Add packet timing analysis to measure response times. Create a statistics panel showing packet counts, error rates, and timing information. Implement packet validation with detailed error messages for invalid packets. Add the ability to export packet logs to CSV or JSON format. Implement a feature to highlight related request/response pairs. Add a search function to find specific packets:
+
+```javascript
+function calculateStatistics(packets) {
+  const stats = {
+    totalPackets: packets.length,
+    validPackets: packets.filter(p => p.isValid).length,
+    invalidPackets: packets.filter(p => !p.isValid).length,
+    txPackets: packets.filter(p => p.direction === 'TX').length,
+    rxPackets: packets.filter(p => p.direction === 'RX').length,
+    averageResponseTime: calculateAverageResponseTime(packets),
+    functionCodeDistribution: calculateFunctionCodeDistribution(packets)
+  };
+  
+  return stats;
+}
+
+function exportPackets(format) {
+  if (format === 'csv') {
+    // Export as CSV
+    // ...
+  } else if (format === 'json') {
+    // Export as JSON
+    // ...
+  }
+}
+
+function findRelatedPackets(packet) {
+  // Find request/response pairs based on address, function code, and timing
+  // ...
+}
+```
+
+# Test Strategy:
+Test statistics calculation with various packet scenarios. Verify that export functionality works correctly for both CSV and JSON formats. Test the search function with different search criteria. Verify that related packets are correctly identified and highlighted.

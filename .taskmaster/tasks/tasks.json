@@ -1,0 +1,148 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Setup Single Page Application Framework",
+      "description": "Initialize a Single Page Application (SPA) framework for the Modbus Monitor application",
+      "details": "Create a new SPA project using a modern framework like React, Vue, or Angular. Setup the project structure, install necessary dependencies, and configure the build system. Initialize routing for the application. Create a basic layout with header, main content area, and footer. Setup CSS/styling framework (e.g., Bootstrap, Tailwind, or Material UI).",
+      "testStrategy": "Verify that the application loads correctly in the browser. Test that the basic navigation works. Ensure that the build process completes without errors.",
+      "priority": "high",
+      "dependencies": [],
+      "status": "done",
+      "subtasks": []
+    },
+    {
+      "id": 2,
+      "title": "Implement Web Serial API Connection",
+      "description": "Create functionality to connect to serial ports using the Web Serial API",
+      "details": "Implement a service to handle Web Serial API connections. Create UI components for port selection, connection settings (baud rate, data bits, parity, stop bits), and connection status. Add connect/disconnect functionality. Handle permissions and browser compatibility. Implement error handling for connection failures. The implementation should follow this pattern:\n\n```javascript\nasync function connectToSerialPort() {\n  try {\n    const port = await navigator.serial.requestPort();\n    await port.open({ baudRate: selectedBaudRate, dataBits: selectedDataBits, parity: selectedParity, stopBits: selectedStopBits });\n    // Store the port for later use\n    serialPort = port;\n    // Setup readers and writers\n    setupSerialCommunication(port);\n  } catch (error) {\n    console.error('Error connecting to serial port:', error);\n    // Show error to user\n  }\n}\n```",
+      "testStrategy": "Test connection to various serial devices. Verify that connection settings are applied correctly. Test error handling when connection fails. Verify that the UI updates appropriately when connection status changes.",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 3,
+      "title": "Implement Modbus RTU Protocol Parser",
+      "description": "Develop a parser for Modbus RTU protocol to interpret serial data",
+      "details": "Implement a Modbus RTU protocol parser that can decode incoming data frames. The parser should handle message framing with start/end detection, CRC validation, and extraction of address, function code, data, and error checking fields. Create data structures to represent Modbus RTU packets. Implement functions to validate packet integrity. The implementation should follow the Modbus RTU specification, including:\n\n```javascript\nclass ModbusRTUParser {\n  parseFrame(buffer) {\n    // Minimum Modbus RTU frame is 4 bytes (address, function code, 2 CRC bytes)\n    if (buffer.length < 4) return null;\n    \n    const address = buffer[0];\n    const functionCode = buffer[1];\n    const data = buffer.slice(2, buffer.length - 2);\n    const receivedCRC = (buffer[buffer.length - 1] << 8) | buffer[buffer.length - 2];\n    const calculatedCRC = this.calculateCRC16(buffer.slice(0, buffer.length - 2));\n    \n    const isValid = receivedCRC === calculatedCRC;\n    \n    return {\n      address,\n      functionCode,\n      data,\n      crc: receivedCRC,\n      isValid\n    };\n  }\n  \n  calculateCRC16(buffer) {\n    // Implementation of Modbus CRC-16 algorithm\n    // ...\n  }\n}\n```",
+      "testStrategy": "Test with sample Modbus RTU packets to verify correct parsing. Verify CRC calculation with known good packets. Test with malformed packets to ensure proper error handling. Create unit tests with various Modbus function codes.",
+      "priority": "high",
+      "dependencies": [
+        2
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 4,
+      "title": "Implement Modbus ASCII Protocol Parser",
+      "description": "Develop a parser for Modbus ASCII protocol to interpret serial data",
+      "details": "Implement a Modbus ASCII protocol parser that can decode incoming ASCII frames. The parser should handle message framing with start character (':') and end characters (CR+LF), LRC validation, and extraction of address, function code, data, and error checking fields. Create data structures to represent Modbus ASCII packets. Implement functions to validate packet integrity. The implementation should follow the Modbus ASCII specification, including:\n\n```javascript\nclass ModbusASCIIParser {\n  parseFrame(asciiString) {\n    // Check for valid start and end characters\n    if (!asciiString.startsWith(':') || !asciiString.endsWith('\\r\\n')) return null;\n    \n    // Remove start and end characters\n    const content = asciiString.slice(1, -2);\n    \n    // Convert ASCII hex to binary\n    const buffer = this.hexStringToBuffer(content);\n    \n    // Minimum content is 3 bytes (address, function code, LRC)\n    if (buffer.length < 3) return null;\n    \n    const address = buffer[0];\n    const functionCode = buffer[1];\n    const data = buffer.slice(2, buffer.length - 1);\n    const receivedLRC = buffer[buffer.length - 1];\n    const calculatedLRC = this.calculateLRC(buffer.slice(0, buffer.length - 1));\n    \n    const isValid = receivedLRC === calculatedLRC;\n    \n    return {\n      address,\n      functionCode,\n      data,\n      lrc: receivedLRC,\n      isValid\n    };\n  }\n  \n  hexStringToBuffer(hexString) {\n    // Convert ASCII hex string to binary buffer\n    // ...\n  }\n  \n  calculateLRC(buffer) {\n    // Implementation of Modbus LRC algorithm\n    // ...\n  }\n}\n```",
+      "testStrategy": "Test with sample Modbus ASCII packets to verify correct parsing. Verify LRC calculation with known good packets. Test with malformed packets to ensure proper error handling. Create unit tests with various Modbus function codes.",
+      "priority": "high",
+      "dependencies": [
+        2
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 5,
+      "title": "Implement TCP/IP Connection for Modbus RTU",
+      "description": "Create functionality to connect to Modbus devices over TCP/IP using Modbus RTU protocol",
+      "details": "Implement a service to handle TCP/IP connections for Modbus RTU over TCP. Create UI components for IP address and port configuration. Add connect/disconnect functionality for TCP connections. Implement error handling for connection failures. The implementation should encapsulate Modbus RTU frames within TCP packets:\n\n```javascript\nasync function connectToModbusTCP(ipAddress, port) {\n  try {\n    // Using WebSockets as a way to handle TCP in browser environment\n    const socket = new WebSocket(`ws://${ipAddress}:${port}`);\n    \n    socket.onopen = () => {\n      // Connection established\n      tcpConnected = true;\n      updateConnectionStatus();\n    };\n    \n    socket.onmessage = (event) => {\n      // Process incoming Modbus RTU over TCP data\n      const data = new Uint8Array(event.data);\n      processModbusRTUPacket(data);\n    };\n    \n    socket.onclose = () => {\n      tcpConnected = false;\n      updateConnectionStatus();\n    };\n    \n    socket.onerror = (error) => {\n      console.error('TCP connection error:', error);\n      // Show error to user\n    };\n    \n    tcpSocket = socket;\n  } catch (error) {\n    console.error('Error connecting to TCP/IP:', error);\n    // Show error to user\n  }\n}\n```",
+      "testStrategy": "Test connection to Modbus TCP devices. Verify that connection settings are applied correctly. Test error handling when connection fails. Verify that the UI updates appropriately when connection status changes. Test sending and receiving Modbus RTU packets over TCP.",
+      "priority": "medium",
+      "dependencies": [
+        1,
+        3
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 6,
+      "title": "Develop Packet Monitoring UI",
+      "description": "Create a user interface to display Modbus packet data in a user-friendly format",
+      "details": "Implement a UI component to display Modbus packet data in a tabular format. Show timestamp, direction (TX/RX), protocol type (RTU/ASCII), device address, function code, data, and validation status. Provide human-readable descriptions of function codes and data based on Modbus specifications. Implement auto-scrolling with the ability to pause. Add filtering options by device address, function code, and direction. Include a clear button to reset the display. The UI should update in real-time as packets are sent and received:\n\n```javascript\nfunction renderPacketRow(packet) {\n  return (\n    <tr className={packet.isValid ? 'valid' : 'invalid'}>\n      <td>{packet.timestamp.toISOString()}</td>\n      <td>{packet.direction}</td>\n      <td>{packet.protocol}</td>\n      <td>{packet.address}</td>\n      <td>{packet.functionCode} - {getFunctionDescription(packet.functionCode)}</td>\n      <td>{formatData(packet.data, packet.functionCode)}</td>\n      <td>{packet.isValid ? 'Valid' : 'Invalid'}</td>\n    </tr>\n  );\n}\n\nfunction formatData(data, functionCode) {\n  // Format data based on function code\n  // For example, for function code 3 (Read Holding Registers),\n  // display the register values in a readable format\n  // ...\n}\n```",
+      "testStrategy": "Test with various Modbus packets to verify correct display. Verify that filtering works correctly. Test auto-scrolling and pause functionality. Verify that the UI updates in real-time. Test with both valid and invalid packets to ensure proper display.",
+      "priority": "medium",
+      "dependencies": [
+        3,
+        4,
+        5
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 7,
+      "title": "Implement Packet Transmission Feature",
+      "description": "Create functionality to allow users to send custom Modbus packets",
+      "details": "Implement a UI component to allow users to create and send custom Modbus packets. Provide input fields for device address, function code, and data. Add support for common Modbus functions (read coils, read discrete inputs, read holding registers, read input registers, write single coil, write single register, write multiple coils, write multiple registers). Automatically calculate and append CRC/LRC. Provide a send button to transmit the packet. Show a preview of the packet before sending:\n\n```javascript\nfunction sendCustomPacket() {\n  const packet = {\n    address: parseInt(addressInput.value),\n    functionCode: parseInt(functionCodeInput.value),\n    data: parseDataInput(dataInput.value)\n  };\n  \n  // Create binary packet based on protocol\n  let binaryPacket;\n  if (currentProtocol === 'RTU') {\n    binaryPacket = createRTUPacket(packet);\n  } else {\n    binaryPacket = createASCIIPacket(packet);\n  }\n  \n  // Send the packet through the current connection\n  if (serialConnected) {\n    sendSerialData(binaryPacket);\n  } else if (tcpConnected) {\n    sendTCPData(binaryPacket);\n  } else {\n    showError('No active connection');\n  }\n}\n\nfunction createRTUPacket(packet) {\n  // Create RTU packet with CRC\n  // ...\n}\n\nfunction createASCIIPacket(packet) {\n  // Create ASCII packet with LRC\n  // ...\n}\n```",
+      "testStrategy": "Test sending various Modbus packets. Verify that packets are correctly formatted with proper CRC/LRC. Test with different function codes to ensure proper data formatting. Verify that the UI updates to show sent packets.",
+      "priority": "medium",
+      "dependencies": [
+        3,
+        4,
+        5
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 8,
+      "title": "Implement Protocol Analysis and Debugging Tools",
+      "description": "Develop tools to help users analyze and debug Modbus communications",
+      "details": "Implement advanced debugging tools for Modbus communications. Add packet timing analysis to measure response times. Create a statistics panel showing packet counts, error rates, and timing information. Implement packet validation with detailed error messages for invalid packets. Add the ability to export packet logs to CSV or JSON format. Implement a feature to highlight related request/response pairs. Add a search function to find specific packets:\n\n```javascript\nfunction calculateStatistics(packets) {\n  const stats = {\n    totalPackets: packets.length,\n    validPackets: packets.filter(p => p.isValid).length,\n    invalidPackets: packets.filter(p => !p.isValid).length,\n    txPackets: packets.filter(p => p.direction === 'TX').length,\n    rxPackets: packets.filter(p => p.direction === 'RX').length,\n    averageResponseTime: calculateAverageResponseTime(packets),\n    functionCodeDistribution: calculateFunctionCodeDistribution(packets)\n  };\n  \n  return stats;\n}\n\nfunction exportPackets(format) {\n  if (format === 'csv') {\n    // Export as CSV\n    // ...\n  } else if (format === 'json') {\n    // Export as JSON\n    // ...\n  }\n}\n\nfunction findRelatedPackets(packet) {\n  // Find request/response pairs based on address, function code, and timing\n  // ...\n}\n```",
+      "testStrategy": "Test statistics calculation with various packet scenarios. Verify that export functionality works correctly for both CSV and JSON formats. Test the search function with different search criteria. Verify that related packets are correctly identified and highlighted.",
+      "priority": "medium",
+      "dependencies": [
+        6,
+        7
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 9,
+      "title": "Implement Configuration and Settings Management",
+      "description": "Create functionality to save and load user configurations and settings",
+      "details": "Implement a system to save and load user configurations. Save connection settings (serial port parameters, TCP/IP address and port). Save custom packet templates. Implement persistent storage using localStorage or IndexedDB. Create a UI for managing saved configurations. Add import/export functionality for configurations:\n\n```javascript\nfunction saveConfiguration(name) {\n  const config = {\n    name,\n    timestamp: new Date().toISOString(),\n    connection: {\n      type: currentConnectionType,\n      serial: {\n        baudRate: currentBaudRate,\n        dataBits: currentDataBits,\n        parity: currentParity,\n        stopBits: currentStopBits\n      },\n      tcp: {\n        ipAddress: currentIPAddress,\n        port: currentPort\n      }\n    },\n    packetTemplates: savedPacketTemplates\n  };\n  \n  // Save to localStorage\n  const savedConfigs = JSON.parse(localStorage.getItem('modbusConfigurations') || '[]');\n  savedConfigs.push(config);\n  localStorage.setItem('modbusConfigurations', JSON.stringify(savedConfigs));\n}\n\nfunction loadConfiguration(name) {\n  const savedConfigs = JSON.parse(localStorage.getItem('modbusConfigurations') || '[]');\n  const config = savedConfigs.find(c => c.name === name);\n  \n  if (config) {\n    // Apply configuration\n    // ...\n  }\n}\n```",
+      "testStrategy": "Test saving and loading various configurations. Verify that all settings are correctly saved and restored. Test import/export functionality. Verify that configurations persist across browser sessions.",
+      "priority": "low",
+      "dependencies": [
+        2,
+        5,
+        7
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 10,
+      "title": "Implement Application Documentation and Help",
+      "description": "Create comprehensive documentation and help resources for users",
+      "details": "Implement in-app documentation and help resources. Create a user guide explaining how to use the application. Add tooltips and contextual help throughout the UI. Include reference information about Modbus protocols. Create a troubleshooting guide for common issues. Implement a 'Getting Started' tutorial for new users:\n\n```javascript\nfunction showHelp(topic) {\n  const helpContent = helpTopics[topic] || helpTopics['general'];\n  \n  // Display help content in a modal or panel\n  showHelpModal(helpContent.title, helpContent.content);\n}\n\nconst helpTopics = {\n  'general': {\n    title: 'Modbus Monitor Help',\n    content: '...'\n  },\n  'serial-connection': {\n    title: 'Serial Connection Help',\n    content: '...'\n  },\n  'tcp-connection': {\n    title: 'TCP/IP Connection Help',\n    content: '...'\n  },\n  // More help topics\n};\n```",
+      "testStrategy": "Verify that all help content is accessible and correctly displayed. Test tooltips and contextual help. Verify that the 'Getting Started' tutorial works correctly. Test help search functionality if implemented.",
+      "priority": "low",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "status": "pending",
+      "subtasks": []
+    }
+  ]
+}

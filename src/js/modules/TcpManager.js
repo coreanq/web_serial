@@ -1,4 +1,4 @@
-class TcpManager {
+export class TcpManager {
     constructor(uiController) {
         this.uiController = uiController;
         this.socket = null;
@@ -137,5 +137,3 @@ class TcpManager {
         return this.connected;
     }
 }
-
-export default TcpManager;

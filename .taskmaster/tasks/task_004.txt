@@ -1,0 +1,55 @@
+# Task ID: 4
+# Title: Implement Modbus ASCII Protocol Parser
+# Status: pending
+# Dependencies: 2
+# Priority: high
+# Description: Develop a parser for Modbus ASCII protocol to interpret serial data
+# Details:
+Implement a Modbus ASCII protocol parser that can decode incoming ASCII frames. The parser should handle message framing with start character (':') and end characters (CR+LF), LRC validation, and extraction of address, function code, data, and error checking fields. Create data structures to represent Modbus ASCII packets. Implement functions to validate packet integrity. The implementation should follow the Modbus ASCII specification, including:
+
+```javascript
+class ModbusASCIIParser {
+  parseFrame(asciiString) {
+    // Check for valid start and end characters
+    if (!asciiString.startsWith(':') || !asciiString.endsWith('\r\n')) return null;
+    
+    // Remove start and end characters
+    const content = asciiString.slice(1, -2);
+    
+    // Convert ASCII hex to binary
+    const buffer = this.hexStringToBuffer(content);
+    
+    // Minimum content is 3 bytes (address, function code, LRC)
+    if (buffer.length < 3) return null;
+    
+    const address = buffer[0];
+    const functionCode = buffer[1];
+    const data = buffer.slice(2, buffer.length - 1);
+    const receivedLRC = buffer[buffer.length - 1];
+    const calculatedLRC = this.calculateLRC(buffer.slice(0, buffer.length - 1));
+    
+    const isValid = receivedLRC === calculatedLRC;
+    
+    return {
+      address,
+      functionCode,
+      data,
+      lrc: receivedLRC,
+      isValid
+    };
+  }
+  
+  hexStringToBuffer(hexString) {
+    // Convert ASCII hex string to binary buffer
+    // ...
+  }
+  
+  calculateLRC(buffer) {
+    // Implementation of Modbus LRC algorithm
+    // ...
+  }
+}
+```
+
+# Test Strategy:
+Test with sample Modbus ASCII packets to verify correct parsing. Verify LRC calculation with known good packets. Test with malformed packets to ensure proper error handling. Create unit tests with various Modbus function codes.

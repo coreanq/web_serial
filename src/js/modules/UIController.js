@@ -113,6 +113,28 @@ export class UIController {
      */
     init() {
         this.isInitialized = true;
+        
+        // Web Serial API 지원 확인
+        const isWebSerialSupported = 'serial' in navigator;
+        
+        // Web Serial API 지원여부에 따라 UI 조정
+        if (!isWebSerialSupported) {
+            // 지원하지 않는 브라우저일 경우 시리얼 옵션 비활성화
+            this.elements.selectPortBtn.disabled = true;
+            this.elements.openPortBtn.disabled = true;
+            this.elements.connectionType.value = 'tcp';
+            this.elements.serialSettingsContainer.style.display = 'none';
+            this.elements.tcpSettingsContainer.style.display = 'block';
+            this.updateConnectionStatus('Web Serial API가 지원되지 않는 브라우저입니다. Chrome/Edge/Opera 최신 버전을 사용해주세요.', true);
+            
+            // 시리얼 옵션 비활성화
+            const serialOption = this.elements.connectionType.querySelector('option[value="serial"]');
+            if (serialOption) {
+                serialOption.disabled = true;
+                serialOption.textContent += ' (지원되지 않는 브라우저)';
+            }
+        }
+        
         // Connection Type 변경 이벤트 리스너
         if (this.elements.connectionType) {
             this.elements.connectionType.addEventListener('change', (event) => {
@@ -120,24 +142,48 @@ export class UIController {
                 if (type === 'serial') {
                     this.elements.serialSettingsContainer.style.display = 'block';
                     this.elements.tcpSettingsContainer.style.display = 'none';
+                    // 모드버스 공통 설정 표시
+                    this.elements.commonModbusSettingsContainer.style.display = 'block';
                 } else if (type === 'tcp') {
                     this.elements.serialSettingsContainer.style.display = 'none';
                     this.elements.tcpSettingsContainer.style.display = 'block';
+                    // 모드버스 공통 설정 표시
+                    this.elements.commonModbusSettingsContainer.style.display = 'block';
                 }
+                // 연결 설정 표시 업데이트
+                this.updateConnectionSettingsSummary();
             });
         }
 
         // 시리얼 포트 선택 버튼
         this.elements.selectPortBtn.addEventListener('click', async () => {
             try {
+                // Web Serial API 호환성 확인
+                if (!this.serialManager.isWebSerialSupported) {
+                    this.updateConnectionStatus('Web Serial API가 지원되지 않는 브라우저입니다.', true);
+                    return;
+                }
+                
                 // 포트 선택 중 상태 표시
                 this.updateConnectionStatus('포트 선택 중...', false, true);
                 this.elements.selectPortBtn.disabled = true;
                 
-                const selected = await this.serialManager.selectPort();
+                // 필터 옵션 준비 (선택적)
+                // usbVendorId와 usbProductId를 지정하여 특정 장치 필터링을 할 수 있음
+                const filters = null; // 필터링 필요 시 추가
+                
+                const selected = await this.serialManager.selectPort(filters);
                 if (selected) {
                     this.elements.openPortBtn.disabled = false;
                     this.updateConnectionStatus('포트 선택됨. 연결 준비 완료.', false);
+                    
+                    // 포트 정보가 있으면 표시
+                    if (this.serialManager.portInfo) {
+                        const { usbVendorId, usbProductId } = this.serialManager.portInfo;
+                        if (usbVendorId && usbProductId) {
+                            console.log(`선택된 포트 정보: Vendor ID 0x${usbVendorId.toString(16).padStart(4, '0')}, Product ID 0x${usbProductId.toString(16).padStart(4, '0')}`);
+                        }
+                    }
                 } else {
                     this.updateConnectionStatus('포트 선택이 취소되었습니다.', false);
                 }
@@ -163,17 +209,20 @@ export class UIController {
         this.elements.openPortBtn.addEventListener('click', async () => {
             try {
                 if (this.serialManager.isConnected()) {
+                    console.log('시리얼 포트가 이미 열려 있습니다.');
                     // 연결 해제 중 상태 표시
                     this.updateConnectionStatus('연결 해제 중...', false, true);
                     this.elements.openPortBtn.disabled = true;
                     await this.disconnectPort();
                 } else {
+                    console.log('시리얼 포트가 닫혀 있습니다.')
                     // 연결 중 상태 표시
                     this.updateConnectionStatus('연결 중...', false, true);
                     this.elements.openPortBtn.disabled = true;
                     await this.connectPort();
                 }
             } catch (error) {
+                console.log(`연결 오류: ${error.message}`);
                 this.updateConnectionStatus(`연결 오류: ${error.message}`, true);
             } finally {
                 this.elements.openPortBtn.disabled = false;
@@ -274,6 +323,24 @@ export class UIController {
      */
     async connectPort() {
         try {
+            // Web Serial API 호환성 확인
+            if (!this.serialManager.isWebSerialSupported) {
+                this.updateConnectionStatus('Web Serial API가 지원되지 않는 브라우저입니다.', true);
+                return false;
+            }
+            
+            // 포트가 선택되었는지 확인
+            if (!this.serialManager.port) {
+                this.updateConnectionStatus('포트가 선택되지 않았습니다. 먼저 포트를 선택해주세요.', true);
+                return false;
+            }
+            
+            // 이미 연결되어 있는지 확인
+            if (this.serialManager.isConnected()) {
+                this.updateConnectionStatus('이미 연결되어 있습니다.', true);
+                return false;
+            }
+            
             // 연결 설정 가져오기
             const options = {
                 baudRate: parseInt(this.elements.baudRate.value, 10),
@@ -287,8 +354,23 @@ export class UIController {
             // 공통 Modbus 설정 읽기
             const modbusMode = this.elements.modbusRtuMode && this.elements.modbusRtuMode.checked ? 'rtu' : 'ascii';
             const delayBetweenPolls = this.elements.delayBetweenPolls ? parseInt(this.elements.delayBetweenPolls.value, 10) : 1000;
-            console.log(`Serial Connect - Modbus Mode: ${modbusMode}, Delay: ${delayBetweenPolls}ms`);
-            // TODO: 이 값들을 실제 Modbus 통신 로직에 활용
+            const responseTimeout = this.elements.responseTimeout ? parseInt(this.elements.responseTimeout.value, 10) : 1000;
+            
+            console.log(`Serial Connect - Modbus Mode: ${modbusMode}, Response Timeout: ${responseTimeout}ms, Delay: ${delayBetweenPolls}ms`);
+            
+            // Modbus 통신 설정 적용
+            if (this.modbusParser) {
+                console.log("1")
+                this.modbusParser.setProtocolMode(modbusMode);
+                console.log("2")
+                this.modbusParser.setTimeout(responseTimeout);
+                console.log("3")
+            }
+            
+            console.log(`!!!!Serial Connect - Options: ${JSON.stringify(options)}`);
+
+            // 연결 시도 전 상태 표시
+            this.updateConnectionStatus('연결 시도 중...', false, true);
 
             // 연결 시도
             const connected = await this.serialManager.connect(options);
@@ -299,7 +381,6 @@ export class UIController {
                 this.elements.openPortBtn.classList.replace('btn-success', 'btn-danger');
                 
                 // 패킷 타임아웃 설정 적용
-                const packetTimeout = parseInt(this.elements.packetTimeout.value, 10);
                 this.updatePacketTimeouts();
                 
                 // 연결 상태 표시
@@ -307,6 +388,9 @@ export class UIController {
                 
                 // 연결 설정 요소 비활성화
                 this.updateConnectionUI(true);
+                
+                // 연결 설정 요약 업데이트
+                this.updateConnectionSettingsSummary();
                 
                 return true;
             } else {
@@ -325,6 +409,19 @@ export class UIController {
      */
     async disconnectPort() {
         try {
+            // 연결 상태 확인
+            if (!this.serialManager || !this.serialManager.isConnected()) {
+                this.updateConnectionStatus('연결되지 않은 상태입니다.', true);
+                // UI를 연결 해제 상태로 맞추기
+                this.elements.openPortBtn.textContent = '열기';
+                this.elements.openPortBtn.classList.replace('btn-danger', 'btn-success');
+                this.updateConnectionUI(false);
+                return false;
+            }
+            
+            // 연결 해제 시도 전 상태 표시
+            this.updateConnectionStatus('연결 해제 중...', false, true);
+            
             // 연결 해제 시도
             const disconnected = await this.serialManager.disconnect();
             
@@ -342,6 +439,9 @@ export class UIController {
                 // 연결 설정 요소 활성화
                 this.updateConnectionUI(false);
                 
+                // 연결 설정 요약 업데이트
+                this.updateConnectionSettingsSummary();
+                
                 return true;
             } else {
                 this.updateConnectionStatus('연결 해제 실패', true);
@@ -349,6 +449,17 @@ export class UIController {
             }
         } catch (error) {
             this.updateConnectionStatus(`연결 해제 오류: ${error.message}`, true);
+            
+            // 오류 발생 시 UI 초기화 시도
+            try {
+                this.elements.openPortBtn.textContent = '열기';
+                this.elements.openPortBtn.classList.replace('btn-danger', 'btn-success');
+                this.updateConnectionUI(false);
+                this.stopLoopSend();
+            } catch (uiError) {
+                console.error('UI 초기화 오류:', uiError);
+            }
+            
             return false;
         }
     }
@@ -634,19 +745,79 @@ export class UIController {
      * 연결 설정 요약 정보 업데이트
      */
     updateConnectionSettingsSummary() {
-        // 현재 연결 설정 요약
-        const baudRate = this.elements.baudRate.value;
-        const dataBits = this.elements.dataBits.value;
-        const stopBits = this.elements.stopBits.value;
-        const parity = this.elements.parity.value.charAt(0).toUpperCase();
-        const flowControl = this.elements.flowControl.value;
+        const connectionType = this.elements.connectionType ? this.elements.connectionType.value : 'serial';
         
-        // 설정 요약 표시
-        const summary = `${baudRate} baud, ${dataBits}${parity}${stopBits}, Flow: ${flowControl}`;
+        // 요약 정보를 표시할 요소 확인
+        const summaryElement = this.elements.connectionSettingsSummary;
+        if (!summaryElement) return;
         
-        // 연결되지 않은 상태에서만 업데이트
-        if (!this.serialManager.isConnected()) {
-            this.updateConnectionStatus(`설정: ${summary}`, false);
+        let summaryText = '';
+        
+        if (connectionType === 'serial') {
+            // 시리얼 연결 설정 요약
+            const baudRate = this.elements.baudRate ? this.elements.baudRate.value : '9600';
+            const dataBits = this.elements.dataBits ? this.elements.dataBits.value : '8';
+            const stopBits = this.elements.stopBits ? this.elements.stopBits.value : '1';
+            const parity = this.elements.parity ? this.elements.parity.value : 'none';
+            const flowControl = this.elements.flowControl ? this.elements.flowControl.value : 'none';
+            
+            // 모드버스 설정
+            const modbusMode = this.elements.modbusRtuMode && this.elements.modbusRtuMode.checked ? 'RTU' : 'ASCII';
+            
+            summaryText = `시리얼: ${baudRate} baud, ${dataBits}${parity.charAt(0).toUpperCase()}${stopBits}, 흐름제어: ${flowControl}, 모드버스: ${modbusMode}`;
+            
+            // 연결 상태 추가
+            if (this.serialManager && this.serialManager.isConnected()) {
+                const portInfo = this.serialManager.portInfo;
+                if (portInfo && portInfo.usbVendorId && portInfo.usbProductId) {
+                    summaryText += ` | VID: 0x${portInfo.usbVendorId.toString(16).padStart(4, '0')}, PID: 0x${portInfo.usbProductId.toString(16).padStart(4, '0')}`;
+                }
+                
+                // 수신/송신 바이트 수 표시
+                if (this.appState) {
+                    const rxBytes = this.appState.get('connection.rxBytes') || 0;
+                    const txBytes = this.appState.get('connection.txBytes') || 0;
+                    summaryText += ` | RX: ${rxBytes} bytes, TX: ${txBytes} bytes`;
+                }
+            }
+        } else if (connectionType === 'tcp') {
+            // TCP/IP 연결 설정 요약
+            const host = this.elements.tcpHost ? this.elements.tcpHost.value : 'localhost';
+            const port = this.elements.tcpPort ? this.elements.tcpPort.value : '502';
+            
+            summaryText = `TCP/IP: ${host}:${port}`;
+            
+            // 연결 상태 추가
+            if (this.tcpManager && this.tcpManager.isConnected) {
+                const isConnected = this.tcpManager.isConnected();
+                summaryText += isConnected ? ' | 연결됨' : ' | 연결 안됨';
+                
+                // 수신/송신 바이트 수 표시
+                if (isConnected && this.appState) {
+                    const rxBytes = this.appState.get('connection.rxBytes') || 0;
+                    const txBytes = this.appState.get('connection.txBytes') || 0;
+                    summaryText += ` | RX: ${rxBytes} bytes, TX: ${txBytes} bytes`;
+                }
+            } else {
+                summaryText += ' | 연결 안됨';
+            }
+        }
+        
+        // 요약 정보 표시
+        summaryElement.textContent = summaryText;
+        
+        // 애플리케이션 상태 업데이트
+        if (this.appState) {
+            this.appState.update('connection.settings', {
+                type: connectionType,
+                summary: summaryText,
+                timestamp: Date.now()
+            });
+        }
+        
+        // 연결되지 않은 상태에서 상태바에 설정 정보 표시
+        if (this.serialManager && !this.serialManager.isConnected()) {
+            this.updateConnectionStatus(`설정: ${summaryText}`, false);
         }
     }
     
