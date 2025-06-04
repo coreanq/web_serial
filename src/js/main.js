@@ -1,6 +1,7 @@
 // Main entry point for Web Serial Monitor
 import { SerialManager } from './modules/SerialManager.js';
 import { ModbusParser } from './modules/ModbusParser.js';
+import { ModbusASCIIParser } from './modules/ModbusASCIIParser.js';
 import { ModbusInterpreter } from './modules/ModbusInterpreter.js';
 import { UIController } from './modules/UIController.js';
 import { MessageSender } from './modules/MessageSender.js';
@@ -41,9 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const initialPacketTimeout = packetTimeoutInput ? parseInt(packetTimeoutInput.value, 10) : 1000; // 기본값 1000ms
 
     const modbusParser = new ModbusParser(initialPacketTimeout, initialPacketTimeout); // rx, tx 동일하게 설정
+    const modbusASCIIParser = new ModbusASCIIParser(initialPacketTimeout, initialPacketTimeout); // rx, tx 동일하게 설정
     const modbusInterpreter = new ModbusInterpreter(initialPacketTimeout);
     const dataStorage = new DataStorage(appState);
-    const logManager = new LogManager(modbusInterpreter, modbusParser);
+    const logManager = new LogManager(modbusInterpreter, modbusParser, modbusASCIIParser);
     const dataExporter = new DataExporter();
     
     // 초기 알림 표시
@@ -59,7 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const uiController = new UIController(
         serialManager,
         null, // tcpManager는 아래에서 생성 후 설정
-        modbusParser,
+        modbusParser, // ModbusRTUParser 인스턴스
+        modbusASCIIParser, // ModbusASCIIParser 인스턴스
         modbusInterpreter,
         dataStorage,
         appState,
@@ -79,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tcpManager,
         modbusParser,
         modbusInterpreter,
+        modbusASCIIParser,
         {
         messageInput: uiController.elements.messageInput,
         sendBtn: uiController.elements.sendBtn,

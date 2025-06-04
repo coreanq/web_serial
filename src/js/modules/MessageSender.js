@@ -8,15 +8,17 @@ export class MessageSender {
      * @param {UIController} uiController UI 컨트롤러 인스턴스
      * @param {SerialManager} serialManager 시리얼 관리자 인스턴스
      * @param {TcpManager} tcpManager TCP 관리자 인스턴스
-     * @param {ModbusParser} modbusParser Modbus 파서 인스턴스
+     * @param {ModbusParser} modbusParser Modbus RTU 파서 인스턴스
      * @param {ModbusInterpreter} modbusInterpreter Modbus 인터프리터 인스턴스
+     * @param {ModbusASCIIParser} modbusASCIIParser Modbus ASCII 파서 인스턴스
      * @param {Object} options 옵션 객체 (주로 UI 요소 ID 포함)
      */
-    constructor(uiController, serialManager, tcpManager, modbusParser, modbusInterpreter, options = {}) {
+    constructor(uiController, serialManager, tcpManager, modbusParser, modbusInterpreter, modbusASCIIParser, options = {}) {
         this.uiController = uiController; // UIController 인스턴스 저장
         this.serialManager = serialManager;
         this.tcpManager = tcpManager; // TcpManager 인스턴스 저장
         this.modbusParser = modbusParser;
+        this.modbusASCIIParser = modbusASCIIParser;
         this.modbusInterpreter = modbusInterpreter;
         this.loopInterval = null;
         this.isLooping = false;
@@ -40,7 +42,11 @@ export class MessageSender {
             { name: 'Modbus RTU 레지스터 읽기 (FC 03)', value: '01 03 00 00 00 0A C5 CD' },
             { name: 'Modbus RTU 코일 읽기 (FC 01)', value: '01 01 00 00 00 08 3D CC' },
             { name: 'Modbus RTU 레지스터 쓰기 (FC 06)', value: '01 06 00 01 00 03 19 CA' },
-            { name: 'Modbus RTU 진단 (FC 08)', value: '01 08 00 00 00 00 A1 88' }
+            { name: 'Modbus RTU 진단 (FC 08)', value: '01 08 00 00 00 00 A1 88' },
+            { name: 'Modbus ASCII 레지스터 읽기 (FC 03)', value: ':010300000A44\r\n' },
+            { name: 'Modbus ASCII 코일 읽기 (FC 01)', value: ':01010000087E\r\n' },
+            { name: 'Modbus ASCII 레지스터 쓰기 (FC 06)', value: ':01060001000396\r\n' },
+            { name: 'Modbus ASCII 진단 (FC 08)', value: ':0108000000F7\r\n' }
         ];
     }
     

@@ -356,3 +356,18 @@ body {
     background-color: #343a40; /* 어두운 배경색, 필요에 따라 조정 */
     color: #fff; /* 밝은 텍스트 색상 */
 }
+
+/* 다크모드에서 연결 상태 텍스트 가시성 개선 */
+.bg-dark #connectionStatus.text-muted {
+    color: #adb5bd !important; /* 더 밝은 회색으로 설정 */
+}
+
+/* 다크모드에서 폼 라벨 가시성 개선 */
+.bg-dark .form-label {
+    color: #e9ecef; /* 더 밝은 색상으로 설정 */
+}
+
+/* 입력 필드 포커스 시 텍스트 색상 개선 */
+.form-control:focus {
+    color: #fff;
+}

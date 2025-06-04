@@ -1,6 +1,6 @@
 # Task ID: 2
 # Title: Implement Web Serial API Connection
-# Status: pending
+# Status: done
 # Dependencies: 1
 # Priority: high
 # Description: Create functionality to connect to serial ports using the Web Serial API

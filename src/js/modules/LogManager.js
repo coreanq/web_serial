@@ -4,15 +4,20 @@
  */
 import { ModbusInterpreter } from './ModbusInterpreter.js';
 import { ModbusParser } from './ModbusParser.js';
+import { ModbusASCIIParser } from './ModbusASCIIParser.js';
 
 export class LogManager {
     /**
      * 생성자
      * @param {ModbusInterpreter} modbusInterpreter Modbus 인터프리터 인스턴스
+     * @param {ModbusParser} modbusParser Modbus RTU 파서 인스턴스
+     * @param {ModbusASCIIParser} modbusASCIIParser Modbus ASCII 파서 인스턴스
      */
-    constructor(modbusInterpreter, modbusParser) {
+    constructor(modbusInterpreter, modbusParser, modbusASCIIParser) {
         this.modbusInterpreter = modbusInterpreter;
         this.modbusParser = modbusParser; // 주입받은 ModbusParser 인스턴스 사용
+        this.modbusASCIIParser = modbusASCIIParser; // 주입받은 ModbusASCIIParser 인스턴스 사용
+        this.currentModbusMode = 'rtu'; // 기본값은 RTU 모드
         this.packets = [];
         this.autoScroll = true;
         this.filterType = 'all'; // 'all', 'tx', 'rx'
@@ -30,6 +35,26 @@ export class LogManager {
         
         // 이벤트 리스너 추가
         this._attachEventListeners();
+        
+        // Modbus 모드 선택 이벤트 리스너 추가
+        const modbusRtuMode = document.getElementById('modbusRtuMode');
+        const modbusAsciiMode = document.getElementById('modbusAsciiMode');
+        
+        if (modbusRtuMode && modbusAsciiMode) {
+            modbusRtuMode.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.currentModbusMode = 'rtu';
+                    console.log('LogManager: Modbus RTU 모드 선택됨');
+                }
+            });
+            
+            modbusAsciiMode.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.currentModbusMode = 'ascii';
+                    console.log('LogManager: Modbus ASCII 모드 선택됨');
+                }
+            });
+        }
     }
     
     /**
@@ -85,8 +110,14 @@ export class LogManager {
         let parsedPacket;
 
         if (packetData instanceof Uint8Array) {
-            // Uint8Array인 경우, ModbusParser를 사용하여 파싱
-            parsedPacket = this.modbusParser.parsePacket(packetData, direction);
+            // 현재 선택된 Modbus 모드에 따라 적절한 파서 사용
+            if (this.currentModbusMode === 'ascii') {
+                // ASCII 모드인 경우 ModbusASCIIParser 사용
+                parsedPacket = this.modbusASCIIParser.parseData(packetData, direction)[0]; // 처음 패킷만 사용
+            } else {
+                // RTU 모드인 경우 ModbusParser 사용
+                parsedPacket = this.modbusParser.parsePacket(packetData, direction);
+            }
         } else {
             // 이미 파싱된 객체인 경우 그대로 사용
             parsedPacket = packetData;

@@ -10,24 +10,29 @@ export class UIController {
     /**
      * UIController 생성자
      * @param {SerialManager} serialManager 시리얼 관리자 인스턴스
-     * @param {ModbusParser} modbusParser Modbus 파서 인스턴스
+     * @param {ModbusParser} modbusRTUParser Modbus 파서 인스턴스
      * @param {ModbusInterpreter} modbusInterpreter Modbus 함수 코드 인터프리터 인스턴스
      * @param {DataStorage} dataStorage 데이터 저장소 인스턴스
      * @param {AppState} appState 애플리케이션 상태 관리자 인스턴스
      * @param {LogManager} logManager 로그 관리자 인스턴스
      * @param {DataExporter} dataExporter 데이터 내보내기 인스턴스
      * @param {MessageSender} messageSender 메시지 전송자 인스턴스
+     * @param {ModbusASCIIParser} modbusASCIIParser Modbus ASCII 파서 인스턴스
      */
-    constructor(serialManager, tcpManager, modbusParser, modbusInterpreter, dataStorage, appState, logManager, dataExporter, messageSender) {
+    constructor(serialManager, tcpManager = null, modbusRTUParser = null, modbusASCIIParser = null, modbusInterpreter = null, dataStorage = null, appState = null, logManager = null, dataExporter = null, messageSender = null) {
         this.serialManager = serialManager;
         this.tcpManager = tcpManager;
         this.messageSender = messageSender; // MessageSender 인스턴스 주입
-        this.modbusParser = modbusParser; // ModbusParser 인스턴스 저장
+        this.modbusRTUParser = modbusRTUParser; // ModbusRTUParser 인스턴스 저장
+        this.modbusASCIIParser = modbusASCIIParser; // ModbusASCIIParser 인스턴스 저장
         this.modbusInterpreter = modbusInterpreter; // ModbusInterpreter 인스턴스 저장
         this.dataStorage = dataStorage;
         this.appState = appState;
         this.logManager = logManager;
         this.dataExporter = dataExporter;
+        
+        // 현재 선택된 Modbus 모드에 따라 적절한 파서 할당
+        this.modbusParser = this.modbusRTUParser; // 기본값은 RTU 파서
         
         // UI 요소
         this.elements = {
@@ -85,6 +90,7 @@ export class UIController {
         // 상태 변수
         this.loopSendIntervalId = null;
         this.isInitialized = false;
+        this.currentModbusMode = 'rtu'; // 기본값은 RTU 모드
     }
     
     setSerialManager(serialManager) {
@@ -194,6 +200,25 @@ export class UIController {
             }
         });
         
+        // Modbus 모드 선택 이벤트 리스너 (RTU/ASCII)
+        if (this.elements.modbusRtuMode && this.elements.modbusAsciiMode) {
+            this.elements.modbusRtuMode.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.currentModbusMode = 'rtu';
+                    this.modbusParser = this.modbusRTUParser; // RTU 모드 선택 시 RTU 파서 할당
+                    console.log('Modbus RTU 모드 선택됨');
+                }
+            });
+            
+            this.elements.modbusAsciiMode.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.currentModbusMode = 'ascii';
+                    this.modbusParser = this.modbusASCIIParser; // ASCII 모드 선택 시 ASCII 파서 할당
+                    console.log('Modbus ASCII 모드 선택됨');
+                }
+            });
+        }
+        
         // 내보내기 버튼 이벤트 리스너
         this.elements.exportBtn.addEventListener('click', () => {
             this.showExportDialog();
@@ -270,18 +295,18 @@ export class UIController {
         
         // 시리얼 데이터 수신 리스너
         this.serialManager.onDataReceived((data) => {
-            const { binaryData, textData, direction, timestamp } = data;
-            console.log(`데이터 ${direction === 'tx' ? '송신' : '수신'}:`, binaryData, textData);
+            const { binary, text, direction, timestamp } = data;
+            console.log(`데이터 ${direction === 'tx' ? '송신' : '수신'}:`, binary, text);
             
             // Modbus 패킷 파싱 시도
             if (direction === 'rx') {
-                const packets = this.modbusParser.parseData(binaryData, 'rx');
+                const packets = this.modbusParser.parseData(binary, 'rx');
                 packets.forEach(packet => {
                     console.log('RX Packet:', packet);
                     this.logManager.addPacketToLog(packet, 'RX');
                 });
             } else if (direction === 'tx') {
-                const packets = this.modbusParser.parseData(binaryData, 'tx');
+                const packets = this.modbusParser.parseData(binary, 'tx');
                 packets.forEach(packet => {
                     console.log('TX Packet', packet);
                     this.logManager.addPacketToLog(packet, 'TX');
@@ -359,12 +384,23 @@ export class UIController {
             console.log(`Serial Connect - Modbus Mode: ${modbusMode}, Response Timeout: ${responseTimeout}ms, Delay: ${delayBetweenPolls}ms`);
             
             // Modbus 통신 설정 적용
-            if (this.modbusParser) {
-                console.log("1")
-                this.modbusParser.setProtocolMode(modbusMode);
-                console.log("2")
-                this.modbusParser.setTimeout(responseTimeout);
-                console.log("3")
+            if (this.modbusRTUParser && this.modbusASCIIParser) {
+                // 모드 값에 따라 적절한 파서 선택
+                if (modbusMode === 'ascii') {
+                    this.currentModbusMode = 'ascii';
+                    this.modbusParser = this.modbusASCIIParser;
+                    this.elements.modbusAsciiMode.checked = true;
+                    this.elements.modbusRtuMode.checked = false;
+                    console.log('Modbus ASCII 모드로 설정됨');
+                } else {
+                    this.currentModbusMode = 'rtu';
+                    this.modbusParser = this.modbusRTUParser;
+                    this.elements.modbusRtuMode.checked = true;
+                    this.elements.modbusAsciiMode.checked = false;
+                    console.log('Modbus RTU 모드로 설정됨');
+                }
+                
+                // 파서 설정 적용
             }
             
             console.log(`!!!!Serial Connect - Options: ${JSON.stringify(options)}`);
@@ -590,9 +626,12 @@ export class UIController {
             return;
         }
 
-        if (this.modbusParser) {
-            this.modbusParser.rxPacketTimeoutMs = timeoutValue;
-            this.modbusParser.txPacketTimeoutMs = timeoutValue; // UI에서는 하나의 값만 제공하므로 동일하게 설정
+        if (this.modbusRTUParser && this.modbusASCIIParser) {
+            // 두 파서 모두 타임아웃 값 업데이트
+            this.modbusRTUParser.rxPacketTimeoutMs = timeoutValue;
+            this.modbusRTUParser.txPacketTimeoutMs = timeoutValue;
+            this.modbusASCIIParser.rxPacketTimeoutMs = timeoutValue;
+            this.modbusASCIIParser.txPacketTimeoutMs = timeoutValue;
             // console.log(`UIController: ModbusParser timeouts updated to ${timeoutValue}ms`);
         }
         if (this.modbusInterpreter) {
@@ -708,7 +747,7 @@ export class UIController {
     updateConnectionStatus(message, isError = false, isLoading = false) {
         // 로딩 상태일 경우 스피너 추가
         if (isLoading) {
-            this.elements.connectionStatus.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${message}`;
+            this.elements.connectionStatus.innerHTML = `<span class="spinner-border spinner-border-sm text-warning me-2" role="status" aria-hidden="true"></span>${message}`;
         } else {
             this.elements.connectionStatus.textContent = message;
         }
@@ -735,8 +774,8 @@ export class UIController {
                 // 로딩 중 - 파란색
                 this.elements.connectionIndicator.style.backgroundColor = '#0d6efd';
             } else {
-                // 대기 중 - 회색
-                this.elements.connectionIndicator.style.backgroundColor = '#6c757d';
+                // 대기 중 - 노란색
+                this.elements.connectionIndicator.style.backgroundColor = '#ffc107';
             }
         }
     }
@@ -1275,5 +1314,15 @@ export class UIController {
                 }
             });
         });
+    }
+    
+    /**
+     * 현재 선택된 연결 타입을 반환합니다.
+     * @returns {string} 연결 타입 ('serial' 또는 'tcp')
+     */
+    getConnectionType() {
+        // connectionType 요소의 값에 따라 연결 타입 반환
+        // Modbus RTU(Serial)의 경우 'serial', Modbus TCP/IP의 경우 'tcp'
+        return this.elements.connectionType.value === 'serial' ? 'serial' : 'tcp';
     }
 }

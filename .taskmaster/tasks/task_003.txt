@@ -1,6 +1,6 @@
 # Task ID: 3
 # Title: Implement Modbus RTU Protocol Parser
-# Status: pending
+# Status: done
 # Dependencies: 2
 # Priority: high
 # Description: Develop a parser for Modbus RTU protocol to interpret serial data
