@@ -1,6 +1,6 @@
 # Task ID: 4
 # Title: Implement Modbus ASCII Protocol Parser
-# Status: in-progress
+# Status: done
 # Dependencies: 2
 # Priority: high
 # Description: Develop a parser for Modbus ASCII protocol to interpret serial data

@@ -67,6 +67,8 @@ export class UIController {
             ipv4: document.getElementById('ipv4'),
             ipv6: document.getElementById('ipv6'),
             connectTcpBtn: document.getElementById('connectTcpBtn'),
+            wsServerUrl: document.getElementById('wsServerUrl'),
+            saveWsUrlBtn: document.getElementById('saveWsUrlBtn'),
             commonModbusSettingsContainer: document.getElementById('commonModbusSettingsContainer'),
             modbusRtuMode: document.getElementById('modbusRtuMode'),
             modbusAsciiMode: document.getElementById('modbusAsciiMode'),
@@ -118,6 +120,11 @@ export class UIController {
      * UI 초기화 및 이벤트 리스너 설정
      */
     init() {
+        if (this.isInitialized) {
+            console.warn('UIController: Already initialized');
+            return;
+        }
+        
         this.isInitialized = true;
         
         // Web Serial API 지원 확인
@@ -150,11 +157,25 @@ export class UIController {
                     this.elements.tcpSettingsContainer.style.display = 'none';
                     // 모드버스 공통 설정 표시
                     this.elements.commonModbusSettingsContainer.style.display = 'block';
+                    // 시리얼 연결에서는 RTU와 ASCII 모드 모두 사용 가능
+                    this.elements.modbusAsciiMode.parentElement.style.display = 'inline-block';
                 } else if (type === 'tcp') {
                     this.elements.serialSettingsContainer.style.display = 'none';
                     this.elements.tcpSettingsContainer.style.display = 'block';
                     // 모드버스 공통 설정 표시
                     this.elements.commonModbusSettingsContainer.style.display = 'block';
+                    // TCP/IP 연결에서는 RTU 모드만 사용 가능
+                    this.elements.modbusRtuMode.checked = true; // RTU 모드 강제 선택
+                    this.elements.modbusAsciiMode.checked = false; // ASCII 모드 선택 해제
+                    this.elements.modbusAsciiMode.parentElement.style.display = 'none'; // ASCII 모드 옵션 숨김
+                    
+                    // TCP 설정 요소들이 활성화되도록 설정
+                    this.elements.ipAddress.disabled = false;
+                    this.elements.serverPort.disabled = false;
+                    this.elements.connectTimeoutTcp.disabled = false;
+                    this.elements.ipv4.disabled = false;
+                    this.elements.ipv6.disabled = false;
+                    this.elements.connectTcpBtn.disabled = false;
                 }
                 // 연결 설정 표시 업데이트
                 this.updateConnectionSettingsSummary();
@@ -328,17 +349,48 @@ export class UIController {
         this.updateConnectionUI(false);
         this.updatePacketTimeouts(); // 초기 값으로 parser와 interpreter 업데이트
         
+        // 초기 connectionType 값에 따라 Modbus 모드 옵션 제어
+        if (this.elements.connectionType.value === 'tcp') {
+            // TCP/IP 연결에서는 RTU 모드만 사용 가능
+            this.elements.modbusRtuMode.checked = true;
+            this.elements.modbusAsciiMode.checked = false;
+            this.elements.modbusAsciiMode.parentElement.style.display = 'none';
+            
+            // TCP 설정 요소들이 활성화되도록 설정
+            this.elements.ipAddress.disabled = false;
+            this.elements.serverPort.disabled = false;
+            this.elements.connectTimeoutTcp.disabled = false;
+            this.elements.ipv4.disabled = false;
+            this.elements.ipv6.disabled = false;
+            this.elements.connectTcpBtn.disabled = false;
+        } else {
+            // 시리얼 연결에서는 RTU와 ASCII 모드 모두 사용 가능
+            this.elements.modbusAsciiMode.parentElement.style.display = 'inline-block';
+        }
+        
         // TCP/IP 연결 버튼 이벤트 리스너
         if (this.elements.connectTcpBtn) {
             this.elements.connectTcpBtn.addEventListener('click', async () => {
-                // TODO: 현재 TCP 연결 상태 확인 로직 필요 (예: this.tcpManager.isConnected())
-                const isTcpConnected = false; // 임시 값
+                // TCP 연결 상태 확인
+                const isTcpConnected = this.tcpManager && this.tcpManager.isConnected();
                 if (isTcpConnected) {
                     await this.disconnectTcpIp();
                 } else {
                     await this.connectTcpIp();
                 }
             });
+        }
+        
+        // WebSocket 서버 URL 저장 버튼 이벤트 리스너
+        if (this.elements.saveWsUrlBtn) {
+            this.elements.saveWsUrlBtn.addEventListener('click', () => {
+                this.saveWebSocketServerUrl();
+            });
+            
+            // 초기 WebSocket URL 설정
+            if (this.tcpManager && this.elements.wsServerUrl) {
+                this.elements.wsServerUrl.value = this.tcpManager.getWsServerUrl();
+            }
         }
     }
     
@@ -559,6 +611,37 @@ export class UIController {
         this.elements.connectTcpBtn.disabled = false;
         return true; // 비동기 작업이 아니므로 즉시 반환 (실제 해제는 비동기일 수 있음)
     }
+    
+    /**
+     * WebSocket 서버 URL을 저장합니다.
+     */
+    saveWebSocketServerUrl() {
+        if (!this.tcpManager || !this.elements.wsServerUrl) {
+            this.updateConnectionStatus('TCP Manager가 초기화되지 않았거나 WebSocket URL 입력 필드를 찾을 수 없습니다.', true);
+            return false;
+        }
+        
+        const url = this.elements.wsServerUrl.value.trim();
+        if (!url) {
+            this.updateConnectionStatus('WebSocket 서버 URL을 입력해주세요.', true);
+            return false;
+        }
+        
+        // WebSocket URL 형식 검증 (ws:// 또는 wss:// 로 시작해야 함)
+        if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+            this.updateConnectionStatus('WebSocket 서버 URL은 ws:// 또는 wss:// 로 시작해야 합니다.', true);
+            return false;
+        }
+        
+        const saved = this.tcpManager.saveWsServerUrl(url);
+        if (saved) {
+            this.updateConnectionStatus(`WebSocket 서버 URL이 저장되었습니다: ${url}`, false);
+            return true;
+        } else {
+            this.updateConnectionStatus('WebSocket 서버 URL 저장 중 오류가 발생했습니다.', true);
+            return false;
+        }
+    }
 
     handleSerialData(data) {
         const { binaryData, textData, direction, timestamp } = data;
@@ -586,8 +669,23 @@ export class UIController {
         this.updateConnectionUI(false); // 오류 발생 시 UI 업데이트
     }
 
+    /**
+     * TCP 데이터 처리
+     * @param {Uint8Array} data 수신된 데이터
+     */
     handleTcpData(data) {
-        // console.log('UIController: TCP Data Received:', data);
+        console.log('UIController: TCP Data Received:', data);
+        
+        // TCP/IP에서는 항상 Modbus RTU 모드 사용
+        const packets = this.modbusRTUParser.parseData(data, 'rx');
+        
+        // 파싱된 패킷을 로그에 추가
+        packets.forEach(packet => {
+            console.log('TCP RX Packet:', packet);
+            this.logManager.addPacketToLog(packet, 'RX');
+        });
+        
+        // Modbus 인터프리터를 통한 추가 처리
         if (this.modbusInterpreter) {
             this.modbusInterpreter.parseResponse(data);
         }

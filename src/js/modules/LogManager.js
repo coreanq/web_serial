@@ -188,10 +188,6 @@ export class LogManager {
                     <td style="font-weight: bold; width: 45px; padding-right: 5px; vertical-align: top;">HEX:</td>
                     <td style="word-break: break-all; vertical-align: top;">${hexStrWithDec}</td>
                 </tr>
-                <tr>
-                    <td style="font-weight: bold; width: 45px; padding-right: 5px; vertical-align: top;">ASC:</td>
-                    <td style="word-break: break-all; vertical-align: top;">${asciiStr}</td>
-                </tr>
             `;
         } else { // 수신 시 또는 기본 ASC 우선
             packetDataHtml += `

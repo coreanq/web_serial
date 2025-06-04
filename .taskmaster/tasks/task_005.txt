@@ -1,6 +1,6 @@
 # Task ID: 5
 # Title: Implement TCP/IP Connection for Modbus RTU
-# Status: pending
+# Status: in-progress
 # Dependencies: 1, 3
 # Priority: medium
 # Description: Create functionality to connect to Modbus devices over TCP/IP using Modbus RTU protocol

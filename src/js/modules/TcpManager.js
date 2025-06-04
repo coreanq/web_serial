@@ -1,4 +1,8 @@
 export class TcpManager {
+    /**
+     * TcpManager 생성자
+     * @param {UIController} uiController UI 컨트롤러 인스턴스
+     */
     constructor(uiController) {
         this.uiController = uiController;
         this.socket = null;
@@ -6,10 +10,40 @@ export class TcpManager {
         this.onDataCallback = null;
         this.onErrorCallback = null;
         this.onCloseCallback = null;
-
-        // TODO: WebSocket 서버 주소 설정 (예: 'ws://localhost:8080/modbus')
-        // 이 주소는 Modbus TCP 장치와 통신을 중계하는 WebSocket 서버의 주소입니다.
-        this.webSocketServerUrl = ''; // 실제 사용 시 이 URL을 설정해야 합니다.
+        
+        // WebSocket 서버 URL 설정
+        this.wsServerUrl = this.loadWsServerUrl();
+    }
+    
+    /**
+     * localStorage에서 WebSocket 서버 URL을 불러옵니다.
+     * @returns {string} WebSocket 서버 URL
+     */
+    loadWsServerUrl() {
+        return localStorage.getItem('wsServerUrl') || 'ws://localhost:8080/modbus';
+    }
+    
+    /**
+     * WebSocket 서버 URL을 localStorage에 저장합니다.
+     * @param {string} url WebSocket 서버 URL
+     * @returns {boolean} 저장 성공 여부
+     */
+    saveWsServerUrl(url) {
+        if (url && typeof url === 'string') {
+            localStorage.setItem('wsServerUrl', url);
+            this.wsServerUrl = url;
+            console.log('WebSocket 서버 URL이 저장되었습니다:', url);
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * 현재 설정된 WebSocket 서버 URL을 반환합니다.
+     * @returns {string} WebSocket 서버 URL
+     */
+    getWsServerUrl() {
+        return this.wsServerUrl;
     }
 
     /**
@@ -28,8 +62,8 @@ export class TcpManager {
             return true;
         }
 
-        if (!this.webSocketServerUrl) {
-            const errorMsg = 'TcpManager: WebSocket server URL is not configured.';
+        if (!this.wsServerUrl) {
+            const errorMsg = 'TcpManager: WebSocket 서버 URL이 설정되지 않았습니다.';
             console.error(errorMsg);
             if (this.onErrorCallback) this.onErrorCallback(new Error(errorMsg));
             this.uiController.updateConnectionStatus(errorMsg, true);
@@ -37,11 +71,17 @@ export class TcpManager {
         }
 
         return new Promise((resolve) => {
-            console.log(`TcpManager: Attempting to connect to WebSocket bridge: ${this.webSocketServerUrl} for target ${options.ipAddress}:${options.port}`);
+            // WebSocket URL에 대상 Modbus TCP 서버 정보를 쿼리 파라미터로 추가
+            const targetUrl = new URL(this.wsServerUrl);
+            targetUrl.searchParams.append('ip', options.ipAddress);
+            targetUrl.searchParams.append('port', options.port);
+            targetUrl.searchParams.append('mode', options.modbusMode || 'rtu');
+            
+            console.log(`TcpManager: Attempting to connect to WebSocket bridge: ${targetUrl.toString()} for target ${options.ipAddress}:${options.port}`);
             this.uiController.updateConnectionStatus(`TCP/IP 연결 시도 중... (${options.ipAddress}:${options.port})`, false);
 
             try {
-                this.socket = new WebSocket(this.webSocketServerUrl);
+                this.socket = new WebSocket(targetUrl.toString());
 
                 this.socket.onopen = () => {
                     this.connected = true;
@@ -103,10 +143,27 @@ export class TcpManager {
         this.connected = false;
     }
 
+    /**
+     * 메시지 전송
+     * @param {ArrayBuffer|Uint8Array} data 전송할 데이터
+     * @returns {boolean} 전송 성공 여부
+     */
     sendMessage(data) {
         if (this.socket && this.connected) {
             try {
-                this.socket.send(data.buffer);
+                // 데이터 형식 처리
+                if (data instanceof Uint8Array) {
+                    // Uint8Array인 경우 buffer 속성 사용
+                    this.socket.send(data.buffer);
+                } else if (data instanceof ArrayBuffer) {
+                    // ArrayBuffer인 경우 그대로 전송
+                    this.socket.send(data);
+                } else {
+                    // 기타 형식(문자열 등)은 그대로 전송
+                    this.socket.send(data);
+                }
+                
+                console.log(`TcpManager: 메시지 전송 성공 (${data.byteLength || data.length} bytes)`);
                 return true;
             } catch (error) {
                 console.error('TcpManager: Error sending message:', error);
