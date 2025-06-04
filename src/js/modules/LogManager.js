@@ -439,11 +439,7 @@ export class LogManager {
      */
     _bytesToHexString(bytes) {
         if (!bytes) return '';
-        return Array.from(bytes).map(byte => {
-            const hex = byte.toString(16).padStart(2, '0').toUpperCase();
-            const dec = byte.toString(10);
-            return `${hex}<span style="color: gray;">(${dec})</span>`; // 공백 제거 및 span 추가
-        }).join(' '); // 각 바이트 표현 사이에는 공백 유지
+        return Array.from(bytes).map(byte => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ');
     }
 
     /**
@@ -456,25 +452,16 @@ export class LogManager {
         return Array.from(bytes).map(byte => byte.toString(10)).join(' ');
     }
 
-    /**
-     * 바이트 배열을 ASCII 문자열로 변환합니다. 
-     * 제어 문자는 Symbolic 이름으로 표시하고, 제어 문자임을 시각적으로 표시합니다.
-     * @param {Uint8Array} bytes - 변환할 바이트 배열
-     * @returns {string} ASCII 문자열 (제어 문자는 [NAME] 형식으로 표시)
-     */
     _formatInterpretedDataToHtml(data) {
         if (typeof data === 'string') {
             return data; // 이미 문자열이면 그대로 반환
         }
+        console.log("_formatInterpretedDataToHtml data", data);
         if (typeof data === 'object' && data !== null) {
-            let html = '<ul style="list-style-type: none; padding: 0; margin: 0; text-align: left;">';
-            for (const key in data) {
-                if (Object.hasOwnProperty.call(data, key)) {
-                    html += `<li style="margin-bottom: 3px;"><strong>${key}:</strong> ${data[key]}</li>`;
-                }
+            // data 내부의 html만 표시하도록 변경
+            if (data.html) {
+                return data.html;
             }
-            html += '</ul>';
-            return html;
         }
         return ''; // 그 외의 경우는 빈 문자열 반환
     }

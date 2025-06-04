@@ -115,7 +115,7 @@ export class ModbusInterpreter {
                     interpretation.summary = `${this.getFunctionName(functionCode)}`;
                     interpretation.details.message = '이 함수 코드에 대한 자세한 해석이 구현되지 않았습니다.';
                     interpretation.html = `<div class="mb-2">${interpretation.summary}</div>
-                                          <div class="text-muted small">${interpretation.details.message}</div>`;
+                                          <div class="mb-2">${interpretation.details.message}</div>`;
                     return interpretation;
             }
         } catch (error) {
@@ -147,8 +147,8 @@ export class ModbusInterpreter {
         
         interpretation.html = `
             <div class="text-danger mb-2"><strong>${interpretation.summary}</strong></div>
-            <div class="text-muted small">원본 함수: ${interpretation.details.originalFunction}</div>
-            <div class="text-muted small">예외 코드: 0x${exceptionCode.toString(16).padStart(2, '0')} - ${interpretation.details.exceptionName}</div>
+            <div class="mb-2">원본 함수: ${interpretation.details.originalFunction}</div>
+            <div class="mb-2">예외 코드: 0x${exceptionCode.toString(16).padStart(2, '0')} - ${interpretation.details.exceptionName}</div>
         `;
         
         return interpretation;
@@ -170,8 +170,8 @@ export class ModbusInterpreter {
         
         // 요청 패킷 해석
         if (data.length === 4) {
-            const startAddress = (data[0] << 8) | data[1];
-            const quantity = (data[2] << 8) | data[3];
+            const startAddress = (data[2] << 8) | data[3];
+            const quantity = (data[4] << 8) | data[5];
             
             interpretation.details = {
                 type: '요청',
@@ -182,8 +182,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName} (요청)</strong></div>
-                <div class="text-muted small">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
-                <div class="text-muted small">수량: ${quantity} 비트</div>
+                <div class="mb-2">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
+                <div class="mb-2">수량: ${quantity} 비트</div>
             `;
         }
         // 응답 패킷 해석
@@ -212,8 +212,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName} (응답)</strong></div>
-                <div class="text-muted small">바이트 수: ${byteCount}</div>
-                <div class="text-muted small">비트 수: ${values.length}</div>
+                <div class="mb-2">바이트 수: ${byteCount}</div>
+                <div class="mb-2">비트 수: ${values.length}</div>
                 <div class="mt-1">${valuesHtml}</div>
             `;
         }
@@ -237,8 +237,8 @@ export class ModbusInterpreter {
         
         // 요청 패킷 해석
         if (data.length === 4) {
-            const startAddress = (data[0] << 8) | data[1];
-            const quantity = (data[2] << 8) | data[3];
+            const startAddress = (data[2] << 8) | data[3];
+            const quantity = (data[4] << 8) | data[5];
             
             interpretation.details = {
                 type: '요청',
@@ -249,8 +249,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName} (요청)</strong></div>
-                <div class="text-muted small">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
-                <div class="text-muted small">수량: ${quantity} 레지스터</div>
+                <div class="mb-2">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
+                <div class="mb-2">수량: ${quantity} 레지스터</div>
             `;
         }
         // 응답 패킷 해석
@@ -281,8 +281,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName} (응답)</strong></div>
-                <div class="text-muted small">바이트 수: ${byteCount}</div>
-                <div class="text-muted small">레지스터 수: ${registers.length}</div>
+                <div class="mb-2">바이트 수: ${byteCount}</div>
+                <div class="mb-2">레지스터 수: ${registers.length}</div>
                 <div class="mt-1">${registersHtml}</div>
             `;
         }
@@ -304,8 +304,8 @@ export class ModbusInterpreter {
         interpretation.summary = functionName;
         
         if (data.length >= 4) {
-            const outputAddress = (data[0] << 8) | data[1];
-            const outputValue = (data[2] << 8) | data[3];
+            const outputAddress = (data[2] << 8) | data[3];
+            const outputValue = (data[4] << 8) | data[5];
             const state = outputValue === 0xFF00 ? 'ON (1)' : 'OFF (0)';
             
             interpretation.details = {
@@ -317,8 +317,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName}</strong></div>
-                <div class="text-muted small">출력 주소: ${outputAddress} (${interpretation.details.outputAddressHex})</div>
-                <div class="text-muted small">값: ${state}</div>
+                <div class="mb-2">출력 주소: ${outputAddress} (${interpretation.details.outputAddressHex})</div>
+                <div class="mb-2">값: ${state}</div>
             `;
         }
         
@@ -339,8 +339,8 @@ export class ModbusInterpreter {
         interpretation.summary = functionName;
         
         if (data.length >= 4) {
-            const registerAddress = (data[0] << 8) | data[1];
-            const registerValue = (data[2] << 8) | data[3];
+            const registerAddress = (data[2] << 8) | data[3];
+            const registerValue = (data[4] << 8) | data[5];
             
             interpretation.details = {
                 registerAddress: registerAddress,
@@ -351,8 +351,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName}</strong></div>
-                <div class="text-muted small">레지스터 주소: ${registerAddress} (${interpretation.details.registerAddressHex})</div>
-                <div class="text-muted small">값: ${registerValue} (${interpretation.details.registerValueHex})</div>
+                <div class="mb-2">레지스터 주소: ${registerAddress} (${interpretation.details.registerAddressHex})</div>
+                <div class="mb-2">값: ${registerValue} (${interpretation.details.registerValueHex})</div>
             `;
         }
         
@@ -374,9 +374,9 @@ export class ModbusInterpreter {
         
         // 요청 패킷 해석 (더 긴 데이터)
         if (data.length > 5) {
-            const startAddress = (data[0] << 8) | data[1];
-            const quantity = (data[2] << 8) | data[3];
-            const byteCount = data[4];
+            const startAddress = (data[2] << 8) | data[3];
+            const quantity = (data[4] << 8) | data[5];
+            const byteCount = data[6];
             const values = [];
             
             // 각 바이트의 각 비트를 추출
@@ -405,16 +405,16 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName} (요청)</strong></div>
-                <div class="text-muted small">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
-                <div class="text-muted small">수량: ${quantity} 비트</div>
-                <div class="text-muted small">바이트 수: ${byteCount}</div>
+                <div class="mb-2">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
+                <div class="mb-2">수량: ${quantity} 비트</div>
+                <div class="mb-2">바이트 수: ${byteCount}</div>
                 <div class="mt-1">${valuesHtml}</div>
             `;
         }
         // 응답 패킷 해석
         else if (data.length === 4) {
-            const startAddress = (data[0] << 8) | data[1];
-            const quantity = (data[2] << 8) | data[3];
+            const startAddress = (data[2] << 8) | data[3];
+            const quantity = (data[4] << 8) | data[5];
             
             interpretation.details = {
                 type: '응답',
@@ -425,8 +425,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName} (응답)</strong></div>
-                <div class="text-muted small">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
-                <div class="text-muted small">수량: ${quantity} 비트</div>
+                <div class="mb-2">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
+                <div class="mb-2">수량: ${quantity} 비트</div>
             `;
         }
         
@@ -448,13 +448,13 @@ export class ModbusInterpreter {
         
         // 요청 패킷 해석 (더 긴 데이터)
         if (data.length > 5) {
-            const startAddress = (data[0] << 8) | data[1];
-            const quantity = (data[2] << 8) | data[3];
-            const byteCount = data[4];
+            const startAddress = (data[2] << 8) | data[3];
+            const quantity = (data[4] << 8) | data[5];
+            const byteCount = data[6];
             const registers = [];
             
-            // 2바이트씩 레지스터 값 추출
-            for (let i = 5; i < data.length; i += 2) {
+            // 2바이트씩 레지스터 값 추출, crc 제외
+            for (let i = 7; i < data.length -2; i += 2) {
                 if (i + 1 < data.length) {
                     const registerValue = (data[i] << 8) | data[i + 1];
                     registers.push(registerValue);
@@ -474,21 +474,21 @@ export class ModbusInterpreter {
             for (let i = 0; i < registers.length; i++) {
                 const value = registers[i];
                 const hexValue = '0x' + value.toString(16).padStart(4, '0').toUpperCase();
-                registersHtml += `<div class="text-monospace small">${i.toString().padStart(3, '0')}: ${value} (${hexValue})</div>`;
+                registersHtml += `<div class="text-monospace small">${i.toString().padStart(2, '0')}: ${value} (${hexValue})</div>`;
             }
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName} (요청)</strong></div>
-                <div class="text-muted small">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
-                <div class="text-muted small">수량: ${quantity} 레지스터</div>
-                <div class="text-muted small">바이트 수: ${byteCount}</div>
+                <div class="mb-2">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
+                <div class="mb-2">수량: ${quantity} 레지스터</div>
+                <div class="mb-2">바이트 수: ${byteCount}</div>
                 <div class="mt-1">${registersHtml}</div>
             `;
         }
         // 응답 패킷 해석
         else if (data.length === 4) {
-            const startAddress = (data[0] << 8) | data[1];
-            const quantity = (data[2] << 8) | data[3];
+            const startAddress = (data[2] << 8) | data[3];
+            const quantity = (data[4] << 8) | data[5];
             
             interpretation.details = {
                 type: '응답',
@@ -499,8 +499,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName} (응답)</strong></div>
-                <div class="text-muted small">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
-                <div class="text-muted small">수량: ${quantity} 레지스터</div>
+                <div class="mb-2">시작 주소: ${startAddress} (${interpretation.details.startAddressHex})</div>
+                <div class="mb-2">수량: ${quantity} 레지스터</div>
             `;
         }
         
@@ -521,8 +521,8 @@ export class ModbusInterpreter {
         interpretation.summary = functionName;
         
         if (data.length >= 4) {
-            const subFunctionCode = (data[0] << 8) | data[1];
-            const subFunctionData = (data[2] << 8) | data[3];
+            const subFunctionCode = (data[2] << 8) | data[3];
+            const subFunctionData = (data[4] << 8) | data[5];
             
             interpretation.details = {
                 subFunctionCode: subFunctionCode,
@@ -534,8 +534,8 @@ export class ModbusInterpreter {
             
             interpretation.html = `
                 <div class="mb-2"><strong>${functionName}</strong></div>
-                <div class="text-muted small">서브 함수: ${interpretation.details.subFunctionName}</div>
-                <div class="text-muted small">데이터: ${subFunctionData} (${interpretation.details.dataHex})</div>
+                <div class="mb-2">서브 함수: ${interpretation.details.subFunctionName}</div>
+                <div class="mb-2">데이터: ${subFunctionData} (${interpretation.details.dataHex})</div>
             `;
         }
         
