@@ -19,7 +19,11 @@ const mimeTypes = {
 };
 
 const server = http.createServer((req, res) => {
-    let filePath = path.join(ROOT_DIR, req.url === '/' ? '' : req.url);
+    // URL에서 쿼리 파라미터 제거
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const cleanPath = urlObj.pathname;
+    
+    let filePath = path.join(ROOT_DIR, cleanPath === '/' ? '' : cleanPath);
     if (fs.existsSync(filePath) && fs.lstatSync(filePath).isDirectory()) {
         filePath = path.join(filePath, 'index.html');
     }
