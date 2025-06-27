@@ -251,7 +251,7 @@ export class ConnectionPanel {
                     ${this.grantedPorts.map((port, index) => {
                       const info = port.getInfo();
                       const label = info.usbVendorId && info.usbProductId 
-                        ? `USB Device (VID: ${info.usbVendorId.toString(16)}, PID: ${info.usbProductId.toString(16)})`
+                        ? `USB Device (VID: ${info.usbVendorId.toString(16).padStart(4, '0').toUpperCase()}, PID: ${info.usbProductId.toString(16).padStart(4, '0').toUpperCase()})`
                         : `Serial Port ${index + 1}`;
                       return `<option value="${index}">${label}</option>`;
                     }).join('')}
@@ -423,6 +423,11 @@ export class ConnectionPanel {
   }
 
   private switchTab(tabType: ConnectionType): void {
+    // Only proceed if actually switching to a different tab
+    if (this.activeTab === tabType) {
+      return;
+    }
+    
     this.activeTab = tabType;
     const container = document.querySelector('.tab-content');
     if (container) {
@@ -541,7 +546,7 @@ export class ConnectionPanel {
   private getPortDisplayName(port: SerialPort): string {
     const info = port.getInfo();
     if (info.usbVendorId && info.usbProductId) {
-      return `USB Device (VID: ${info.usbVendorId.toString(16)}, PID: ${info.usbProductId.toString(16)})`;
+      return `USB Device (VID: ${info.usbVendorId.toString(16).padStart(4, '0').toUpperCase()}, PID: ${info.usbProductId.toString(16).padStart(4, '0').toUpperCase()})`;
     }
     return 'Serial Port';
   }

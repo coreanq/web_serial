@@ -61,6 +61,137 @@ class TCPLoopbackServer {
     return `${hexFormatted} | ${ascii}`;
   }
 
+  generateModbusResponse(requestData) {
+    if (requestData.length < 8) {
+      this.log('Invalid Modbus TCP request: too short', 'warning');
+      return null;
+    }
+
+    // Parse MBAP header
+    const transactionId = requestData.readUInt16BE(0);
+    const protocolId = requestData.readUInt16BE(2);
+    const length = requestData.readUInt16BE(4);  
+    const unitId = requestData.readUInt8(6);
+    
+    // Parse PDU 
+    const functionCode = requestData.readUInt8(7);
+    
+    this.log(`Modbus TCP Request - TID:${transactionId.toString(16).padStart(4, '0')}, Unit:${unitId}, FC:${functionCode.toString(16).padStart(2, '0')}`, 'info');
+
+    let responsePdu = null;
+
+    switch (functionCode) {
+      case 0x03: // Read Holding Registers
+        responsePdu = this.generateReadHoldingRegistersResponse(requestData);
+        break;
+      case 0x04: // Read Input Registers  
+        responsePdu = this.generateReadInputRegistersResponse(requestData);
+        break;
+      case 0x06: // Write Single Register
+        responsePdu = this.generateWriteSingleRegisterResponse(requestData);
+        break;
+      case 0x10: // Write Multiple Registers
+        responsePdu = this.generateWriteMultipleRegistersResponse(requestData);
+        break;
+      default:
+        this.log(`Unsupported function code: 0x${functionCode.toString(16).padStart(2, '0')}`, 'warning');
+        return this.generateErrorResponse(transactionId, unitId, functionCode, 0x01); // Illegal Function
+    }
+
+    if (!responsePdu) {
+      return null;
+    }
+
+    // Create MBAP header for response
+    const responseLength = responsePdu.length + 1; // PDU + Unit ID
+    const response = Buffer.alloc(6 + responseLength);
+    
+    response.writeUInt16BE(transactionId, 0); // Transaction ID
+    response.writeUInt16BE(0x0000, 2);        // Protocol ID (always 0 for Modbus)
+    response.writeUInt16BE(responseLength, 4); // Length
+    response.writeUInt8(unitId, 6);           // Unit ID
+    
+    // Copy PDU
+    responsePdu.copy(response, 7);
+    
+    return response;
+  }
+
+  generateReadHoldingRegistersResponse(requestData) {
+    if (requestData.length < 12) {
+      return null;
+    }
+    
+    const startAddress = requestData.readUInt16BE(8);
+    const quantity = requestData.readUInt16BE(10);
+    
+    // Validate quantity (1-125 registers per spec)
+    if (quantity < 1 || quantity > 125) {
+      return null;
+    }
+    
+    // Generate response with sample data
+    const byteCount = quantity * 2;
+    const response = Buffer.alloc(2 + byteCount);
+    
+    response.writeUInt8(0x03, 0);        // Function code
+    response.writeUInt8(byteCount, 1);   // Byte count
+    
+    // Fill with sample register values (incrementing pattern)
+    for (let i = 0; i < quantity; i++) {
+      const registerValue = (startAddress + i) % 65536;
+      response.writeUInt16BE(registerValue, 2 + (i * 2));
+    }
+    
+    return response;
+  }
+
+  generateReadInputRegistersResponse(requestData) {
+    // Same as holding registers for this demo
+    return this.generateReadHoldingRegistersResponse(requestData);
+  }
+
+  generateWriteSingleRegisterResponse(requestData) {
+    if (requestData.length < 12) {
+      return null;
+    }
+    
+    // Echo back the same register address and value
+    const response = Buffer.alloc(5);
+    response.writeUInt8(0x06, 0);                    // Function code
+    response.writeUInt16BE(requestData.readUInt16BE(8), 1);  // Register address
+    response.writeUInt16BE(requestData.readUInt16BE(10), 3); // Register value
+    
+    return response;
+  }
+
+  generateWriteMultipleRegistersResponse(requestData) {
+    if (requestData.length < 12) {
+      return null;
+    }
+    
+    // Echo back starting address and quantity
+    const response = Buffer.alloc(5);
+    response.writeUInt8(0x10, 0);                    // Function code
+    response.writeUInt16BE(requestData.readUInt16BE(8), 1);  // Starting address
+    response.writeUInt16BE(requestData.readUInt16BE(10), 3); // Quantity of registers
+    
+    return response;
+  }
+
+  generateErrorResponse(transactionId, unitId, functionCode, exceptionCode) {
+    const response = Buffer.alloc(9);
+    
+    response.writeUInt16BE(transactionId, 0);        // Transaction ID
+    response.writeUInt16BE(0x0000, 2);               // Protocol ID
+    response.writeUInt16BE(0x0003, 4);               // Length (Unit ID + FC + Exception)
+    response.writeUInt8(unitId, 6);                  // Unit ID
+    response.writeUInt8(functionCode | 0x80, 7);     // Function code with error bit
+    response.writeUInt8(exceptionCode, 8);           // Exception code
+    
+    return response;
+  }
+
   start() {
     if (this.isRunning) {
       this.log('Server is already running', 'warning');
@@ -133,16 +264,19 @@ class TCPLoopbackServer {
       this.log(`Client #${clientId} -> Server: ${this.hexDump(data)}`, 'data');
     }
 
-    // Echo the data back (loopback functionality)
+    // Generate Modbus TCP response instead of simple echo
     try {
-      client.socket.write(data);
-      client.bytesSent += data.length;
-      
-      if (this.config.logging.logData) {
-        this.log(`Server -> Client #${clientId}: ${this.hexDump(data)}`, 'data');
+      const responseData = this.generateModbusResponse(data);
+      if (responseData) {
+        client.socket.write(responseData);
+        client.bytesSent += responseData.length;
+        
+        if (this.config.logging.logData) {
+          this.log(`Server -> Client #${clientId}: ${this.hexDump(responseData)}`, 'data');
+        }
       }
     } catch (error) {
-      this.log(`Failed to echo data to client #${clientId}: ${error.message}`, 'error');
+      this.log(`Failed to generate response for client #${clientId}: ${error.message}`, 'error');
     }
   }
 

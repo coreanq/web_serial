@@ -155,6 +155,8 @@ export class WebSocketService {
   async sendModbusCommand(hexData: string): Promise<void> {
     // Add MBAP header for Modbus TCP
     const mbapData = this.addMbapHeader(hexData);
+    console.log(`🔍 WebSocketService: Original PDU: ${hexData}`);
+    console.log(`🔍 WebSocketService: With MBAP header: ${mbapData}`);
     this.sendMessage({
       type: 'send',
       data: mbapData

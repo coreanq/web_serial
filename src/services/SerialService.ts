@@ -279,7 +279,7 @@ export class SerialService {
 
     const info = this.currentPort.getInfo();
     if (info.usbVendorId && info.usbProductId) {
-      return `USB Device (VID: ${info.usbVendorId.toString(16)}, PID: ${info.usbProductId.toString(16)})`;
+      return `USB Device (VID: ${info.usbVendorId.toString(16).padStart(4, '0').toUpperCase()}, PID: ${info.usbProductId.toString(16).padStart(4, '0').toUpperCase()})`;
     }
 
     return 'Serial Port';

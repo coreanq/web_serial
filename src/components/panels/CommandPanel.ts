@@ -3,7 +3,7 @@ export class CommandPanel {
   private commandHistory: string[] = [];
   private historyIndex = -1;
   private connectionType: 'RTU' | 'TCP' = 'RTU';
-  private isConnected = false;
+  private lastConnectionType: 'RTU' | 'TCP' | null = null;
 
   constructor(onCommandSend: (command: string) => void) {
     this.onCommandSend = onCommandSend;
@@ -358,23 +358,6 @@ export class CommandPanel {
     }
   }
 
-  // Detect input type and convert to HEX format
-  private convertInputToHex(input: string): string {
-    if (!input.trim()) return '';
-    
-    const inputType = this.detectInputType(input);
-    
-    switch (inputType) {
-      case 'hex':
-        return this.formatHexInput(input);
-      case 'ascii':
-        return this.asciiToHex(input);
-      case 'mixed':
-        return this.mixedToHex(input);
-      default:
-        return this.formatHexInput(input);
-    }
-  }
 
   // Detect the type of input data
   private detectInputType(input: string): 'hex' | 'ascii' | 'mixed' {
@@ -407,7 +390,12 @@ export class CommandPanel {
   // Format HEX input with automatic spacing every 2 characters
   private formatHexInput(input: string): string {
     // Remove non-hex characters and all whitespace
-    const cleaned = input.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+    let cleaned = input.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+    
+    // Ensure even length by padding with leading zero if necessary
+    if (cleaned.length % 2 !== 0) {
+      cleaned = '0' + cleaned;
+    }
     
     // Add space every 2 characters (1 byte)
     const formatted = cleaned.replace(/(.{2})/g, '$1 ').trim();
@@ -628,8 +616,13 @@ export class CommandPanel {
 
   // Public method to update connection status
   updateConnectionStatus(type: 'RTU' | 'TCP', connected: boolean): void {
+    // Prevent duplicate execution - only update if connection type actually changed
+    if (this.lastConnectionType === type) {
+      return;
+    }
+    
+    this.lastConnectionType = type;
     this.connectionType = type;
-    this.isConnected = connected;
     this.updateAutoCrcForConnectionType(type);
     this.updateQuickCommandsForConnectionType(type);
     this.updateHexPreview(); // Refresh preview with new connection type

@@ -323,21 +323,21 @@ export class App {
   }
 
   private async onCommandSend(command: string): Promise<void> {
-    // Add command to log
-    const logEntry = {
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      direction: 'send' as const,
-      data: command
-    };
-    
-    this.state.logs.push(logEntry);
-    this.logPanel.updateLogs(this.state.logs);
-    
     // Send command to actual connection if connected
     try {
       if (this.state.connectionStatus === 'connected') {
         if (this.state.connectionConfig.type === 'RTU') {
+          // For RTU, log the original command
+          const logEntry = {
+            id: Date.now().toString(),
+            timestamp: new Date(),
+            direction: 'send' as const,
+            data: command
+          };
+          
+          this.state.logs.push(logEntry);
+          this.logPanel.updateLogs(this.state.logs);
+          
           // Get serial service from connection panel
           const serialService = this.connectionPanel.getSerialService();
           if (serialService && serialService.getConnectionStatus()) {
@@ -348,6 +348,20 @@ export class App {
           // Get WebSocket service from connection panel
           const webSocketService = this.connectionPanel.getWebSocketService();
           if (webSocketService && webSocketService.isConnected()) {
+            // Get the actual data that will be sent (with MBAP header)
+            const actualSentData = this.getActualTcpData(command);
+            
+            // Log the actual data being sent (with MBAP header)
+            const logEntry = {
+              id: Date.now().toString(),
+              timestamp: new Date(),
+              direction: 'send' as const,
+              data: actualSentData
+            };
+            
+            this.state.logs.push(logEntry);
+            this.logPanel.updateLogs(this.state.logs);
+            
             await webSocketService.sendModbusCommand(command);
             console.log('TCP Command sent successfully:', command);
           }
@@ -368,6 +382,24 @@ export class App {
       this.state.logs.push(errorLogEntry);
       this.logPanel.updateLogs(this.state.logs);
     }
+  }
+
+  private getActualTcpData(pduHex: string, unitId: number = 1): string {
+    // This mirrors the logic in WebSocketService.addMbapHeader
+    const cleanPdu = pduHex.replace(/\s+/g, '');
+    const pduLength = cleanPdu.length / 2;
+    
+    // Generate MBAP header
+    const transactionId = (Date.now() % 65536).toString(16).padStart(4, '0').toUpperCase();
+    const protocolId = '0000';
+    const length = (1 + pduLength).toString(16).padStart(4, '0').toUpperCase();
+    const unitIdHex = unitId.toString(16).padStart(2, '0').toUpperCase();
+    
+    const mbapHeader = transactionId + protocolId + length + unitIdHex;
+    const fullPacket = mbapHeader + cleanPdu.toUpperCase();
+    
+    // Format with spaces for display
+    return fullPacket.replace(/(.{2})/g, '$1 ').trim();
   }
 
   private onDataReceived(data: string): void {

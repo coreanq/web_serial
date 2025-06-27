@@ -88,8 +88,16 @@ export class LogPanel {
   }
 
   private formatLogData(data: string): string {
-    // Add spacing between hex bytes for better readability
-    return data.replace(/(.{2})/g, '$1 ').trim().toUpperCase();
+    // Normalize input by removing all whitespace and converting to uppercase
+    const cleaned = data.replace(/\s+/g, '').toUpperCase();
+    
+    // Ensure even length by padding with leading zero if necessary
+    const evenLength = cleaned.length % 2 !== 0 ? '0' + cleaned : cleaned;
+    
+    // Split into 2-character hex bytes and add spacing
+    const formatted = evenLength.replace(/(.{2})/g, '$1 ').trim();
+    
+    return formatted;
   }
 
   private attachEventListeners(): void {
