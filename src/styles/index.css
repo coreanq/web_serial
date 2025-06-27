@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-dark-surface border border-dark-border rounded-lg shadow-lg;
+  }
+  
+  .panel-header {
+    @apply border-b border-dark-border p-4 font-semibold;
+  }
+  
+  .panel-content {
+    @apply p-4;
+  }
+  
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors duration-200 font-medium;
+  }
+  
+  .btn-secondary {
+    @apply bg-dark-panel hover:bg-dark-border text-dark-text-primary px-4 py-2 rounded-md transition-colors duration-200 font-medium border border-dark-border;
+  }
+  
+  .input-field {
+    @apply bg-dark-panel border border-dark-border rounded-md px-3 py-2 text-dark-text-primary placeholder-dark-text-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+  
+  .tab-button {
+    @apply px-4 py-2 rounded-t-md border-b-2 border-transparent text-dark-text-secondary hover:text-dark-text-primary transition-colors duration-200;
+  }
+  
+  .tab-button.active {
+    @apply text-dark-text-primary border-blue-500 bg-dark-panel;
+  }
+  
+  .log-entry {
+    @apply flex items-start gap-3 p-2 border-b border-dark-border last:border-b-0 hover:bg-dark-panel transition-colors duration-150;
+  }
+  
+  .log-timestamp {
+    @apply text-xs text-dark-text-muted font-mono min-w-max;
+  }
+  
+  .log-direction {
+    @apply text-xs font-bold min-w-max;
+  }
+  
+  .log-direction.send {
+    @apply text-status-sending;
+  }
+  
+  .log-direction.recv {
+    @apply text-status-receiving;
+  }
+  
+  .log-data {
+    @apply font-mono text-sm flex-1 break-all;
+  }
+  
+  .status-indicator {
+    @apply w-2 h-2 rounded-full;
+  }
+  
+  .status-connected {
+    @apply bg-status-success;
+  }
+  
+  .status-disconnected {
+    @apply bg-status-error;
+  }
+  
+  .status-connecting {
+    @apply bg-status-warning animate-pulse-soft;
+  }
+  
+  .status-error {
+    @apply bg-status-error;
+  }
+  
+  /* Panel positioning styles */
+  .panel-positioned-left {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .panel-positioned-right {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .panel-positioned-top {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  /* Panel visibility animation */
+  .panel-hidden {
+    @apply opacity-0 transform scale-95 transition-all duration-300 ease-in-out;
+  }
+  
+  .panel-visible {
+    @apply opacity-100 transform scale-100 transition-all duration-300 ease-in-out;
+  }
+  
+  /* Compact panel styles for side positioning */
+  .panel-compact {
+    @apply text-sm;
+  }
+  
+  .panel-compact .panel-header {
+    @apply p-3 text-sm;
+  }
+  
+  .panel-compact .panel-content {
+    @apply p-3;
+  }
+  
+  /* Button size variants */
+  .btn-xs {
+    @apply px-2 py-1 text-xs;
+  }
+  
+  .btn-sm {
+    @apply px-3 py-1 text-sm;
+  }
+  
+  /* Layout transition animations */
+  .layout-transition {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  /* Full screen height adjustments */
+  .h-screen-adjusted {
+    height: calc(100vh - 12rem); /* Subtract header height and padding */
+  }
+  
+  /* Full height panels for side layouts */
+  .panel-full-height {
+    @apply h-full flex flex-col;
+  }
+  
+  .panel-full-height .panel-content {
+    @apply flex-1 overflow-y-auto;
+  }
+  
+  /* Ensure log content uses full available height */
+  .log-content-full {
+    @apply h-full overflow-y-auto;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(55 65 81) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(55 65 81);
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(75 85 99);
+  }
+}

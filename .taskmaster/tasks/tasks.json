@@ -1,148 +1,179 @@
 {
-  "tasks": [
-    {
-      "id": 1,
-      "title": "Setup Single Page Application Framework",
-      "description": "Initialize a Single Page Application (SPA) framework for the Modbus Monitor application",
-      "details": "Create a new SPA project using a modern framework like React, Vue, or Angular. Setup the project structure, install necessary dependencies, and configure the build system. Initialize routing for the application. Create a basic layout with header, main content area, and footer. Setup CSS/styling framework (e.g., Bootstrap, Tailwind, or Material UI).",
-      "testStrategy": "Verify that the application loads correctly in the browser. Test that the basic navigation works. Ensure that the build process completes without errors.",
-      "priority": "high",
-      "dependencies": [],
-      "status": "done",
-      "subtasks": []
-    },
-    {
-      "id": 2,
-      "title": "Implement Web Serial API Connection",
-      "description": "Create functionality to connect to serial ports using the Web Serial API",
-      "details": "Implement a service to handle Web Serial API connections. Create UI components for port selection, connection settings (baud rate, data bits, parity, stop bits), and connection status. Add connect/disconnect functionality. Handle permissions and browser compatibility. Implement error handling for connection failures. The implementation should follow this pattern:\n\n```javascript\nasync function connectToSerialPort() {\n  try {\n    const port = await navigator.serial.requestPort();\n    await port.open({ baudRate: selectedBaudRate, dataBits: selectedDataBits, parity: selectedParity, stopBits: selectedStopBits });\n    // Store the port for later use\n    serialPort = port;\n    // Setup readers and writers\n    setupSerialCommunication(port);\n  } catch (error) {\n    console.error('Error connecting to serial port:', error);\n    // Show error to user\n  }\n}\n```",
-      "testStrategy": "Test connection to various serial devices. Verify that connection settings are applied correctly. Test error handling when connection fails. Verify that the UI updates appropriately when connection status changes.",
-      "priority": "high",
-      "dependencies": [
-        1
-      ],
-      "status": "done",
-      "subtasks": []
-    },
-    {
-      "id": 3,
-      "title": "Implement Modbus RTU Protocol Parser",
-      "description": "Develop a parser for Modbus RTU protocol to interpret serial data",
-      "details": "Implement a Modbus RTU protocol parser that can decode incoming data frames. The parser should handle message framing with start/end detection, CRC validation, and extraction of address, function code, data, and error checking fields. Create data structures to represent Modbus RTU packets. Implement functions to validate packet integrity. The implementation should follow the Modbus RTU specification, including:\n\n```javascript\nclass ModbusRTUParser {\n  parseFrame(buffer) {\n    // Minimum Modbus RTU frame is 4 bytes (address, function code, 2 CRC bytes)\n    if (buffer.length < 4) return null;\n    \n    const address = buffer[0];\n    const functionCode = buffer[1];\n    const data = buffer.slice(2, buffer.length - 2);\n    const receivedCRC = (buffer[buffer.length - 1] << 8) | buffer[buffer.length - 2];\n    const calculatedCRC = this.calculateCRC16(buffer.slice(0, buffer.length - 2));\n    \n    const isValid = receivedCRC === calculatedCRC;\n    \n    return {\n      address,\n      functionCode,\n      data,\n      crc: receivedCRC,\n      isValid\n    };\n  }\n  \n  calculateCRC16(buffer) {\n    // Implementation of Modbus CRC-16 algorithm\n    // ...\n  }\n}\n```",
-      "testStrategy": "Test with sample Modbus RTU packets to verify correct parsing. Verify CRC calculation with known good packets. Test with malformed packets to ensure proper error handling. Create unit tests with various Modbus function codes.",
-      "priority": "high",
-      "dependencies": [
-        2
-      ],
-      "status": "done",
-      "subtasks": []
-    },
-    {
-      "id": 4,
-      "title": "Implement Modbus ASCII Protocol Parser",
-      "description": "Develop a parser for Modbus ASCII protocol to interpret serial data",
-      "details": "Implement a Modbus ASCII protocol parser that can decode incoming ASCII frames. The parser should handle message framing with start character (':') and end characters (CR+LF), LRC validation, and extraction of address, function code, data, and error checking fields. Create data structures to represent Modbus ASCII packets. Implement functions to validate packet integrity. The implementation should follow the Modbus ASCII specification, including:\n\n```javascript\nclass ModbusASCIIParser {\n  parseFrame(asciiString) {\n    // Check for valid start and end characters\n    if (!asciiString.startsWith(':') || !asciiString.endsWith('\\r\\n')) return null;\n    \n    // Remove start and end characters\n    const content = asciiString.slice(1, -2);\n    \n    // Convert ASCII hex to binary\n    const buffer = this.hexStringToBuffer(content);\n    \n    // Minimum content is 3 bytes (address, function code, LRC)\n    if (buffer.length < 3) return null;\n    \n    const address = buffer[0];\n    const functionCode = buffer[1];\n    const data = buffer.slice(2, buffer.length - 1);\n    const receivedLRC = buffer[buffer.length - 1];\n    const calculatedLRC = this.calculateLRC(buffer.slice(0, buffer.length - 1));\n    \n    const isValid = receivedLRC === calculatedLRC;\n    \n    return {\n      address,\n      functionCode,\n      data,\n      lrc: receivedLRC,\n      isValid\n    };\n  }\n  \n  hexStringToBuffer(hexString) {\n    // Convert ASCII hex string to binary buffer\n    // ...\n  }\n  \n  calculateLRC(buffer) {\n    // Implementation of Modbus LRC algorithm\n    // ...\n  }\n}\n```",
-      "testStrategy": "Test with sample Modbus ASCII packets to verify correct parsing. Verify LRC calculation with known good packets. Test with malformed packets to ensure proper error handling. Create unit tests with various Modbus function codes.",
-      "priority": "high",
-      "dependencies": [
-        2
-      ],
-      "status": "done",
-      "subtasks": []
-    },
-    {
-      "id": 5,
-      "title": "Implement TCP/IP Connection for Modbus RTU",
-      "description": "Create functionality to connect to Modbus devices over TCP/IP using Modbus RTU protocol",
-      "details": "Implement a service to handle TCP/IP connections for Modbus RTU over TCP. Create UI components for IP address and port configuration. Add connect/disconnect functionality for TCP connections. Implement error handling for connection failures. The implementation should encapsulate Modbus RTU frames within TCP packets:\n\n```javascript\nasync function connectToModbusTCP(ipAddress, port) {\n  try {\n    // Using WebSockets as a way to handle TCP in browser environment\n    const socket = new WebSocket(`ws://${ipAddress}:${port}`);\n    \n    socket.onopen = () => {\n      // Connection established\n      tcpConnected = true;\n      updateConnectionStatus();\n    };\n    \n    socket.onmessage = (event) => {\n      // Process incoming Modbus RTU over TCP data\n      const data = new Uint8Array(event.data);\n      processModbusRTUPacket(data);\n    };\n    \n    socket.onclose = () => {\n      tcpConnected = false;\n      updateConnectionStatus();\n    };\n    \n    socket.onerror = (error) => {\n      console.error('TCP connection error:', error);\n      // Show error to user\n    };\n    \n    tcpSocket = socket;\n  } catch (error) {\n    console.error('Error connecting to TCP/IP:', error);\n    // Show error to user\n  }\n}\n```",
-      "testStrategy": "Test connection to Modbus TCP devices. Verify that connection settings are applied correctly. Test error handling when connection fails. Verify that the UI updates appropriately when connection status changes. Test sending and receiving Modbus RTU packets over TCP.",
-      "priority": "medium",
-      "dependencies": [
-        1,
-        3
-      ],
-      "status": "in-progress",
-      "subtasks": []
-    },
-    {
-      "id": 6,
-      "title": "Develop Packet Monitoring UI",
-      "description": "Create a user interface to display Modbus packet data in a user-friendly format",
-      "details": "Implement a UI component to display Modbus packet data in a tabular format. Show timestamp, direction (TX/RX), protocol type (RTU/ASCII), device address, function code, data, and validation status. Provide human-readable descriptions of function codes and data based on Modbus specifications. Implement auto-scrolling with the ability to pause. Add filtering options by device address, function code, and direction. Include a clear button to reset the display. The UI should update in real-time as packets are sent and received:\n\n```javascript\nfunction renderPacketRow(packet) {\n  return (\n    <tr className={packet.isValid ? 'valid' : 'invalid'}>\n      <td>{packet.timestamp.toISOString()}</td>\n      <td>{packet.direction}</td>\n      <td>{packet.protocol}</td>\n      <td>{packet.address}</td>\n      <td>{packet.functionCode} - {getFunctionDescription(packet.functionCode)}</td>\n      <td>{formatData(packet.data, packet.functionCode)}</td>\n      <td>{packet.isValid ? 'Valid' : 'Invalid'}</td>\n    </tr>\n  );\n}\n\nfunction formatData(data, functionCode) {\n  // Format data based on function code\n  // For example, for function code 3 (Read Holding Registers),\n  // display the register values in a readable format\n  // ...\n}\n```",
-      "testStrategy": "Test with various Modbus packets to verify correct display. Verify that filtering works correctly. Test auto-scrolling and pause functionality. Verify that the UI updates in real-time. Test with both valid and invalid packets to ensure proper display.",
-      "priority": "medium",
-      "dependencies": [
-        3,
-        4,
-        5
-      ],
-      "status": "pending",
-      "subtasks": []
-    },
-    {
-      "id": 7,
-      "title": "Implement Packet Transmission Feature",
-      "description": "Create functionality to allow users to send custom Modbus packets",
-      "details": "Implement a UI component to allow users to create and send custom Modbus packets. Provide input fields for device address, function code, and data. Add support for common Modbus functions (read coils, read discrete inputs, read holding registers, read input registers, write single coil, write single register, write multiple coils, write multiple registers). Automatically calculate and append CRC/LRC. Provide a send button to transmit the packet. Show a preview of the packet before sending:\n\n```javascript\nfunction sendCustomPacket() {\n  const packet = {\n    address: parseInt(addressInput.value),\n    functionCode: parseInt(functionCodeInput.value),\n    data: parseDataInput(dataInput.value)\n  };\n  \n  // Create binary packet based on protocol\n  let binaryPacket;\n  if (currentProtocol === 'RTU') {\n    binaryPacket = createRTUPacket(packet);\n  } else {\n    binaryPacket = createASCIIPacket(packet);\n  }\n  \n  // Send the packet through the current connection\n  if (serialConnected) {\n    sendSerialData(binaryPacket);\n  } else if (tcpConnected) {\n    sendTCPData(binaryPacket);\n  } else {\n    showError('No active connection');\n  }\n}\n\nfunction createRTUPacket(packet) {\n  // Create RTU packet with CRC\n  // ...\n}\n\nfunction createASCIIPacket(packet) {\n  // Create ASCII packet with LRC\n  // ...\n}\n```",
-      "testStrategy": "Test sending various Modbus packets. Verify that packets are correctly formatted with proper CRC/LRC. Test with different function codes to ensure proper data formatting. Verify that the UI updates to show sent packets.",
-      "priority": "medium",
-      "dependencies": [
-        3,
-        4,
-        5
-      ],
-      "status": "pending",
-      "subtasks": []
-    },
-    {
-      "id": 8,
-      "title": "Implement Protocol Analysis and Debugging Tools",
-      "description": "Develop tools to help users analyze and debug Modbus communications",
-      "details": "Implement advanced debugging tools for Modbus communications. Add packet timing analysis to measure response times. Create a statistics panel showing packet counts, error rates, and timing information. Implement packet validation with detailed error messages for invalid packets. Add the ability to export packet logs to CSV or JSON format. Implement a feature to highlight related request/response pairs. Add a search function to find specific packets:\n\n```javascript\nfunction calculateStatistics(packets) {\n  const stats = {\n    totalPackets: packets.length,\n    validPackets: packets.filter(p => p.isValid).length,\n    invalidPackets: packets.filter(p => !p.isValid).length,\n    txPackets: packets.filter(p => p.direction === 'TX').length,\n    rxPackets: packets.filter(p => p.direction === 'RX').length,\n    averageResponseTime: calculateAverageResponseTime(packets),\n    functionCodeDistribution: calculateFunctionCodeDistribution(packets)\n  };\n  \n  return stats;\n}\n\nfunction exportPackets(format) {\n  if (format === 'csv') {\n    // Export as CSV\n    // ...\n  } else if (format === 'json') {\n    // Export as JSON\n    // ...\n  }\n}\n\nfunction findRelatedPackets(packet) {\n  // Find request/response pairs based on address, function code, and timing\n  // ...\n}\n```",
-      "testStrategy": "Test statistics calculation with various packet scenarios. Verify that export functionality works correctly for both CSV and JSON formats. Test the search function with different search criteria. Verify that related packets are correctly identified and highlighted.",
-      "priority": "medium",
-      "dependencies": [
-        6,
-        7
-      ],
-      "status": "pending",
-      "subtasks": []
-    },
-    {
-      "id": 9,
-      "title": "Implement Configuration and Settings Management",
-      "description": "Create functionality to save and load user configurations and settings",
-      "details": "Implement a system to save and load user configurations. Save connection settings (serial port parameters, TCP/IP address and port). Save custom packet templates. Implement persistent storage using localStorage or IndexedDB. Create a UI for managing saved configurations. Add import/export functionality for configurations:\n\n```javascript\nfunction saveConfiguration(name) {\n  const config = {\n    name,\n    timestamp: new Date().toISOString(),\n    connection: {\n      type: currentConnectionType,\n      serial: {\n        baudRate: currentBaudRate,\n        dataBits: currentDataBits,\n        parity: currentParity,\n        stopBits: currentStopBits\n      },\n      tcp: {\n        ipAddress: currentIPAddress,\n        port: currentPort\n      }\n    },\n    packetTemplates: savedPacketTemplates\n  };\n  \n  // Save to localStorage\n  const savedConfigs = JSON.parse(localStorage.getItem('modbusConfigurations') || '[]');\n  savedConfigs.push(config);\n  localStorage.setItem('modbusConfigurations', JSON.stringify(savedConfigs));\n}\n\nfunction loadConfiguration(name) {\n  const savedConfigs = JSON.parse(localStorage.getItem('modbusConfigurations') || '[]');\n  const config = savedConfigs.find(c => c.name === name);\n  \n  if (config) {\n    // Apply configuration\n    // ...\n  }\n}\n```",
-      "testStrategy": "Test saving and loading various configurations. Verify that all settings are correctly saved and restored. Test import/export functionality. Verify that configurations persist across browser sessions.",
-      "priority": "low",
-      "dependencies": [
-        2,
-        5,
-        7
-      ],
-      "status": "pending",
-      "subtasks": []
-    },
-    {
-      "id": 10,
-      "title": "Implement Application Documentation and Help",
-      "description": "Create comprehensive documentation and help resources for users",
-      "details": "Implement in-app documentation and help resources. Create a user guide explaining how to use the application. Add tooltips and contextual help throughout the UI. Include reference information about Modbus protocols. Create a troubleshooting guide for common issues. Implement a 'Getting Started' tutorial for new users:\n\n```javascript\nfunction showHelp(topic) {\n  const helpContent = helpTopics[topic] || helpTopics['general'];\n  \n  // Display help content in a modal or panel\n  showHelpModal(helpContent.title, helpContent.content);\n}\n\nconst helpTopics = {\n  'general': {\n    title: 'Modbus Monitor Help',\n    content: '...'\n  },\n  'serial-connection': {\n    title: 'Serial Connection Help',\n    content: '...'\n  },\n  'tcp-connection': {\n    title: 'TCP/IP Connection Help',\n    content: '...'\n  },\n  // More help topics\n};\n```",
-      "testStrategy": "Verify that all help content is accessible and correctly displayed. Test tooltips and contextual help. Verify that the 'Getting Started' tutorial works correctly. Test help search functionality if implemented.",
-      "priority": "low",
-      "dependencies": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9
-      ],
-      "status": "pending",
-      "subtasks": []
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Project Repository with Vite and TypeScript",
+        "description": "Initialize the project with Vite, TypeScript, ESLint, and Prettier. Set up the folder structure following Clean Architecture principles.",
+        "details": "1. Create a new Vite project: `npm create vite@latest web-serial-modbus -- --template react-ts`\n2. Install dependencies: `npm install react@18.2.0 react-dom@18.2.0 typescript@5.3.2`\n3. Configure TypeScript with strict mode: Update `tsconfig.json` with `{\"compilerOptions\": {\"strict\": true, \"baseUrl\": \".\", \"paths\": {\"@/*\": [\"./src/*\"]}}}`\n4. Set up ESLint and Prettier: `npm install -D eslint@8.54.0 prettier@3.1.0 eslint-plugin-react@7.33.2 eslint-plugin-react-hooks@4.6.0 @typescript-eslint/eslint-plugin@6.12.0 @typescript-eslint/parser@6.12.0 eslint-config-prettier@9.0.0`\n5. Create folder structure:\n```\nsrc/\n├── domain/          # Business logic, entities\n├── infrastructure/  # External APIs, repositories\n├── application/     # Use cases, services\n├── presentation/    # React components, hooks\n└── shared/          # Common utilities, types\n```\n6. Set up Vite configuration: Create `vite.config.ts` with path aliases and optimization settings\n7. Configure Jest for testing: `npm install -D jest@29.7.0 @testing-library/react@14.1.2 @testing-library/jest-dom@6.1.4 @types/jest@29.5.10 ts-jest@29.1.1`",
+        "testStrategy": "1. Verify project structure matches Clean Architecture requirements\n2. Run ESLint to ensure code style compliance\n3. Validate TypeScript configuration with a sample component\n4. Test build process with `npm run build`\n5. Verify path aliases work correctly by importing from different layers",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Implement Core Domain Models for Modbus Protocol",
+        "description": "Define the domain models for Modbus protocol including packet entities, connection state management, and protocol parsers.",
+        "details": "1. Create domain entities in `src/domain/entities/`:\n   - `ModbusPacket.ts`: Base abstract class for all packet types\n   - `ModbusRtuPacket.ts`, `ModbusAsciiPacket.ts`, `ModbusTcpPacket.ts`: Implementations for each protocol\n   - `ConnectionState.ts`: State machine for connection status (DISCONNECTED, CONNECTING, CONNECTED, ERROR)\n   - `CommunicationLog.ts`: Model for storing communication logs\n\n2. Define value objects in `src/domain/valueObjects/`:\n   - `FunctionCode.ts`: Enum of Modbus function codes (e.g., READ_COILS = 0x01)\n   - `ErrorType.ts`: Enum of possible errors (TIMEOUT, CRC_ERROR, etc.)\n   - `Address.ts`: Value object for Modbus addresses\n\n3. Create interfaces in `src/domain/ports/`:\n   - `IModbusParser.ts`: Interface for protocol parsers\n   - `ISerialConnection.ts`: Interface for serial connections\n   - `ILogRepository.ts`: Interface for log storage\n\n4. Implement domain services in `src/domain/services/`:\n   - `PacketValidator.ts`: Validate packet integrity (CRC, length)\n   - `PacketAnalyzer.ts`: Analyze packet content and structure\n\nUse TypeScript's discriminated unions and type guards for type-safe handling of different packet types.",
+        "testStrategy": "1. Unit test each entity with Jest\n2. Test packet validation with valid and invalid sample data\n3. Verify state transitions in ConnectionState\n4. Test protocol-specific packet parsing with sample hex data\n5. Validate error handling for malformed packets",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Develop Infrastructure Layer with Web Serial API Integration",
+        "description": "Implement the infrastructure layer to abstract external dependencies like Web Serial API and IndexedDB for data storage.",
+        "details": "1. Create Web Serial API wrapper in `src/infrastructure/adapters/WebSerialAdapter.ts`:\n   - Implement connection management (connect, disconnect, isConnected)\n   - Handle port configuration (baud rate, data bits, parity, stop bits)\n   - Set up event listeners for data reception\n   - Implement error handling and reconnection logic\n\n2. Implement protocol parsers in `src/infrastructure/parsers/`:\n   - `ModbusRtuParser.ts`: Parse RTU format (binary)\n   - `ModbusAsciiParser.ts`: Parse ASCII format (text)\n   - `ModbusTcpParser.ts`: Parse TCP format (includes MBAP header)\n\n3. Create data storage in `src/infrastructure/repositories/`:\n   - `IndexedDbLogRepository.ts`: Store logs using IndexedDB\n   - `LocalStorageSettingsRepository.ts`: Store user settings\n\n4. Implement TCP connection in `src/infrastructure/adapters/WebSocketAdapter.ts`:\n   - Handle TCP/IP connections for Modbus TCP\n   - Manage connection state and reconnection\n\n5. Create export service in `src/infrastructure/services/ExportService.ts`:\n   - Export logs to CSV, JSON formats\n   - Handle file saving using File System Access API\n\nUse the latest Web Serial API features (Navigator.serial) and ensure proper error handling for browser compatibility.",
+        "testStrategy": "1. Mock Web Serial API for testing using Jest mock functions\n2. Test parsers with sample binary/ASCII/TCP data\n3. Verify IndexedDB operations with fake IndexedDB\n4. Test export functionality with sample log data\n5. Validate error handling for connection failures",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Create Application Services Layer",
+        "description": "Develop application services that coordinate between domain logic and UI, implementing use cases for connection management, packet monitoring, and data analysis.",
+        "details": "1. Implement connection service in `src/application/services/ConnectionService.ts`:\n   - Manage serial and TCP connections\n   - Handle connection settings\n   - Provide connection status updates\n   - Implement auto-reconnect functionality\n\n2. Create packet monitoring service in `src/application/services/PacketMonitoringService.ts`:\n   - Process incoming/outgoing packets\n   - Apply filters (by protocol, function code, time range)\n   - Maintain packet history with pagination\n\n3. Implement data analysis service in `src/application/services/DataAnalysisService.ts`:\n   - Calculate response times\n   - Generate statistics (success rate, error distribution)\n   - Analyze packet sequences\n\n4. Create settings management in `src/application/services/SettingsService.ts`:\n   - Handle user preferences\n   - Manage theme settings\n   - Store connection configurations\n\n5. Implement export/import service in `src/application/services/ExportImportService.ts`:\n   - Coordinate data export to different formats\n   - Handle configuration import\n\nUse dependency injection pattern with interfaces from the domain layer. Implement services as singletons using factory functions.",
+        "testStrategy": "1. Unit test each service with mocked dependencies\n2. Test connection state transitions with simulated events\n3. Verify packet filtering logic with sample datasets\n4. Test statistics calculations with predefined data\n5. Validate settings persistence with mocked storage",
+        "priority": "high",
+        "dependencies": [
+          2,
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Set Up State Management with Zustand",
+        "description": "Implement state management using Zustand to handle application state in a TypeScript-friendly way with proper store organization.",
+        "details": "1. Install Zustand: `npm install zustand@4.4.6 immer@10.0.3`\n\n2. Create store structure in `src/presentation/store/`:\n   - `connectionStore.ts`: Manage connection state and settings\n   - `packetStore.ts`: Handle packet history and filtering\n   - `uiStore.ts`: Manage UI state (theme, sidebar, active tabs)\n   - `settingsStore.ts`: User preferences and application settings\n\n3. Implement connection store with slices:\n```typescript\n// src/presentation/store/connectionStore.ts\nimport { create } from 'zustand';\nimport { immer } from 'zustand/middleware/immer';\n\ninterface ConnectionState {\n  isConnected: boolean;\n  connectionType: 'serial' | 'tcp';\n  serialSettings: {\n    baudRate: number;\n    dataBits: number;\n    stopBits: number;\n    parity: string;\n  };\n  tcpSettings: {\n    host: string;\n    port: number;\n  };\n  actions: {\n    connect: () => Promise<void>;\n    disconnect: () => void;\n    updateSerialSettings: (settings: Partial<ConnectionState['serialSettings']>) => void;\n    updateTcpSettings: (settings: Partial<ConnectionState['tcpSettings']>) => void;\n  };\n}\n\nexport const useConnectionStore = create<ConnectionState>(\n  immer((set, get) => ({\n    isConnected: false,\n    connectionType: 'serial',\n    serialSettings: {\n      baudRate: 9600,\n      dataBits: 8,\n      stopBits: 1,\n      parity: 'none',\n    },\n    tcpSettings: {\n      host: 'localhost',\n      port: 502,\n    },\n    actions: {\n      connect: async () => {\n        // Implementation\n      },\n      disconnect: () => {\n        // Implementation\n      },\n      updateSerialSettings: (settings) => {\n        set((state) => {\n          Object.assign(state.serialSettings, settings);\n        });\n      },\n      updateTcpSettings: (settings) => {\n        set((state) => {\n          Object.assign(state.tcpSettings, settings);\n        });\n      },\n    },\n  }))\n);\n```\n\n4. Create custom hooks for store access in `src/presentation/hooks/`:\n   - `useConnection.ts`: Simplified connection management\n   - `usePackets.ts`: Access to packet history with filtering\n   - `useTheme.ts`: Theme switching functionality\n\n5. Implement store persistence with `zustand/middleware/persist`",
+        "testStrategy": "1. Test store initialization with default values\n2. Verify state updates with actions\n3. Test store persistence with mock storage\n4. Validate type safety with TypeScript compiler\n5. Test custom hooks with React Testing Library\n6. Verify store interactions with component integration tests",
+        "priority": "high",
+        "dependencies": [
+          1,
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Develop Core UI Components with Material-UI",
+        "description": "Create the main UI components using Material-UI v5 with Emotion for styling, implementing the layout structure and theme support.",
+        "details": "1. Install dependencies: `npm install @mui/material@5.14.18 @mui/icons-material@5.14.18 @emotion/react@11.11.1 @emotion/styled@11.11.0`\n\n2. Set up theme configuration in `src/presentation/theme/`:\n   - `lightTheme.ts` and `darkTheme.ts`: Define color palettes\n   - `ThemeProvider.tsx`: Context provider with theme switching\n\n3. Implement layout components in `src/presentation/components/layout/`:\n   - `AppLayout.tsx`: Main application layout with responsive design\n   - `Header.tsx`: App header with connection status and theme toggle\n   - `Sidebar.tsx`: Connection settings and quick actions\n   - `MainContent.tsx`: Tab-based content area\n   - `BottomPanel.tsx`: Command input and status display\n\n4. Create common UI components in `src/presentation/components/common/`:\n   - `ConnectionStatus.tsx`: Visual indicator of connection state\n   - `TabPanel.tsx`: Reusable tab panel component\n   - `ErrorBoundary.tsx`: React error boundary for fault tolerance\n   - `LoadingSpinner.tsx`: Loading indicator\n\n5. Implement responsive design with Material-UI's Grid system and breakpoints\n\n6. Set up dark/light theme toggle with smooth transitions\n\nExample theme implementation:\n```typescript\n// src/presentation/theme/theme.ts\nimport { createTheme, ThemeOptions } from '@mui/material/styles';\n\nconst baseTheme: ThemeOptions = {\n  typography: {\n    fontFamily: '\"Roboto\", \"Helvetica\", \"Arial\", sans-serif',\n  },\n  components: {\n    MuiButton: {\n      styleOverrides: {\n        root: {\n          borderRadius: 4,\n        },\n      },\n    },\n  },\n};\n\nexport const lightTheme = createTheme({\n  ...baseTheme,\n  palette: {\n    mode: 'light',\n    primary: {\n      main: '#1976d2',\n    },\n    secondary: {\n      main: '#dc004e',\n    },\n    background: {\n      default: '#f5f5f5',\n      paper: '#ffffff',\n    },\n  },\n});\n\nexport const darkTheme = createTheme({\n  ...baseTheme,\n  palette: {\n    mode: 'dark',\n    primary: {\n      main: '#90caf9',\n    },\n    secondary: {\n      main: '#f48fb1',\n    },\n    background: {\n      default: '#121212',\n      paper: '#1e1e1e',\n    },\n  },\n});\n```",
+        "testStrategy": "1. Test responsive layout with different viewport sizes\n2. Verify theme switching functionality\n3. Test accessibility with axe-core\n4. Snapshot testing for UI components\n5. Test error boundary with simulated errors\n6. Verify keyboard navigation and focus management",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Implement Connection Management UI",
+        "description": "Develop the connection management interface for serial port and TCP/IP connections with configuration options and status visualization.",
+        "details": "1. Create connection components in `src/presentation/components/connection/`:\n   - `ConnectionPanel.tsx`: Main connection management panel\n   - `SerialPortSelector.tsx`: Serial port selection dropdown\n   - `SerialSettings.tsx`: Baud rate, data bits, parity, stop bits settings\n   - `TcpSettings.tsx`: Host, port configuration for TCP connections\n   - `ConnectionStatus.tsx`: Visual status indicator with connection metrics\n\n2. Implement port detection using Web Serial API:\n```typescript\n// src/presentation/hooks/useAvailablePorts.ts\nimport { useState, useEffect } from 'react';\n\nexport interface SerialPortInfo {\n  port: SerialPort;\n  info: {\n    usbVendorId?: number;\n    usbProductId?: number;\n  };\n}\n\nexport const useAvailablePorts = () => {\n  const [ports, setPorts] = useState<SerialPortInfo[]>([]);\n  const [loading, setLoading] = useState(false);\n  const [error, setError] = useState<Error | null>(null);\n\n  const refreshPorts = async () => {\n    if (!navigator.serial) {\n      setError(new Error('Web Serial API not supported in this browser'));\n      return;\n    }\n\n    try {\n      setLoading(true);\n      const availablePorts = await navigator.serial.getPorts();\n      const portsWithInfo = availablePorts.map(port => ({\n        port,\n        info: {\n          usbVendorId: port.getInfo().usbVendorId,\n          usbProductId: port.getInfo().usbProductId,\n        }\n      }));\n      setPorts(portsWithInfo);\n    } catch (err) {\n      setError(err instanceof Error ? err : new Error('Failed to get ports'));\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  useEffect(() => {\n    refreshPorts();\n    \n    // Listen for connect/disconnect events\n    navigator.serial?.addEventListener('connect', refreshPorts);\n    navigator.serial?.addEventListener('disconnect', refreshPorts);\n    \n    return () => {\n      navigator.serial?.removeEventListener('connect', refreshPorts);\n      navigator.serial?.removeEventListener('disconnect', refreshPorts);\n    };\n  }, []);\n\n  return { ports, loading, error, refreshPorts };\n};\n```\n\n3. Create connection form with validation:\n   - Validate TCP host/port format\n   - Ensure serial settings are within valid ranges\n   - Provide preset configurations for common devices\n\n4. Implement auto-reconnect functionality with configurable retry intervals\n\n5. Add connection history feature to quickly reconnect to previous devices",
+        "testStrategy": "1. Test port selection with mocked Web Serial API\n2. Verify form validation with valid and invalid inputs\n3. Test connection state transitions\n4. Validate auto-reconnect functionality\n5. Test TCP connection with mocked WebSocket\n6. Verify error handling with simulated connection failures",
+        "priority": "high",
+        "dependencies": [
+          3,
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Develop Real-time Monitoring Interface with Virtual Scrolling",
+        "description": "Create the real-time packet monitoring interface with virtual scrolling for efficient rendering of large log volumes, including filtering and detailed packet inspection.",
+        "details": "1. Install dependencies: `npm install react-window@1.8.9 react-virtualized-auto-sizer@1.0.20`\n\n2. Implement monitoring components in `src/presentation/components/monitoring/`:\n   - `PacketMonitor.tsx`: Main monitoring view with virtual scrolling\n   - `PacketRow.tsx`: Individual packet row with highlighting\n   - `PacketDetails.tsx`: Expandable packet details panel\n   - `FilterPanel.tsx`: Filtering options by protocol, function code, etc.\n   - `SearchBar.tsx`: Real-time search functionality\n\n3. Create virtual scrolling implementation:\n```typescript\n// src/presentation/components/monitoring/VirtualizedPacketList.tsx\nimport { FixedSizeList } from 'react-window';\nimport AutoSizer from 'react-virtualized-auto-sizer';\nimport { usePacketStore } from '../../store/packetStore';\nimport PacketRow from './PacketRow';\n\nconst VirtualizedPacketList = () => {\n  const packets = usePacketStore(state => state.filteredPackets);\n  \n  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => (\n    <div style={style}>\n      <PacketRow packet={packets[index]} />\n    </div>\n  );\n\n  return (\n    <div style={{ height: '100%', width: '100%' }}>\n      <AutoSizer>\n        {({ height, width }) => (\n          <FixedSizeList\n            height={height}\n            width={width}\n            itemCount={packets.length}\n            itemSize={48} // Row height\n            overscanCount={5} // Number of items to render outside visible area\n          >\n            {Row}\n          </FixedSizeList>\n        )}\n      </AutoSizer>\n    </div>\n  );\n};\n\nexport default VirtualizedPacketList;\n```\n\n4. Implement packet highlighting based on type:\n   - Outgoing packets: Blue\n   - Incoming packets: Green\n   - Error packets: Red\n   - Timeout: Orange\n\n5. Create packet detail view with:\n   - Hex view of raw data\n   - Decoded fields based on Modbus function code\n   - Timing information\n   - Error details if applicable\n\n6. Implement real-time filtering with debounced search",
+        "testStrategy": "1. Test virtual scrolling performance with large datasets (10,000+ packets)\n2. Verify filtering functionality with different criteria\n3. Test packet detail expansion and collapse\n4. Validate search functionality with various search terms\n5. Test highlighting logic for different packet types\n6. Verify memory usage remains stable during extended monitoring",
+        "priority": "high",
+        "dependencies": [
+          4,
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Implement Data Visualization and Charts",
+        "description": "Create data visualization components using Chart.js for real-time monitoring of response times, traffic volume, and other metrics.",
+        "details": "1. Install dependencies: `npm install chart.js@4.4.0 react-chartjs-2@5.2.0 chartjs-adapter-date-fns@3.0.0 date-fns@2.30.0`\n\n2. Create chart components in `src/presentation/components/charts/`:\n   - `ResponseTimeChart.tsx`: Line chart for response times\n   - `TrafficVolumeChart.tsx`: Bar chart for packet volume\n   - `FunctionCodeDistribution.tsx`: Pie chart for function code distribution\n   - `ErrorRateChart.tsx`: Line chart for error rates\n   - `TimeHeatmap.tsx`: Heatmap for activity by time\n\n3. Implement real-time chart updates:\n```typescript\n// src/presentation/components/charts/ResponseTimeChart.tsx\nimport { useEffect, useRef } from 'react';\nimport { Line } from 'react-chartjs-2';\nimport {\n  Chart as ChartJS,\n  CategoryScale,\n  LinearScale,\n  PointElement,\n  LineElement,\n  Title,\n  Tooltip,\n  Legend,\n  TimeScale,\n} from 'chart.js';\nimport 'chartjs-adapter-date-fns';\nimport { usePacketStore } from '../../store/packetStore';\n\nChartJS.register(\n  CategoryScale,\n  LinearScale,\n  PointElement,\n  LineElement,\n  Title,\n  Tooltip,\n  Legend,\n  TimeScale\n);\n\nconst ResponseTimeChart = () => {\n  const responseTimes = usePacketStore(state => state.responseTimes);\n  const chartRef = useRef<ChartJS>(null);\n  \n  // Update chart when new data arrives\n  useEffect(() => {\n    if (chartRef.current) {\n      chartRef.current.update('quiet');\n    }\n  }, [responseTimes]);\n  \n  const data = {\n    labels: responseTimes.map(item => item.timestamp),\n    datasets: [\n      {\n        label: 'Response Time (ms)',\n        data: responseTimes.map(item => item.time),\n        borderColor: 'rgba(75, 192, 192, 1)',\n        backgroundColor: 'rgba(75, 192, 192, 0.2)',\n        tension: 0.4,\n      },\n    ],\n  };\n  \n  const options = {\n    responsive: true,\n    maintainAspectRatio: false,\n    scales: {\n      x: {\n        type: 'time' as const,\n        time: {\n          unit: 'second' as const,\n        },\n        title: {\n          display: true,\n          text: 'Time',\n        },\n      },\n      y: {\n        beginAtZero: true,\n        title: {\n          display: true,\n          text: 'Response Time (ms)',\n        },\n      },\n    },\n    animation: {\n      duration: 0, // Disable animation for performance\n    },\n    plugins: {\n      legend: {\n        position: 'top' as const,\n      },\n      title: {\n        display: true,\n        text: 'Response Time Trend',\n      },\n    },\n  };\n  \n  return (\n    <div style={{ height: '300px', width: '100%' }}>\n      <Line ref={chartRef} data={data} options={options} />\n    </div>\n  );\n};\n\nexport default ResponseTimeChart;\n```\n\n4. Implement chart export functionality (PNG, CSV)\n\n5. Create dashboard layout with multiple charts\n\n6. Add time range selector for historical data viewing",
+        "testStrategy": "1. Test chart rendering with sample datasets\n2. Verify real-time updates with simulated data streams\n3. Test chart responsiveness at different viewport sizes\n4. Validate export functionality for different formats\n5. Test time range selection with different ranges\n6. Verify performance with large datasets",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Implement Performance Optimizations with Web Workers",
+        "description": "Optimize application performance using Web Workers for packet parsing, implement memory management strategies, and ensure smooth operation with large datasets.",
+        "details": "1. Create Web Worker for packet parsing in `src/infrastructure/workers/`:\n   - `packetParser.worker.ts`: Worker for parsing raw data into packet objects\n\n2. Set up worker communication:\n```typescript\n// src/infrastructure/workers/packetParser.worker.ts\nconst ctx: Worker = self as any;\n\nctx.addEventListener('message', (event) => {\n  const { data, type, id } = event.data;\n  \n  switch (type) {\n    case 'PARSE_RTU':\n      try {\n        const result = parseRtuPacket(data);\n        ctx.postMessage({ id, result, error: null });\n      } catch (error) {\n        ctx.postMessage({ id, result: null, error: error.message });\n      }\n      break;\n      \n    case 'PARSE_ASCII':\n      try {\n        const result = parseAsciiPacket(data);\n        ctx.postMessage({ id, result, error: null });\n      } catch (error) {\n        ctx.postMessage({ id, result: null, error: error.message });\n      }\n      break;\n      \n    case 'PARSE_TCP':\n      try {\n        const result = parseTcpPacket(data);\n        ctx.postMessage({ id, result, error: null });\n      } catch (error) {\n        ctx.postMessage({ id, result: null, error: error.message });\n      }\n      break;\n      \n    default:\n      ctx.postMessage({ id, result: null, error: 'Unknown command' });\n  }\n});\n\n// Parsing functions implementation\nfunction parseRtuPacket(data: Uint8Array) {\n  // Implementation\n}\n\nfunction parseAsciiPacket(data: Uint8Array) {\n  // Implementation\n}\n\nfunction parseTcpPacket(data: Uint8Array) {\n  // Implementation\n}\n```\n\n3. Create worker manager in `src/infrastructure/services/WorkerManager.ts`:\n```typescript\nexport class WorkerManager {\n  private worker: Worker;\n  private callbacks = new Map<string, (result: any, error: string | null) => void>();\n  \n  constructor() {\n    this.worker = new Worker(new URL('../workers/packetParser.worker.ts', import.meta.url), { type: 'module' });\n    \n    this.worker.addEventListener('message', (event) => {\n      const { id, result, error } = event.data;\n      const callback = this.callbacks.get(id);\n      \n      if (callback) {\n        callback(result, error);\n        this.callbacks.delete(id);\n      }\n    });\n  }\n  \n  parsePacket(data: Uint8Array, protocol: 'rtu' | 'ascii' | 'tcp'): Promise<any> {\n    return new Promise((resolve, reject) => {\n      const id = Date.now().toString() + Math.random().toString(36).substr(2, 5);\n      \n      this.callbacks.set(id, (result, error) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          resolve(result);\n        }\n      });\n      \n      const type = protocol === 'rtu' ? 'PARSE_RTU' : \n                  protocol === 'ascii' ? 'PARSE_ASCII' : 'PARSE_TCP';\n                  \n      this.worker.postMessage({ id, type, data });\n    });\n  }\n  \n  terminate() {\n    this.worker.terminate();\n    this.callbacks.clear();\n  }\n}\n```\n\n4. Implement memory management strategies:\n   - Limit packet history size with configurable maximum\n   - Implement data chunking for large datasets\n   - Use object pooling for frequently created objects\n\n5. Optimize rendering with React.memo and useMemo:\n```typescript\nconst PacketRow = React.memo(({ packet }: { packet: PacketData }) => {\n  // Component implementation\n});\n```\n\n6. Implement background garbage collection with scheduled cleanup",
+        "testStrategy": "1. Benchmark parsing performance with and without Web Workers\n2. Test memory usage with large datasets (10,000+ packets)\n3. Verify worker communication with different packet types\n4. Test error handling in worker communication\n5. Validate memory management with extended runtime\n6. Measure rendering performance with React DevTools Profiler",
+        "priority": "medium",
+        "dependencies": [
+          3,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Implement Advanced Features and Packet Analysis",
+        "description": "Develop advanced features including packet sequence analysis, automatic response time alerts, and custom dashboard configurations.",
+        "details": "1. Create packet sequence analyzer in `src/application/services/SequenceAnalyzerService.ts`:\n   - Detect request-response pairs\n   - Calculate timing statistics\n   - Identify missing responses\n\n2. Implement alert system in `src/application/services/AlertService.ts`:\n```typescript\n// src/application/services/AlertService.ts\nimport { create } from 'zustand';\n\ninterface AlertThresholds {\n  responseTime: number; // ms\n  errorRate: number; // percentage\n  packetLoss: number; // percentage\n}\n\ninterface AlertState {\n  thresholds: AlertThresholds;\n  enabled: boolean;\n  activeAlerts: Array<{\n    id: string;\n    type: 'responseTime' | 'errorRate' | 'packetLoss';\n    message: string;\n    timestamp: number;\n    acknowledged: boolean;\n  }>;\n  actions: {\n    setThresholds: (thresholds: Partial<AlertThresholds>) => void;\n    toggleAlerts: (enabled: boolean) => void;\n    acknowledgeAlert: (id: string) => void;\n    clearAlerts: () => void;\n    addAlert: (type: 'responseTime' | 'errorRate' | 'packetLoss', message: string) => void;\n  };\n}\n\nexport const useAlertStore = create<AlertState>((set, get) => ({\n  thresholds: {\n    responseTime: 500, // 500ms\n    errorRate: 5, // 5%\n    packetLoss: 2, // 2%\n  },\n  enabled: true,\n  activeAlerts: [],\n  actions: {\n    setThresholds: (thresholds) => set(state => ({\n      thresholds: { ...state.thresholds, ...thresholds }\n    })),\n    toggleAlerts: (enabled) => set({ enabled }),\n    acknowledgeAlert: (id) => set(state => ({\n      activeAlerts: state.activeAlerts.map(alert =>\n        alert.id === id ? { ...alert, acknowledged: true } : alert\n      )\n    })),\n    clearAlerts: () => set({ activeAlerts: [] }),\n    addAlert: (type, message) => {\n      if (!get().enabled) return;\n      \n      set(state => ({\n        activeAlerts: [\n          ...state.activeAlerts,\n          {\n            id: Date.now().toString(),\n            type,\n            message,\n            timestamp: Date.now(),\n            acknowledged: false,\n          }\n        ]\n      }));\n    }\n  }\n}));\n\nexport class AlertService {\n  checkResponseTime(responseTime: number) {\n    const { thresholds, actions } = useAlertStore.getState();\n    \n    if (responseTime > thresholds.responseTime) {\n      actions.addAlert(\n        'responseTime',\n        `Response time (${responseTime}ms) exceeded threshold (${thresholds.responseTime}ms)`\n      );\n    }\n  }\n  \n  checkErrorRate(errorRate: number) {\n    const { thresholds, actions } = useAlertStore.getState();\n    \n    if (errorRate > thresholds.errorRate) {\n      actions.addAlert(\n        'errorRate',\n        `Error rate (${errorRate.toFixed(1)}%) exceeded threshold (${thresholds.errorRate}%)`\n      );\n    }\n  }\n  \n  checkPacketLoss(lossRate: number) {\n    const { thresholds, actions } = useAlertStore.getState();\n    \n    if (lossRate > thresholds.packetLoss) {\n      actions.addAlert(\n        'packetLoss',\n        `Packet loss (${lossRate.toFixed(1)}%) exceeded threshold (${thresholds.packetLoss}%)`\n      );\n    }\n  }\n}\n```\n\n3. Create custom dashboard configuration in `src/presentation/components/dashboard/`:\n   - `DashboardEditor.tsx`: UI for customizing dashboard layout\n   - `DashboardGrid.tsx`: Grid-based layout for charts and monitors\n   - `WidgetSelector.tsx`: Component for selecting dashboard widgets\n\n4. Implement keyboard shortcuts:\n   - Connect/disconnect: Ctrl+Shift+C\n   - Clear logs: Ctrl+Shift+L\n   - Send command: Ctrl+Enter\n   - Toggle theme: Ctrl+Shift+T\n\n5. Create advanced filtering options:\n   - Filter by address range\n   - Filter by response time\n   - Filter by error type\n   - Save and load filter presets",
+        "testStrategy": "1. Test sequence analysis with predefined packet sequences\n2. Verify alert triggering with threshold violations\n3. Test dashboard customization and layout persistence\n4. Validate keyboard shortcuts in different contexts\n5. Test advanced filtering with complex criteria\n6. Verify filter preset saving and loading",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          8,
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Implement Testing, Build and Deployment Pipeline",
+        "description": "Set up comprehensive testing, build optimization, and deployment pipeline with PWA support and GitHub Actions CI/CD.",
+        "details": "1. Configure Jest for unit testing:\n   - Create `jest.config.js` with TypeScript support\n   - Set up test utilities and mocks\n   - Configure code coverage reporting\n\n2. Set up Playwright for E2E testing:\n   - Install Playwright: `npm install -D @playwright/test@1.40.0`\n   - Create E2E test scenarios for critical user flows\n   - Set up GitHub Actions for automated E2E testing\n\n3. Implement build optimization in `vite.config.ts`:\n```typescript\nimport { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nimport { VitePWA } from 'vite-plugin-pwa';\nimport path from 'path';\n\nexport default defineConfig({\n  plugins: [\n    react(),\n    VitePWA({\n      registerType: 'autoUpdate',\n      includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],\n      manifest: {\n        name: 'Web Serial Modbus Debugger',\n        short_name: 'ModbusDebug',\n        description: 'Web Serial based Modbus protocol debugging tool',\n        theme_color: '#1976d2',\n        icons: [\n          {\n            src: 'pwa-192x192.png',\n            sizes: '192x192',\n            type: 'image/png',\n          },\n          {\n            src: 'pwa-512x512.png',\n            sizes: '512x512',\n            type: 'image/png',\n          },\n        ],\n      },\n    }),\n  ],\n  resolve: {\n    alias: {\n      '@': path.resolve(__dirname, './src'),\n    },\n  },\n  build: {\n    target: 'esnext',\n    outDir: 'dist',\n    sourcemap: false,\n    minify: 'terser',\n    terserOptions: {\n      compress: {\n        drop_console: true,\n      },\n    },\n    rollupOptions: {\n      output: {\n        manualChunks: {\n          vendor: ['react', 'react-dom', 'zustand'],\n          ui: ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],\n          charts: ['chart.js', 'react-chartjs-2'],\n        },\n      },\n    },\n  },\n});\n```\n\n4. Set up GitHub Actions CI/CD in `.github/workflows/ci.yml`:\n```yaml\nname: CI/CD Pipeline\n\non:\n  push:\n    branches: [ main ]\n  pull_request:\n    branches: [ main ]\n\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - name: Use Node.js\n        uses: actions/setup-node@v3\n        with:\n          node-version: '22.x'\n          cache: 'npm'\n      - run: npm ci\n      - run: npm run lint\n      - run: npm test\n      - name: Upload coverage\n        uses: codecov/codecov-action@v3\n\n  e2e:\n    needs: test\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - name: Use Node.js\n        uses: actions/setup-node@v3\n        with:\n          node-version: '22.x'\n          cache: 'npm'\n      - run: npm ci\n      - name: Install Playwright\n        run: npx playwright install --with-deps\n      - name: Run E2E tests\n        run: npm run test:e2e\n\n  build:\n    needs: [test, e2e]\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v3\n      - name: Use Node.js\n        uses: actions/setup-node@v3\n        with:\n          node-version: '22.x'\n          cache: 'npm'\n      - run: npm ci\n      - run: npm run build\n      - name: Upload build artifacts\n        uses: actions/upload-artifact@v3\n        with:\n          name: build\n          path: dist\n\n  deploy:\n    needs: build\n    if: github.ref == 'refs/heads/main'\n    runs-on: ubuntu-latest\n    steps:\n      - name: Download build artifacts\n        uses: actions/download-artifact@v3\n        with:\n          name: build\n          path: dist\n      - name: Deploy to GitHub Pages\n        uses: JamesIves/github-pages-deploy-action@v4\n        with:\n          folder: dist\n```\n\n5. Implement automatic versioning with standard-version:\n   - Install: `npm install -D standard-version@9.5.0`\n   - Configure in package.json for semantic versioning\n\n6. Set up PWA support with service worker and offline capabilities",
+        "testStrategy": "1. Verify unit test coverage meets 80% threshold\n2. Test E2E scenarios with Playwright on different browsers\n3. Validate build output size and chunk distribution\n4. Test PWA installation and offline functionality\n5. Verify CI/CD pipeline with test commits\n6. Test automatic versioning with feature and fix commits",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          6,
+          10
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-06-27T01:41:44.801Z",
+      "updated": "2025-06-27T01:41:44.801Z",
+      "description": "Tasks for master context"
     }
-  ]
+  }
 }
