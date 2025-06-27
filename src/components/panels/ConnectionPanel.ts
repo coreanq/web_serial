@@ -1,14 +1,18 @@
 import { ConnectionType, ConnectionStatus, SerialPort } from '../../types';
 import { SerialService } from '../../services/SerialService';
+import { WebSocketService, ModbusTcpConfig } from '../../services/WebSocketService';
 
 export class ConnectionPanel {
   private activeTab: ConnectionType = 'RTU';
   private onConnectionChange: (status: ConnectionStatus, config?: any) => void;
   private onDataReceived?: (data: string) => void;
   private serialService: SerialService;
+  private webSocketService: WebSocketService;
   private selectedPort: SerialPort | null = null;
   private grantedPorts: SerialPort[] = [];
   private isCompactMode: boolean = false;
+  private tcpConnectionStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
+  private webSocketStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
 
   constructor(
     onConnectionChange: (status: ConnectionStatus, config?: any) => void, 
@@ -17,6 +21,76 @@ export class ConnectionPanel {
     this.onConnectionChange = onConnectionChange;
     this.onDataReceived = onDataReceived;
     this.serialService = new SerialService();
+    this.webSocketService = new WebSocketService();
+    this.setupWebSocketHandlers();
+  }
+
+  private setupWebSocketHandlers(): void {
+    // WebSocket connection status
+    this.webSocketService.onMessage('ws_connected', () => {
+      console.log('WebSocket proxy connected');
+      this.webSocketStatus = 'connected';
+      this.updateWebSocketStatusDisplay();
+    });
+
+    // Handle server's 'connected' message too
+    this.webSocketService.onMessage('connected', () => {
+      console.log('WebSocket proxy server connected');
+      this.webSocketStatus = 'connected';
+      this.updateWebSocketStatusDisplay();
+    });
+
+    this.webSocketService.onMessage('ws_disconnected', () => {
+      console.log('WebSocket proxy disconnected');
+      this.webSocketStatus = 'disconnected';
+      this.updateWebSocketStatusDisplay();
+      if (this.tcpConnectionStatus === 'connected') {
+        this.tcpConnectionStatus = 'error';
+        this.onConnectionChange('error');
+        this.updateButtonStates(false);
+      }
+    });
+
+    this.webSocketService.onMessage('ws_error', () => {
+      console.error('WebSocket proxy connection error');
+      this.webSocketStatus = 'error';
+      this.updateWebSocketStatusDisplay();
+    });
+
+    // TCP Modbus connection status
+    this.webSocketService.onMessage('tcp_connected', (data) => {
+      console.log('TCP Modbus connected:', data);
+      this.tcpConnectionStatus = 'connected';
+      this.onConnectionChange('connected', this.getCurrentConfig());
+      this.updateButtonStates(true);
+    });
+
+    this.webSocketService.onMessage('tcp_disconnected', (data) => {
+      console.log('TCP Modbus disconnected:', data);
+      this.tcpConnectionStatus = 'disconnected';
+      this.onConnectionChange('disconnected');
+      this.updateButtonStates(false);
+    });
+
+    this.webSocketService.onMessage('tcp_error', (data) => {
+      console.error('TCP Modbus error:', data);
+      this.tcpConnectionStatus = 'error';
+      this.onConnectionChange('error');
+      this.updateButtonStates(false);
+    });
+
+    // Data received from Modbus device
+    this.webSocketService.onMessage('data', (data) => {
+      console.log('Received from Modbus device:', data.data);
+      if (this.onDataReceived) {
+        this.onDataReceived(data.data);
+      }
+    });
+
+    this.webSocketService.onMessage('error', (data) => {
+      console.error('WebSocket service error:', data);
+      alert(`WebSocket Error: ${data.message}`);
+    });
   }
 
   async mount(container: HTMLElement): Promise<void> {
@@ -144,64 +218,34 @@ export class ConnectionPanel {
             </div>
           </div>
 
-          ${this.isCompactMode ? `
-            <!-- Compact Layout: Baud Rate and Parity in 2 columns -->
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-medium text-dark-text-secondary mb-1">
-                  Baud Rate
-                </label>
-                <select class="input-field w-full text-sm" id="baud-rate">
-                  <option value="1200">1200</option>
-                  <option value="2400">2400</option>
-                  <option value="4800">4800</option>
-                  <option value="9600" selected>9600</option>
-                  <option value="19200">19200</option>
-                  <option value="38400">38400</option>
-                  <option value="57600">57600</option>
-                  <option value="115200">115200</option>
-                </select>
-              </div>
+          <!-- Baud Rate -->
+          <div>
+            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+              Baud Rate
+            </label>
+            <select class="input-field w-full ${this.isCompactMode ? 'text-sm' : ''}" id="baud-rate">
+              <option value="1200">1200</option>
+              <option value="2400">2400</option>
+              <option value="4800">4800</option>
+              <option value="9600" selected>9600</option>
+              <option value="19200">19200</option>
+              <option value="38400">38400</option>
+              <option value="57600">57600</option>
+              <option value="115200">115200</option>
+            </select>
+          </div>
 
-              <div>
-                <label class="block text-xs font-medium text-dark-text-secondary mb-1">
-                  Parity
-                </label>
-                <select class="input-field w-full text-sm" id="parity">
-                  <option value="none" selected>None</option>
-                  <option value="even">Even</option>
-                  <option value="odd">Odd</option>
-                </select>
-              </div>
-            </div>
-          ` : `
-            <div>
-              <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-                Baud Rate
-              </label>
-              <select class="input-field w-full" id="baud-rate">
-                <option value="1200">1200</option>
-                <option value="2400">2400</option>
-                <option value="4800">4800</option>
-                <option value="9600" selected>9600</option>
-                <option value="19200">19200</option>
-                <option value="38400">38400</option>
-                <option value="57600">57600</option>
-                <option value="115200">115200</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-                Parity
-              </label>
-              <select class="input-field w-full" id="parity">
-                <option value="none" selected>None</option>
-                <option value="even">Even</option>
-                <option value="odd">Odd</option>
-              </select>
-            </div>
-          `}
+          <!-- Parity -->
+          <div>
+            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+              Parity
+            </label>
+            <select class="input-field w-full ${this.isCompactMode ? 'text-sm' : ''}" id="parity">
+              <option value="none" selected>None</option>
+              <option value="even">Even</option>
+              <option value="odd">Odd</option>
+            </select>
+          </div>
         </div>
       </div>
     `;
@@ -209,33 +253,38 @@ export class ConnectionPanel {
 
   private renderTcpTab(): string {
     return `
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-            IP Address
-          </label>
-          <input 
-            type="text" 
-            class="input-field w-full" 
-            id="tcp-host"
-            placeholder="192.168.1.100"
-            value="127.0.0.1"
-          />
-        </div>
+      <div class="space-y-4">
+        <!-- WebSocket Server Status -->\n        <div class="p-3 rounded-md ${this.getWebSocketStatusClass()}">\n          <div class="flex items-center gap-2">\n            <div class="w-2 h-2 rounded-full ${this.getWebSocketIndicatorClass()}"></div>\n            <span class="text-sm font-medium">\n              ${this.getWebSocketStatusText()}\n            </span>\n          </div>\n          <p class="text-xs text-dark-text-muted mt-1">\n            WebSocket Proxy: ws://localhost:8080\n          </p>\n        </div>
 
-        <div>
-          <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-            Port
-          </label>
-          <input 
-            type="number" 
-            class="input-field w-full" 
-            id="tcp-port"
-            placeholder="502"
-            value="502"
-            min="1"
-            max="65535"
-          />
+        <!-- TCP Connection Settings -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+              IP Address
+            </label>
+            <input 
+              type="text" 
+              class="input-field w-full" 
+              id="tcp-host"
+              placeholder="192.168.1.100"
+              value="127.0.0.1"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+              Port
+            </label>
+            <input 
+              type="number" 
+              class="input-field w-full" 
+              id="tcp-port"
+              placeholder="502"
+              value="502"
+              min="1"
+              max="65535"
+            />
+          </div>
         </div>
       </div>
     `;
@@ -296,6 +345,20 @@ export class ConnectionPanel {
       btn.classList.remove('active');
     });
     document.querySelector(`[data-tab="${tabType}"]`)?.classList.add('active');
+
+    // Auto-connect to WebSocket when switching to TCP tab
+    if (tabType === 'TCP' && !this.webSocketService.isConnected()) {
+      console.log('TCP tab selected, connecting to WebSocket...');
+      this.webSocketStatus = 'connecting';
+      this.updateWebSocketStatusDisplay();
+      this.webSocketService.connect().then(() => {
+        console.log('WebSocket connection completed successfully');
+      }).catch(error => {
+        console.error('Auto WebSocket connection failed:', error);
+        this.webSocketStatus = 'error';
+        this.updateWebSocketStatusDisplay();
+      });
+    }
   }
 
   // Load previously granted serial ports
@@ -476,21 +539,51 @@ export class ConnectionPanel {
   }
 
   private async handleTcpConnect(): Promise<void> {
+    this.tcpConnectionStatus = 'connecting';
     this.onConnectionChange('connecting');
-    
-    // TCP connection simulation (WebSocket implementation would go here)
-    setTimeout(() => {
-      this.onConnectionChange('connected', this.getCurrentConfig());
-      this.updateButtonStates(true);
-    }, 1500);
+    this.updateButtonStates(false, true);
+
+    try {
+      // Connect to WebSocket proxy server first
+      if (!this.webSocketService.isConnected()) {
+        this.webSocketStatus = 'connecting';
+        this.updateWebSocketStatusDisplay();
+        await this.webSocketService.connect();
+      }
+
+      // Get TCP connection config
+      const config = this.getCurrentConfig();
+      const tcpConfig: ModbusTcpConfig = {
+        host: config.tcp.host,
+        port: config.tcp.port
+      };
+
+      // Connect to Modbus device via WebSocket proxy
+      await this.webSocketService.connectToModbusDevice(tcpConfig);
+      
+      console.log(`Connecting to Modbus TCP device at ${tcpConfig.host}:${tcpConfig.port}`);
+
+    } catch (error) {
+      console.error('TCP connection failed:', error);
+      this.tcpConnectionStatus = 'error';
+      this.onConnectionChange('error');
+      this.updateButtonStates(false, false);
+      
+      if (error instanceof Error) {
+        alert(`TCP Connection failed: ${error.message}`);
+      }
+    }
   }
 
   private async handleDisconnect(): Promise<void> {
     try {
       if (this.activeTab === 'RTU' && this.serialService.getConnectionStatus()) {
         await this.serialService.disconnect();
+      } else if (this.activeTab === 'TCP' && this.tcpConnectionStatus === 'connected') {
+        await this.webSocketService.disconnectFromModbusDevice();
       }
       
+      this.tcpConnectionStatus = 'disconnected';
       this.onConnectionChange('disconnected');
       this.updateButtonStates(false, false);
       this.updateSelectedPortInfo();
@@ -498,6 +591,7 @@ export class ConnectionPanel {
     } catch (error) {
       console.error('Disconnect failed:', error);
       // Force update UI even if disconnect fails
+      this.tcpConnectionStatus = 'disconnected';
       this.onConnectionChange('disconnected');
       this.updateButtonStates(false, false);
     }
@@ -553,11 +647,39 @@ export class ConnectionPanel {
   private async handleTcpTest(): Promise<void> {
     this.onConnectionChange('connecting');
     
-    // TCP test simulation
-    setTimeout(() => {
+    try {
+      // Connect to WebSocket proxy server
+      if (!this.webSocketService.isConnected()) {
+        await this.webSocketService.connect();
+      }
+
+      // Get TCP connection config
+      const config = this.getCurrentConfig();
+      const tcpConfig: ModbusTcpConfig = {
+        host: config.tcp.host,
+        port: config.tcp.port
+      };
+
+      // Test connection to Modbus device
+      await this.webSocketService.connectToModbusDevice(tcpConfig);
+      
+      // Wait a moment for connection
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Disconnect after test
+      await this.webSocketService.disconnectFromModbusDevice();
+      
       this.onConnectionChange('disconnected');
-      alert('TCP connection test completed. Check the log for details.');
-    }, 2000);
+      alert(`✅ TCP connection test successful! Can connect to ${tcpConfig.host}:${tcpConfig.port}`);
+      
+    } catch (error) {
+      this.onConnectionChange('error');
+      setTimeout(() => this.onConnectionChange('disconnected'), 2000);
+      
+      if (error instanceof Error) {
+        alert(`❌ TCP connection test failed: ${error.message}`);
+      }
+    }
   }
 
   // Handle force close port
@@ -674,5 +796,61 @@ export class ConnectionPanel {
   // Public method to get serial service for command sending
   getSerialService(): SerialService {
     return this.serialService;
+  }
+
+  // Public method to get WebSocket service for TCP command sending
+  getWebSocketService(): WebSocketService {
+    return this.webSocketService;
+  }
+
+  // WebSocket status helper methods
+  private getWebSocketStatusClass(): string {
+    switch (this.webSocketStatus) {
+      case 'connected':
+        return 'bg-green-900/20 border border-green-500/30';
+      case 'connecting':
+        return 'bg-yellow-900/20 border border-yellow-500/30';
+      case 'error':
+        return 'bg-red-900/20 border border-red-500/30';
+      default:
+        return 'bg-gray-900/20 border border-gray-500/30';
+    }
+  }
+
+  private getWebSocketIndicatorClass(): string {
+    switch (this.webSocketStatus) {
+      case 'connected':
+        return 'bg-green-500';
+      case 'connecting':
+        return 'bg-yellow-500 animate-pulse';
+      case 'error':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  }
+
+  private getWebSocketStatusText(): string {
+    switch (this.webSocketStatus) {
+      case 'connected':
+        return 'WebSocket Proxy Connected';
+      case 'connecting':
+        return 'Connecting to WebSocket Proxy...';
+      case 'error':
+        return 'WebSocket Proxy Connection Failed';
+      default:
+        return 'WebSocket Proxy Disconnected';
+    }
+  }
+
+  private updateWebSocketStatusDisplay(): void {
+    if (this.activeTab === 'TCP') {
+      // Refresh TCP tab to update WebSocket status
+      const container = document.querySelector('.tab-content');
+      if (container) {
+        container.innerHTML = this.renderTcpTab();
+        this.attachEventListeners();
+      }
+    }
   }
 }

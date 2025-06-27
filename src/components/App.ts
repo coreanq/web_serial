@@ -8,7 +8,7 @@ export class App {
   private connectionPanel: ConnectionPanel;
   private logPanel: LogPanel;
   private commandPanel: CommandPanel;
-  private connectionPanelPosition: 'top' | 'left' | 'right' = 'top';
+  private connectionPanelPosition: 'top' | 'left' | 'right' = 'left';
   private connectionPanelVisible: boolean = true;
 
   constructor() {
@@ -37,6 +37,10 @@ export class App {
     );
     this.logPanel = new LogPanel();
     this.commandPanel = new CommandPanel(this.onCommandSend.bind(this));
+    
+    // Set initial compact mode based on default position
+    const isCompact = this.connectionPanelPosition === 'left' || this.connectionPanelPosition === 'right';
+    this.connectionPanel.setCompactMode(isCompact);
   }
 
   async mount(container: HTMLElement): Promise<void> {
@@ -127,6 +131,9 @@ export class App {
     const commandContent = document.getElementById('command-content');
 
     if (connectionContent) {
+      // Ensure compact mode is set before mounting
+      const isCompact = this.connectionPanelPosition === 'left' || this.connectionPanelPosition === 'right';
+      this.connectionPanel.setCompactMode(isCompact);
       await this.connectionPanel.mount(connectionContent);
     }
 
@@ -327,14 +334,23 @@ export class App {
     this.state.logs.push(logEntry);
     this.logPanel.updateLogs(this.state.logs);
     
-    // Send command to actual serial connection if connected
+    // Send command to actual connection if connected
     try {
-      if (this.state.connectionStatus === 'connected' && this.state.connectionConfig.type === 'RTU') {
-        // Get serial service from connection panel
-        const serialService = this.connectionPanel.getSerialService();
-        if (serialService && serialService.getConnectionStatus()) {
-          await serialService.sendHexString(command);
-          console.log('Command sent successfully:', command);
+      if (this.state.connectionStatus === 'connected') {
+        if (this.state.connectionConfig.type === 'RTU') {
+          // Get serial service from connection panel
+          const serialService = this.connectionPanel.getSerialService();
+          if (serialService && serialService.getConnectionStatus()) {
+            await serialService.sendHexString(command);
+            console.log('RTU Command sent successfully:', command);
+          }
+        } else if (this.state.connectionConfig.type === 'TCP') {
+          // Get WebSocket service from connection panel
+          const webSocketService = this.connectionPanel.getWebSocketService();
+          if (webSocketService && webSocketService.isConnected()) {
+            await webSocketService.sendModbusCommand(command);
+            console.log('TCP Command sent successfully:', command);
+          }
         }
       }
     } catch (error) {
