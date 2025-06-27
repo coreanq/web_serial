@@ -12,7 +12,7 @@
   },
   "options": {
     "maxConnections": 10,
-    "timeout": 0,
+    "timeout": 60000,
     "keepAlive": true
   }
 }

@@ -15,6 +15,8 @@ export class WebSocketService {
   private reconnectDelay = 1000;
   private isConnecting = false;
   private messageHandlers = new Map<string, (data: any) => void>();
+  private lastMessage: {type: string, message: string, timestamp: number} | null = null;
+  private messageDebounceMs = 50; // 50ms debounce for duplicate messages
   
   constructor(private serverUrl: string = 'ws://localhost:8080') {}
   
@@ -38,7 +40,17 @@ export class WebSocketService {
       this.ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          console.log('WebSocket message received:', message);
+          
+          // Filter duplicate messages
+          if (this.isDuplicateMessage(message)) {
+            return;
+          }
+          
+          // Only log non-duplicate messages and avoid spam for tcp_disconnected
+          if (message.type !== 'tcp_disconnected' || Math.random() < 0.2) {
+            console.log('WebSocket message received:', message);
+          }
+          this.updateLastMessage(message);
           this.handleMessage(message.type, message);
           
           // Handle server's initial 'connected' message as confirmation
@@ -127,6 +139,12 @@ export class WebSocketService {
       port: config.port
     });
   }
+
+  // Auto-reconnect for TCP Modbus connections
+  async reconnectToModbusDevice(config: ModbusTcpConfig): Promise<void> {
+    console.log(`Attempting to reconnect to Modbus device at ${config.host}:${config.port}`);
+    await this.connectToModbusDevice(config);
+  }
   
   async disconnectFromModbusDevice(): Promise<void> {
     this.sendMessage({
@@ -180,6 +198,31 @@ export class WebSocketService {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
   
+  // Helper methods for duplicate message filtering
+  private isDuplicateMessage(message: WebSocketMessage): boolean {
+    if (!this.lastMessage) {
+      return false;
+    }
+    
+    const now = Date.now();
+    const timeSinceLastMessage = now - this.lastMessage.timestamp;
+    
+    // Check if same type and message within debounce period
+    return (
+      this.lastMessage.type === message.type &&
+      this.lastMessage.message === message.message &&
+      timeSinceLastMessage < this.messageDebounceMs
+    );
+  }
+  
+  private updateLastMessage(message: WebSocketMessage): void {
+    this.lastMessage = {
+      type: message.type,
+      message: message.message || '',
+      timestamp: Date.now()
+    };
+  }
+
   getConnectionState(): string {
     if (!this.ws) return 'disconnected';
     

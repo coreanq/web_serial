@@ -98,9 +98,26 @@ class ModbusTcpProxy {
       return;
     }
     
+    // Check if already connected to the same host:port
+    if (client.tcpSocket && client.isConnected && 
+        client.targetHost === host && client.targetPort === port) {
+      console.log(`Client ${client.id} already connected to ${host}:${port}`);
+      this.sendToClient(ws, {
+        type: 'tcp_connected',
+        host,
+        port,
+        message: `Already connected to Modbus device ${host}:${port}`
+      });
+      return;
+    }
+    
     // Close existing connection if any
     if (client.tcpSocket) {
+      console.log(`Closing existing TCP connection for client ${client.id}`);
+      client.tcpSocket.removeAllListeners(); // Remove event listeners to prevent disconnect events
       client.tcpSocket.destroy();
+      client.tcpSocket = null;
+      client.isConnected = false;
     }
     
     console.log(`Client ${client.id} connecting to ${host}:${port}`);
@@ -150,24 +167,22 @@ class ModbusTcpProxy {
     
     tcpSocket.on('end', () => {
       console.log(`TCP connection ended for client ${client.id} (${host}:${port})`);
-      client.isConnected = false;
-      client.tcpSocket = null;
-      
-      this.sendToClient(ws, {
-        type: 'tcp_disconnected',
-        message: `Disconnected from ${host}:${port}`
-      });
+      // Don't send disconnect message here - wait for close event
     });
     
     tcpSocket.on('close', () => {
       console.log(`TCP connection closed for client ${client.id} (${host}:${port})`);
-      client.isConnected = false;
-      client.tcpSocket = null;
       
-      this.sendToClient(ws, {
-        type: 'tcp_disconnected',
-        message: `Disconnected from ${host}:${port}`
-      });
+      // Only send disconnect message if we were actually connected
+      if (client.isConnected) {
+        client.isConnected = false;
+        client.tcpSocket = null;
+        
+        this.sendToClient(ws, {
+          type: 'tcp_disconnected',
+          message: `Disconnected from ${host}:${port}`
+        });
+      }
     });
     
     tcpSocket.on('timeout', () => {
