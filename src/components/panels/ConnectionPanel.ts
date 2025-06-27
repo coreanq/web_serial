@@ -431,6 +431,11 @@ export class ConnectionPanel {
       this.attachEventListeners();
     }
 
+    // Notify about connection type change for AutoCRC setting update
+    const currentStatus = this.tcpConnectionStatus === 'connected' || 
+                          this.serialService.getConnectionStatus() ? 'connected' : 'disconnected';
+    this.onConnectionChange(currentStatus as ConnectionStatus, { type: tabType });
+
     // Update tab button states
     document.querySelectorAll('.tab-button').forEach(btn => {
       btn.classList.remove('active');

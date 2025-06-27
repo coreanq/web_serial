@@ -153,10 +153,43 @@ export class WebSocketService {
   }
   
   async sendModbusCommand(hexData: string): Promise<void> {
+    // Add MBAP header for Modbus TCP
+    const mbapData = this.addMbapHeader(hexData);
     this.sendMessage({
       type: 'send',
-      data: hexData
+      data: mbapData
     });
+  }
+
+  private addMbapHeader(pduHex: string, unitId: number = 1): string {
+    // Remove spaces and validate hex string
+    const cleanPdu = pduHex.replace(/\s+/g, '');
+    if (!/^[0-9A-Fa-f]*$/.test(cleanPdu)) {
+      throw new Error('Invalid hex data for Modbus command');
+    }
+
+    // Calculate PDU length in bytes
+    const pduLength = cleanPdu.length / 2;
+    
+    // MBAP Header construction:
+    // Transaction ID (2 bytes) - use current timestamp for uniqueness
+    const transactionId = (Date.now() % 65536).toString(16).padStart(4, '0').toUpperCase();
+    
+    // Protocol ID (2 bytes) - always 0000 for Modbus
+    const protocolId = '0000';
+    
+    // Length (2 bytes) - Unit ID (1 byte) + PDU length
+    const length = (1 + pduLength).toString(16).padStart(4, '0').toUpperCase();
+    
+    // Unit ID (1 byte) - default to 1 if not specified
+    const unitIdHex = unitId.toString(16).padStart(2, '0').toUpperCase();
+    
+    // Combine MBAP header + PDU
+    const mbapHeader = transactionId + protocolId + length + unitIdHex;
+    const fullPacket = mbapHeader + cleanPdu.toUpperCase();
+    
+    console.log(`MBAP Header added: ${mbapHeader} + PDU: ${cleanPdu} = ${fullPacket}`);
+    return fullPacket;
   }
   
   private sendMessage(message: WebSocketMessage): void {

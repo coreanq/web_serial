@@ -12,6 +12,8 @@ export class CommandPanel {
   mount(container: HTMLElement): void {
     container.innerHTML = this.render();
     this.attachEventListeners();
+    // Apply initial AutoCRC setting based on current connection type
+    this.updateAutoCrcForConnectionType(this.connectionType);
   }
 
   private render(): string {
@@ -20,25 +22,11 @@ export class CommandPanel {
         <!-- Quick Commands -->
         <div>
           <h3 class="text-sm font-medium text-dark-text-secondary mb-3">Quick Commands & Examples</h3>
-          <div class="grid grid-cols-1 gap-2">
-            <button class="btn-secondary text-sm text-left" data-command="01 03 00 00 00 0A">
-              📖 Read Holding Registers (0-9)
-            </button>
-            <button class="btn-secondary text-sm text-left" data-command="01 04 00 00 00 05">
-              📊 Read Input Registers (0-4)
-            </button>
-            <button class="btn-secondary text-sm text-left" data-command="01 01 00 00 00 08">
-              🔌 Read Coils (0-7)
-            </button>
-            <button class="btn-secondary text-sm text-left" data-command="Hello World">
-              📝 ASCII Text Example
-            </button>
-            <button class="btn-secondary text-sm text-left" data-command="Test123">
-              🔤 Mixed ASCII/Numbers
-            </button>
+          <div class="grid grid-cols-1 gap-2" id="quick-commands">
+            ${this.renderQuickCommands()}
           </div>
-          <div class="text-xs text-dark-text-muted mt-2">
-            💡 Try pasting: "Hello", "01020304", or any clipboard text
+          <div class="text-xs text-dark-text-muted mt-2" id="mode-info">
+            ${this.renderModeInfo()}
           </div>
         </div>
 
@@ -67,10 +55,10 @@ export class CommandPanel {
               <textarea 
                 id="manual-hex-input"
                 class="input-field w-full h-20 font-mono text-sm resize-none"
-                placeholder="Enter data:&#10;• HEX Mode: 01 03 00 00 00 0A&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
+                placeholder="Enter Modbus PDU data:&#10;• HEX Mode: 01 03 00 00 00 0A (MBAP header auto-added for TCP)&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
               ></textarea>
               <div class="text-xs text-blue-400 mt-1">
-                💡 Tip: Enable ASCII Mode for text input, or use HEX Mode for hex bytes
+                💡 TCP Mode: MBAP header (Transaction ID + Protocol ID + Length + Unit ID) automatically added
               </div>
               <div class="text-xs mt-1" id="hex-preview">
                 <span class="text-dark-text-muted">Preview:</span> 
@@ -151,26 +139,7 @@ export class CommandPanel {
   }
 
   private attachEventListeners(): void {
-    // Quick command buttons
-    document.querySelectorAll('[data-command]').forEach(button => {
-      button.addEventListener('click', (e) => {
-        const command = (e.target as HTMLElement).dataset.command;
-        if (command) {
-          // Remove CRC from quick commands for manual editing
-          const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
-          let commandToSet = command;
-          
-          if (autoCrcCheckbox?.checked && this.connectionType === 'RTU') {
-            const bytes = command.replace(/\s+/g, '');
-            if (bytes.length >= 8) { // Remove last 2 bytes (CRC)
-              commandToSet = bytes.substring(0, bytes.length - 4).replace(/(.{2})/g, '$1 ').trim();
-            }
-          }
-          
-          this.setManualHexInput(commandToSet);
-        }
-      });
-    });
+    this.attachQuickCommandListeners();
 
     // Send command
     const sendButton = document.getElementById('send-command');
@@ -568,13 +537,19 @@ export class CommandPanel {
     }
     
     let finalCommand = convertedHex;
-    let crcInfo = '';
+    let protocolInfo = '';
     const typeInfo = isAsciiMode ? ` <span class="text-blue-400">[ASCII→HEX]</span>` : ` <span class="text-green-400">[HEX]</span>`;
     
-    if (autoCrcCheckbox?.checked && this.connectionType === 'RTU') {
+    if (this.connectionType === 'TCP') {
+      // TCP mode: Show MBAP header will be added
+      const pduBytes = convertedHex.replace(/\s+/g, '').length / 2;
+      const totalBytes = 7 + pduBytes; // 7 bytes MBAP header + PDU
+      protocolInfo = ` <span class="text-cyan-400">(+MBAP: ${totalBytes} bytes total)</span>`;
+    } else if (autoCrcCheckbox?.checked && this.connectionType === 'RTU') {
+      // RTU mode: Show CRC will be added
       finalCommand = this.addCrcToCommand(convertedHex);
       const inputBytes = convertedHex.replace(/\s+/g, '').length / 2;
-      crcInfo = ` <span class="text-green-400">(+CRC: ${inputBytes + 2} bytes total)</span>`;
+      protocolInfo = ` <span class="text-green-400">(+CRC: ${inputBytes + 2} bytes total)</span>`;
     }
     
     const byteCount = finalCommand.replace(/\s+/g, '').length / 2;
@@ -583,12 +558,13 @@ export class CommandPanel {
       <div class="flex flex-col gap-1">
         <div>
           <span class="text-dark-text-muted">Preview:</span> 
-          <span class="text-dark-text-secondary font-mono">${finalCommand}</span>${crcInfo}
+          <span class="text-dark-text-secondary font-mono">${finalCommand}</span>${protocolInfo}
         </div>
         <div class="text-xs">
           <span class="text-dark-text-muted">Mode:</span>${typeInfo}
-          <span class="text-dark-text-muted ml-2">Size:</span> 
+          <span class="text-dark-text-muted ml-2">PDU Size:</span> 
           <span class="text-dark-text-secondary">${byteCount} bytes</span>
+          ${this.connectionType === 'TCP' ? `<span class="text-dark-text-muted ml-2">Protocol:</span> <span class="text-cyan-400">Modbus TCP</span>` : ''}
         </div>
       </div>
     `;
@@ -654,6 +630,113 @@ export class CommandPanel {
   updateConnectionStatus(type: 'RTU' | 'TCP', connected: boolean): void {
     this.connectionType = type;
     this.isConnected = connected;
+    this.updateAutoCrcForConnectionType(type);
+    this.updateQuickCommandsForConnectionType(type);
     this.updateHexPreview(); // Refresh preview with new connection type
+  }
+
+  // Update quick commands and mode info based on connection type
+  private updateQuickCommandsForConnectionType(type: 'RTU' | 'TCP'): void {
+    const quickCommandsContainer = document.getElementById('quick-commands');
+    const modeInfoContainer = document.getElementById('mode-info');
+    
+    if (quickCommandsContainer) {
+      quickCommandsContainer.innerHTML = this.renderQuickCommands();
+      // Reattach event listeners for new buttons
+      this.attachQuickCommandListeners();
+    }
+    
+    if (modeInfoContainer) {
+      modeInfoContainer.innerHTML = this.renderModeInfo();
+    }
+    
+    console.log(`Quick commands updated for ${type} mode`);
+  }
+
+  // Attach event listeners to quick command buttons
+  private attachQuickCommandListeners(): void {
+    document.querySelectorAll('[data-command]').forEach(button => {
+      button.addEventListener('click', (e) => {
+        const command = (e.target as HTMLElement).dataset.command;
+        if (command) {
+          // Quick command examples don't include CRC, so set them directly
+          // The CRC will be added automatically when sending if Auto CRC is enabled
+          this.setManualHexInput(command);
+        }
+      });
+    });
+  }
+
+  // Render quick command buttons based on connection type
+  private renderQuickCommands(): string {
+    if (this.connectionType === 'TCP') {
+      // TCP mode: No Device ID (Unit ID goes in MBAP header)
+      return `
+        <button class="btn-secondary text-sm text-left" data-command="03 00 00 00 0A">
+          📖 Read Holding Registers (0-9)
+        </button>
+        <button class="btn-secondary text-sm text-left" data-command="04 00 00 00 05">
+          📊 Read Input Registers (0-4)
+        </button>
+        <button class="btn-secondary text-sm text-left" data-command="01 00 00 00 08">
+          🔌 Read Coils (0-7)
+        </button>
+        <button class="btn-secondary text-sm text-left" data-command="Hello World">
+          📝 ASCII Text Example
+        </button>
+      `;
+    } else {
+      // RTU mode: Include Device ID
+      return `
+        <button class="btn-secondary text-sm text-left" data-command="01 03 00 00 00 0A">
+          📖 Read Holding Registers (0-9)
+        </button>
+        <button class="btn-secondary text-sm text-left" data-command="01 04 00 00 00 05">
+          📊 Read Input Registers (0-4)
+        </button>
+        <button class="btn-secondary text-sm text-left" data-command="01 01 00 00 00 08">
+          🔌 Read Coils (0-7)
+        </button>
+        <button class="btn-secondary text-sm text-left" data-command="Hello World">
+          📝 ASCII Text Example
+        </button>
+      `;
+    }
+  }
+
+  // Render mode-specific information
+  private renderModeInfo(): string {
+    if (this.connectionType === 'TCP') {
+      return `
+        💡 <strong>TCP Mode:</strong> MBAP header (includes Unit ID) automatically added<br>
+        💡 Examples show PDU only (Device ID handled by MBAP header)<br>
+        💡 Try pasting: "Hello", "03000000A", or any clipboard text
+      `;
+    } else {
+      return `
+        💡 <strong>RTU Mode:</strong> Device ID + Function Code + Data<br>
+        💡 CRC automatically added when Auto CRC is enabled<br>
+        💡 Try pasting: "Hello", "01030000000A", or any clipboard text
+      `;
+    }
+  }
+
+  // Auto-configure CRC setting based on connection type
+  private updateAutoCrcForConnectionType(type: 'RTU' | 'TCP'): void {
+    const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
+    if (autoCrcCheckbox) {
+      if (type === 'RTU') {
+        // RTU mode: Enable Auto CRC (Modbus RTU requires CRC)
+        autoCrcCheckbox.checked = true;
+        console.log('Auto CRC enabled for Modbus RTU mode');
+      } else if (type === 'TCP') {
+        // TCP mode: Disable Auto CRC (Modbus TCP uses MBAP header, no CRC needed)
+        autoCrcCheckbox.checked = false;
+        console.log('Auto CRC disabled for Modbus TCP mode (MBAP header used instead)');
+      }
+      
+      // Trigger change event to update preview
+      autoCrcCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }
 }
