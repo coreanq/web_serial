@@ -326,7 +326,10 @@ export class App {
     // Send command to actual connection if connected
     try {
       if (this.state.connectionStatus === 'connected') {
-        if (this.state.connectionConfig.type === 'RTU') {
+        // Get current connection type directly from connection panel
+        const currentConnectionType = this.getCurrentConnectionType();
+        
+        if (currentConnectionType === 'RTU') {
           // For RTU, log the original command
           const logEntry = {
             id: Date.now().toString(),
@@ -344,7 +347,7 @@ export class App {
             await serialService.sendHexString(command);
             console.log('RTU Command sent successfully:', command);
           }
-        } else if (this.state.connectionConfig.type === 'TCP') {
+        } else if (currentConnectionType === 'TCP') {
           // Get WebSocket service from connection panel
           const webSocketService = this.connectionPanel.getWebSocketService();
           if (webSocketService && webSocketService.isConnected()) {
@@ -382,6 +385,18 @@ export class App {
       this.state.logs.push(errorLogEntry);
       this.logPanel.updateLogs(this.state.logs);
     }
+  }
+
+  private getCurrentConnectionType(): 'RTU' | 'TCP' {
+    // Get current active tab from connection panel
+    const activeTab = document.querySelector('.tab-button.active');
+    if (activeTab) {
+      const tabType = activeTab.getAttribute('data-tab');
+      return (tabType === 'TCP') ? 'TCP' : 'RTU';
+    }
+    
+    // Fallback to state if tab info not available
+    return this.state.connectionConfig.type as 'RTU' | 'TCP' || 'RTU';
   }
 
   private getActualTcpData(pduHex: string, unitId: number = 1): string {
