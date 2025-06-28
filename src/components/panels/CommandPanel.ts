@@ -3,8 +3,8 @@ export class CommandPanel {
   private onRepeatModeChanged?: (isRepeating: boolean) => void;
   private commandHistory: string[] = [];
   private historyIndex = -1;
-  private connectionType: 'RTU' | 'TCP' = 'RTU';
-  private lastConnectionType: 'RTU' | 'TCP' | null = null;
+  private connectionType: 'RTU' | 'TCP' | 'TCP_NATIVE' = 'RTU';
+  private lastConnectionType: 'RTU' | 'TCP' | 'TCP_NATIVE' | null = null;
   private recentCommands: string[] = [];
   private maxRecentCommands = 10;
   private repeatTimer: NodeJS.Timeout | null = null;
@@ -92,10 +92,10 @@ export class CommandPanel {
               <div class="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <label class="block text-xs text-dark-text-muted mb-1">
-                    ${this.connectionType === 'TCP' ? 'Unit ID (for MBAP header)' : 'Slave ID'}
+                    ${this.connectionType.startsWith('TCP') ? 'Unit ID (for MBAP header)' : 'Slave ID'}
                   </label>
                   <input id="slave-id" class="input-field w-full text-sm" value="01" 
-                         placeholder="${this.connectionType === 'TCP' ? '01 (Unit ID for MBAP)' : '01 (hex) or 1 (dec)'}">
+                         placeholder="${this.connectionType.startsWith('TCP') ? '01 (Unit ID for MBAP)' : '01 (hex) or 1 (dec)'}">
                 </div>
                 <div>
                   <label class="block text-xs text-dark-text-muted mb-1">Function Code</label>
@@ -484,10 +484,12 @@ export class CommandPanel {
       }
     }
 
-    // Add CRC automatically for RTU mode if enabled
-    const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
-    if (autoCrcCheckbox?.checked && this.connectionType === 'RTU') {
-      command = this.addCrcToCommand(command);
+    // For RTU, add CRC if enabled. For TCP, the command is sent as is (PDU + Unit ID).
+    if (this.connectionType === 'RTU') {
+      const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
+      if (autoCrcCheckbox?.checked) {
+        command = this.addCrcToCommand(command);
+      }
     }
 
     // Add to recent commands (store the original input for reuse)
@@ -520,10 +522,12 @@ export class CommandPanel {
       }
     }
 
-    // Add CRC automatically for RTU mode if enabled
-    const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
-    if (autoCrcCheckbox?.checked && this.connectionType === 'RTU') {
-      command = this.addCrcToCommand(command);
+    // For RTU, add CRC if enabled. For TCP, the command is sent as is (PDU + Unit ID).
+    if (this.connectionType === 'RTU') {
+      const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
+      if (autoCrcCheckbox?.checked) {
+        command = this.addCrcToCommand(command);
+      }
     }
 
     // Send command without adding to recent commands
@@ -538,12 +542,11 @@ export class CommandPanel {
     const quantityValue = (document.getElementById('quantity') as HTMLInputElement).value;
 
     let slaveId: number;
-    let functionCode: number;
     let startAddress: number;
     let quantity: number;
 
     // Function code is always hex in the select options
-    functionCode = parseInt(functionCodeValue, 16);
+    const functionCode = parseInt(functionCodeValue, 16);
     
     if (hexBaseMode) {
       // Parse values as hex strings
@@ -566,7 +569,7 @@ export class CommandPanel {
     // Build Modbus frame based on connection type and function code
     let frame: number[];
     
-    if (this.connectionType === 'TCP') {
+    if (this.connectionType.startsWith('TCP')) {
       // TCP mode: Generate PDU only (no Device ID - it goes in MBAP header)
       if (functionCode === 0x0F) { // Write Multiple Coils
         const coilData = this.getCoilValuesFromInputs();
@@ -1417,11 +1420,11 @@ export class CommandPanel {
     return this.getCheckedCommands().length > 0;
   }
 
-  private analyzePacketForPreview(hexData: string, connectionType: 'RTU' | 'TCP'): string | null {
+  private analyzePacketForPreview(hexData: string, connectionType: 'RTU' | 'TCP' | 'TCP_NATIVE'): string | null {
     const cleaned = hexData.replace(/\s+/g, '').toUpperCase();
     if (cleaned.length < 2) return null;
     
-    if (connectionType === 'TCP') {
+    if (connectionType.startsWith('TCP')) {
       // For TCP preview, we're analyzing the PDU only (before MBAP header is added)
       return this.analyzePduForPreview(cleaned, 'TCP');
     } else {
@@ -1669,7 +1672,7 @@ export class CommandPanel {
   }
 
   // Public method to update connection status
-  updateConnectionStatus(type: 'RTU' | 'TCP', _connected: boolean): void {
+  updateConnectionStatus(type: 'RTU' | 'TCP' | 'TCP_NATIVE', _connected: boolean): void {
     // Prevent duplicate execution - only update if connection type actually changed
     if (this.lastConnectionType === type) {
       return;
@@ -1683,7 +1686,7 @@ export class CommandPanel {
   }
 
   // Update quick commands and mode info based on connection type
-  private updateQuickCommandsForConnectionType(type: 'RTU' | 'TCP'): void {
+  updateQuickCommandsForConnectionType(type: 'RTU' | 'TCP' | 'TCP_NATIVE'): void {
     const quickCommandsContainer = document.getElementById('quick-commands');
     const modeInfoContainer = document.getElementById('mode-info');
     
@@ -1720,7 +1723,7 @@ export class CommandPanel {
 
   // Render quick command buttons based on connection type
   private renderQuickCommands(): string {
-    if (this.connectionType === 'TCP') {
+    if (this.connectionType.startsWith('TCP')) {
       // TCP mode: No Device ID (Unit ID goes in MBAP header)
       return `
         <button class="btn-secondary text-sm text-left" data-command="03 00 00 00 0A">
@@ -1757,7 +1760,7 @@ export class CommandPanel {
 
   // Render mode-specific information
   private renderModeInfo(): string {
-    if (this.connectionType === 'TCP') {
+    if (this.connectionType.startsWith('TCP')) {
       return `
         💡 <strong>TCP Mode:</strong> MBAP header (includes Unit ID) automatically added<br>
         💡 Preview show PDU only (Device ID handled by MBAP header)<br>
@@ -1806,16 +1809,18 @@ export class CommandPanel {
 
 
   // Auto-configure CRC setting based on connection type
-  private updateAutoCrcForConnectionType(type: 'RTU' | 'TCP'): void {
+  private updateAutoCrcForConnectionType(type: 'RTU' | 'TCP' | 'TCP_NATIVE'): void {
     const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
     if (autoCrcCheckbox) {
       if (type === 'RTU') {
         // RTU mode: Enable Auto CRC (Modbus RTU requires CRC)
         autoCrcCheckbox.checked = true;
+        autoCrcCheckbox.disabled = false;
         console.log('Auto CRC enabled for Modbus RTU mode');
-      } else if (type === 'TCP') {
+      } else if (type.startsWith('TCP')) {
         // TCP mode: Disable Auto CRC (Modbus TCP uses MBAP header, no CRC needed)
         autoCrcCheckbox.checked = false;
+        autoCrcCheckbox.disabled = true;
         console.log('Auto CRC disabled for Modbus TCP mode (MBAP header used instead)');
       }
       

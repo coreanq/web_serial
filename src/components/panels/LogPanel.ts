@@ -174,9 +174,9 @@ export class LogPanel {
 
   private render(): string {
     return `
-      <div class="h-full flex flex-col">
+      <div class="h-full flex flex-col" style="height: 100%; min-height: 400px;">
         <!-- Log Controls -->
-        <div class="flex items-center justify-between p-4 border-b border-dark-border bg-dark-panel">
+        <div class="flex items-center justify-between p-4 border-b border-dark-border bg-dark-panel flex-shrink-0">
           <div class="flex items-center gap-4">
             <label class="flex items-center gap-2 text-sm">
               <input type="checkbox" id="auto-scroll" ${this.isAutoScroll ? 'checked' : ''} 
@@ -206,8 +206,8 @@ export class LogPanel {
         </div>
 
         <!-- Log Content -->
-        <div class="flex-1 overflow-hidden">
-          <div class="h-full overflow-y-auto scrollbar-thin" id="log-container">
+        <div class="flex-1 min-h-0 overflow-hidden" style="flex: 1; min-height: 0;">
+          <div class="h-full overflow-y-auto scrollbar-thin" id="log-container" style="height: 100%; overflow-y: auto;">
             ${this.renderLogs()}
           </div>
         </div>
@@ -547,6 +547,24 @@ export class LogPanel {
     const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
     autoScrollCheckbox?.addEventListener('change', (e) => {
       this.isAutoScroll = (e.target as HTMLInputElement).checked;
+      if (this.isAutoScroll) {
+        this.scrollToBottom();
+      }
+    });
+
+    // Detect manual scrolling to temporarily disable auto-scroll
+    const logContainer = document.getElementById('log-container');
+    logContainer?.addEventListener('scroll', () => {
+      if (!logContainer) return;
+      
+      // Check if user scrolled up (not at bottom)
+      const isAtBottom = logContainer.scrollHeight - logContainer.scrollTop <= logContainer.clientHeight + 5; // 5px tolerance
+      
+      // If user scrolled up, temporarily disable auto-scroll
+      if (!isAtBottom && this.isAutoScroll) {
+        // Don't disable completely, just note that user is viewing history
+        // Auto-scroll will resume when new messages arrive and user is near bottom
+      }
     });
 
     // Search functionality
@@ -578,7 +596,18 @@ export class LogPanel {
     this.setupTooltipPositioning();
     
     if (this.isAutoScroll) {
-      this.scrollToBottom();
+      // Check if user is near bottom before auto-scrolling
+      const logContainer = document.getElementById('log-container');
+      if (logContainer) {
+        const isNearBottom = logContainer.scrollHeight - logContainer.scrollTop <= logContainer.clientHeight + 100; // 100px tolerance
+        
+        if (isNearBottom) {
+          // Use requestAnimationFrame to ensure DOM is updated before scrolling
+          requestAnimationFrame(() => {
+            this.scrollToBottom();
+          });
+        }
+      }
     }
   }
 
@@ -604,7 +633,15 @@ export class LogPanel {
   private scrollToBottom(): void {
     const logContainer = document.getElementById('log-container');
     if (logContainer) {
+      // Force a more reliable scroll to bottom
       logContainer.scrollTop = logContainer.scrollHeight;
+      
+      // Double-check with a small delay for heavy DOM updates
+      setTimeout(() => {
+        if (this.isAutoScroll && logContainer.scrollHeight > logContainer.scrollTop + logContainer.clientHeight) {
+          logContainer.scrollTop = logContainer.scrollHeight;
+        }
+      }, 10);
     }
   }
 

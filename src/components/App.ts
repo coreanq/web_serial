@@ -226,8 +226,8 @@ export class App {
     const isConnectionPanelSide = this.connectionPanelPosition === 'left' || this.connectionPanelPosition === 'right';
     
     return `
-      <!-- Main Layout: Log Panel (left) + Command Panel (right) with fixed heights -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 ${isConnectionPanelSide ? 'fixed-height-grid' : 'fixed-height-grid'} items-start">
+      <!-- Main Layout: Log Panel (left) + Command Panel (right) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <!-- Log Panel with fixed height -->
         <div class="lg:col-span-2">
           <div id="log-panel" class="panel panel-fixed">
@@ -240,13 +240,13 @@ export class App {
           </div>
         </div>
 
-        <!-- Command Panel with fixed height -->
+        <!-- Command Panel with flexible height -->
         <div class="lg:col-span-1">
-          <div id="command-panel" class="panel panel-fixed">
-            <div class="panel-header flex-shrink-0">
+          <div id="command-panel" class="panel">
+            <div class="panel-header">
               Manual Command
             </div>
-            <div class="panel-content flex-1 min-h-0" id="command-content">
+            <div class="panel-content" id="command-content">
               <!-- Command panel content will be mounted here -->
             </div>
           </div>
@@ -317,7 +317,7 @@ export class App {
     
     // Update command panel with connection status
     this.commandPanel.updateConnectionStatus(
-      this.state.connectionConfig.type as 'RTU' | 'TCP',
+      this.state.connectionConfig.type as 'RTU' | 'TCP' | 'TCP_NATIVE',
       status === 'connected'
     );
     
@@ -386,6 +386,36 @@ export class App {
               console.log('TCP Command sent successfully:', command);
             }
           }
+        } else if (currentConnectionType === 'TCP_NATIVE') {
+          // Get TCP Native service from connection panel
+          const tcpNativeService = this.connectionPanel.getTcpNativeService();
+          if (tcpNativeService && tcpNativeService.isTcpConnected()) {
+            // Get the actual data that will be sent (with MBAP header for ModbusTCP)
+            const actualSentData = this.getActualTcpData(command);
+            
+            // Create log entry
+            const logEntry = {
+              id: Date.now().toString(),
+              timestamp: new Date(),
+              direction: 'send' as const,
+              data: actualSentData
+            };
+            
+            if (isRepeating) {
+              // Add to pending logs and update with throttling
+              this.addToThrottledLogs(logEntry);
+            } else {
+              // Immediate update for non-repeating commands
+              this.state.logs.push(logEntry);
+              this.logPanel.updateLogs(this.state.logs);
+            }
+            
+            // Send ModbusTCP packet with MBAP header
+            tcpNativeService.sendData(actualSentData);
+            if (!isRepeating) {
+              console.log('TCP Native Command sent successfully:', actualSentData);
+            }
+          }
         }
       }
     } catch (error) {
@@ -418,8 +448,6 @@ export class App {
 
   private flushThrottledLogs(): void {
     if (this.pendingRepeatLogs.length === 0) return;
-    
-    const logCount = this.pendingRepeatLogs.length;
     
     // Insert pending logs in chronological order to maintain sequence
     this.pendingRepeatLogs.forEach(pendingLog => {
@@ -470,16 +498,18 @@ export class App {
     
   }
 
-  private getCurrentConnectionType(): 'RTU' | 'TCP' {
+  private getCurrentConnectionType(): 'RTU' | 'TCP' | 'TCP_NATIVE' {
     // Get current active tab from connection panel
     const activeTab = document.querySelector('.tab-button.active');
     if (activeTab) {
       const tabType = activeTab.getAttribute('data-tab');
-      return (tabType === 'TCP') ? 'TCP' : 'RTU';
+      if (tabType === 'TCP') return 'TCP';
+      if (tabType === 'TCP_NATIVE') return 'TCP_NATIVE';
+      return 'RTU';
     }
     
     // Fallback to state if tab info not available
-    return this.state.connectionConfig.type as 'RTU' | 'TCP' || 'RTU';
+    return this.state.connectionConfig.type as 'RTU' | 'TCP' | 'TCP_NATIVE' || 'RTU';
   }
 
   private getActualTcpData(pduHex: string, unitId: number = 1): string {

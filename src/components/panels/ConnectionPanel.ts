@@ -1,6 +1,7 @@
 import { ConnectionType, ConnectionStatus, SerialPort } from '../../types';
 import { SerialService } from '../../services/SerialService';
 import { WebSocketService, ModbusTcpConfig } from '../../services/WebSocketService';
+import { TcpNativeService, TcpNativeConnection } from '../../services/TcpNativeService';
 
 export class ConnectionPanel {
   private activeTab: ConnectionType = 'RTU';
@@ -8,20 +9,25 @@ export class ConnectionPanel {
   private onDataReceived?: (data: string) => void;
   private serialService: SerialService;
   private webSocketService: WebSocketService;
+  private tcpNativeService: TcpNativeService;
   private selectedPort: SerialPort | null = null;
   private grantedPorts: SerialPort[] = [];
   private isCompactMode: boolean = false;
   private tcpConnectionStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private webSocketStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
+  private tcpNativeStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
+  private nativeProxyStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private autoReconnectEnabled: boolean = true;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 3; // Reduced from 5 to 3
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private currentTcpConfig: ModbusTcpConfig | null = null;
+  private currentNativeConfig: TcpNativeConnection | null = null;
   private lastDisconnectTime: number = 0;
   private disconnectDebounceMs: number = 100; // 100ms debounce for disconnect events - more responsive
   private lastErrorTime: number = 0;
   private errorDebounceMs: number = 5000; // 5 second debounce for error messages
+  private manualDisconnect: boolean = false; // Flag to prevent auto-reconnect after manual disconnect
 
   constructor(
     onConnectionChange: (status: ConnectionStatus, config?: any) => void, 
@@ -31,7 +37,9 @@ export class ConnectionPanel {
     this.onDataReceived = onDataReceived;
     this.serialService = new SerialService();
     this.webSocketService = new WebSocketService();
+    this.tcpNativeService = new TcpNativeService();
     this.setupWebSocketHandlers();
+    this.setupTcpNativeHandlers();
   }
 
   private setupWebSocketHandlers(): void {
@@ -187,6 +195,65 @@ export class ConnectionPanel {
     });
   }
 
+  private setupTcpNativeHandlers(): void {
+    // TCP Native connection status
+    this.tcpNativeService.onConnectionChange((connected, error) => {
+      console.log(`TCP Native connection change: connected=${connected}, error=${error}`);
+      
+      if (connected) {
+        console.log('✅ TCP Native connected successfully');
+        this.tcpNativeStatus = 'connected';
+        this.onConnectionChange('connected', this.getCurrentConfig());
+        this.updateButtonStates(true);
+        // Only update status display, no re-rendering
+        this.updateStatusDisplayOnly();
+      } else {
+        console.log('TCP Native disconnected', error ? `: ${error}` : '');
+        
+        // Don't trigger disconnect handling if manually disconnected
+        if (this.manualDisconnect) {
+          console.log('Manual disconnect - not triggering reconnection');
+          this.tcpNativeStatus = 'disconnected';
+        } else {
+          this.tcpNativeStatus = error ? 'error' : 'disconnected';
+        }
+        
+        this.onConnectionChange(error ? 'error' : 'disconnected');
+        this.updateButtonStates(false);
+        this.updateStatusDisplayOnly();
+      }
+    });
+
+    // Data received from TCP Native
+    this.tcpNativeService.onData((data) => {
+      console.log('Received from TCP Native:', data);
+      if (this.onDataReceived) {
+        this.onDataReceived(data);
+      }
+    });
+
+    // TCP Native errors
+    this.tcpNativeService.onError((error) => {
+      console.error('TCP Native error:', error);
+      this.updateStatusDisplayOnly();
+    });
+
+    // Native Proxy status changes
+    this.tcpNativeService.onProxyStatus((connected) => {
+      this.nativeProxyStatus = connected ? 'connected' : 'disconnected';
+      this.updateStatusDisplayOnly();
+    });
+  }
+
+  private updateStatusDisplayOnly(): void {
+    // Simple status update without any re-rendering or event handling
+    setTimeout(() => {
+      if (this.activeTab === 'TCP_NATIVE') {
+        this.updateStatusIndicators();
+      }
+    }, 0);
+  }
+
   async mount(container: HTMLElement): Promise<void> {
     // Load granted ports first
     await this.loadGrantedPorts();
@@ -205,11 +272,15 @@ export class ConnectionPanel {
           <button class="tab-button ${this.activeTab === 'TCP' ? 'active' : ''}" data-tab="TCP">
             TCP/IP
           </button>
+          <button class="tab-button ${this.activeTab === 'TCP_NATIVE' ? 'active' : ''}" data-tab="TCP_NATIVE">
+            TCP Native
+          </button>
         </div>
 
         <!-- Tab Content -->
         <div class="tab-content">
-          ${this.activeTab === 'RTU' ? this.renderRtuTab() : this.renderTcpTab()}
+          ${this.activeTab === 'RTU' ? this.renderRtuTab() : 
+            this.activeTab === 'TCP' ? this.renderTcpTab() : this.renderTcpNativeTab()}
         </div>
 
         <!-- Connection Controls -->
@@ -416,6 +487,69 @@ export class ConnectionPanel {
     `;
   }
 
+  private renderTcpNativeTab(): string {
+    return `
+      <div class="space-y-4">
+        <!-- Native Proxy Status -->
+        <div class="p-3 rounded-md ${this.getNativeProxyStatusClass()} tcp-native-proxy-status">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full ${this.getNativeProxyIndicatorClass()} status-indicator"></div>
+            <span class="text-sm font-medium status-text">
+              ${this.getNativeProxyStatusText()}
+            </span>
+          </div>
+          <p class="text-xs text-dark-text-muted mt-1">
+            Native Host: com.my_company.stdio_proxy
+          </p>
+        </div>
+
+        <!-- TCP Native Connection Status -->
+        <div class="p-3 rounded-md ${this.getTcpNativeStatusClass()} tcp-native-connection-status">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full ${this.getTcpNativeIndicatorClass()} status-indicator"></div>
+            <span class="text-sm font-medium status-text">
+              ${this.getTcpNativeStatusText()}
+            </span>
+          </div>
+          <p class="text-xs text-dark-text-muted mt-1 status-detail">
+            ${this.getTcpNativeStatusDetail()}
+          </p>
+        </div>
+
+        <!-- TCP Connection Settings -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+              IP Address
+            </label>
+            <input 
+              type="text" 
+              class="input-field w-full" 
+              id="tcp-native-host"
+              placeholder="192.168.1.100"
+              value="127.0.0.1"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+              Port
+            </label>
+            <input 
+              type="number" 
+              class="input-field w-full" 
+              id="tcp-native-port"
+              placeholder="5020"
+              value="5020"
+              min="1"
+              max="65535"
+            />
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   private attachEventListeners(): void {
     // Tab switching
     const tabButtons = document.querySelectorAll('[data-tab]');
@@ -477,13 +611,15 @@ export class ConnectionPanel {
     this.activeTab = tabType;
     const container = document.querySelector('.tab-content');
     if (container) {
-      container.innerHTML = tabType === 'RTU' ? this.renderRtuTab() : this.renderTcpTab();
+      container.innerHTML = tabType === 'RTU' ? this.renderRtuTab() : 
+                           tabType === 'TCP' ? this.renderTcpTab() : this.renderTcpNativeTab();
       // Reattach event listeners after content change
       this.attachEventListeners();
     }
 
     // Notify about connection type change for AutoCRC setting update
     const currentStatus = this.tcpConnectionStatus === 'connected' || 
+                          this.tcpNativeStatus === 'connected' ||
                           this.serialService.getConnectionStatus() ? 'connected' : 'disconnected';
     this.onConnectionChange(currentStatus as ConnectionStatus, { type: tabType });
 
@@ -517,6 +653,24 @@ export class ConnectionPanel {
         console.error('WebSocket connection failed:', error);
         this.webSocketStatus = 'error';
         this.updateWebSocketStatusDisplay();
+      });
+    }
+
+    // Auto-connect to Native Proxy when switching to TCP_NATIVE tab (only if not manually disconnected)
+    if (tabType === 'TCP_NATIVE' && !this.tcpNativeService.isProxyReady() && !this.manualDisconnect) {
+      console.log('TCP Native tab selected, connecting to native proxy...');
+      this.nativeProxyStatus = 'connecting';
+      this.updateTcpNativeStatusDisplay();
+      
+      this.tcpNativeService.init().then(() => {
+        console.log('Native proxy connected successfully');
+        this.nativeProxyStatus = 'connected';
+        this.updateTcpNativeStatusDisplay();
+      }).catch(error => {
+        console.error('Native proxy connection failed:', error);
+        this.nativeProxyStatus = 'error';
+        this.updateTcpNativeStatusDisplay();
+        this.showNativeProxyGuide(error.message);
       });
     }
   }
@@ -610,6 +764,104 @@ export class ConnectionPanel {
     
     // Remove existing modal if any
     document.getElementById('proxy-guide-modal')?.remove();
+    
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', guideHtml);
+  }
+
+  // Show native proxy setup guide
+  private showNativeProxyGuide(errorMessage: string): void {
+    const guideHtml = `
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="native-guide-modal">
+        <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-lg mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-dark-text-primary">🔌 Native Proxy 설치 필요</h3>
+            <button class="text-dark-text-muted hover:text-dark-text-primary text-xl" onclick="document.getElementById('native-guide-modal').remove()">
+              ✕
+            </button>
+          </div>
+          
+          <div class="mb-4">
+            <div class="bg-red-900/20 border border-red-600/30 rounded p-3 mb-3">
+              <p class="text-sm text-red-300 mb-1">⚠️ ${errorMessage}</p>
+            </div>
+            <p class="text-sm text-dark-text-secondary">TCP Native 연결을 위해서는 Chrome Native Messaging Host 설치가 필요합니다.</p>
+            <p class="text-xs text-dark-text-muted mt-1">Native Messaging을 통해 직접 TCP 소켓 연결이 가능합니다.</p>
+          </div>
+          
+          <div class="space-y-3">
+            <div class="bg-dark-panel rounded p-3">
+              <h4 class="text-sm font-medium text-dark-text-primary mb-2">🛠️ 설치 방법</h4>
+              <div class="space-y-2">
+                <div class="border border-dark-border rounded p-2">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-green-400">1단계: Extension ID 확인</span>
+                  </div>
+                  <p class="text-xs text-dark-text-muted mb-2">Chrome에서 확장 프로그램 ID를 확인하세요</p>
+                  <div class="bg-dark-surface rounded p-2 text-xs font-mono">
+                    <div>chrome://extensions</div>
+                    <div>개발자 모드 활성화 → ID 복사</div>
+                  </div>
+                </div>
+                
+                <div class="border border-dark-border rounded p-2">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-blue-400">2단계: Native Host 설치</span>
+                  </div>
+                  <p class="text-xs text-dark-text-muted mb-2">stdio-proxy 설치 스크립트 실행</p>
+                  <div class="bg-dark-surface rounded p-2 text-xs font-mono">
+                    <div>cd stdio-proxy</div>
+                    <div># install.sh의 EXTENSION_ID 수정</div>
+                    <div>chmod +x install.sh</div>
+                    <div>./install.sh</div>
+                  </div>
+                </div>
+                
+                <div class="border border-dark-border rounded p-2">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-purple-400">3단계: 확장 프로그램 재로드</span>
+                  </div>
+                  <p class="text-xs text-dark-text-muted mb-2">Chrome에서 확장 프로그램을 다시 로드하세요</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-dark-panel rounded p-3">
+              <h4 class="text-sm font-medium text-dark-text-primary mb-2">📋 확인 사항</h4>
+              <div class="space-y-1 text-xs text-dark-text-muted">
+                <div>✅ Node.js 설치됨</div>
+                <div>✅ Extension ID가 install.sh에 정확히 설정됨</div>
+                <div>✅ install.sh 실행 완료</div>
+                <div>✅ 확장 프로그램 재로드</div>
+                <div>✅ TCP Native 탭 다시 클릭</div>
+              </div>
+            </div>
+            
+            <div class="bg-orange-900/20 border border-orange-600/30 rounded p-3">
+              <h4 class="text-sm font-medium text-orange-300 mb-2">🔍 문제 해결</h4>
+              <p class="text-xs text-orange-200 mb-2">설치 후에도 연결되지 않는다면:</p>
+              <div class="space-y-1 text-xs text-orange-200">
+                <div>• /tmp/native-host-log.txt 로그 확인</div>
+                <div>• Extension ID 재확인</div>
+                <div>• Chrome 재시작</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex gap-2 mt-4">
+            <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm flex-1" onclick="window.open('stdio-proxy/', '_blank')">
+              📁 stdio-proxy 폴더
+            </button>
+            <button class="btn-secondary text-sm px-3 py-2 flex-1" onclick="document.getElementById('native-guide-modal').remove()">
+              닫기
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Remove existing modal if any
+    document.getElementById('native-guide-modal')?.remove();
     
     // Add new modal
     document.body.insertAdjacentHTML('beforeend', guideHtml);
@@ -718,8 +970,10 @@ export class ConnectionPanel {
   private async handleConnect(): Promise<void> {
     if (this.activeTab === 'RTU') {
       await this.handleRtuConnect();
-    } else {
+    } else if (this.activeTab === 'TCP') {
       await this.handleTcpConnect();
+    } else if (this.activeTab === 'TCP_NATIVE') {
+      await this.handleTcpNativeConnect();
     }
   }
 
@@ -838,25 +1092,93 @@ export class ConnectionPanel {
     }
   }
 
+  private async handleTcpNativeConnect(): Promise<void> {
+    // Check if already connected
+    if (this.tcpNativeStatus === 'connected') {
+      console.log('Already connected to TCP Native, ignoring duplicate request');
+      return;
+    }
+
+    // Check if connection is in progress
+    if (this.tcpNativeStatus === 'connecting') {
+      console.log('TCP Native connection already in progress');
+      return;
+    }
+
+    // Reset manual disconnect flag when user initiates connection
+    this.manualDisconnect = false;
+
+    this.tcpNativeStatus = 'connecting';
+    // Only set proxy status to connecting if it's not already connected
+    if (this.nativeProxyStatus !== 'connected') {
+      this.nativeProxyStatus = 'connecting';
+    }
+    this.onConnectionChange('connecting');
+    this.updateButtonStates(false, true);
+    this.updateTcpNativeStatusDisplay();
+
+    try {
+      // Initialize and connect to native messaging host
+      if (!this.tcpNativeService.isProxyReady()) {
+        console.log('🔌 Connecting to native messaging host...');
+        await this.tcpNativeService.init();
+        // Note: nativeProxyStatus will be updated by onProxyStatus callback when proxy_started message is received
+      }
+
+      // Get TCP connection config
+      const config = this.getCurrentConfig();
+      const nativeConfig: TcpNativeConnection = {
+        host: config.tcp.host,
+        port: config.tcp.port
+      };
+
+      console.log(`🔌 Attempting to connect to TCP device at ${nativeConfig.host}:${nativeConfig.port} via native proxy`);
+
+      // Store current config for status display
+      this.currentNativeConfig = nativeConfig;
+      
+      // Connect to TCP device via native proxy
+      await this.tcpNativeService.connect(nativeConfig);
+
+    } catch (error) {
+      console.error('TCP Native connection failed:', error);
+      this.tcpNativeStatus = 'error';
+      this.nativeProxyStatus = 'error';
+      this.onConnectionChange('error');
+      this.updateButtonStates(false, false);
+      this.updateTcpNativeStatusDisplay();
+      
+      if (error instanceof Error) {
+        alert(`TCP Native Connection failed: ${error.message}`);
+      }
+    }
+  }
+
   private async handleDisconnect(): Promise<void> {
     try {
       // Disable auto-reconnect when user manually disconnects
       this.autoReconnectEnabled = false;
+      this.manualDisconnect = true; // Set manual disconnect flag
       this.clearReconnectTimeout();
       
       if (this.activeTab === 'RTU' && this.serialService.getConnectionStatus()) {
         await this.serialService.disconnect();
       } else if (this.activeTab === 'TCP' && this.tcpConnectionStatus === 'connected') {
         await this.webSocketService.disconnectFromModbusDevice();
+      } else if (this.activeTab === 'TCP_NATIVE' && this.tcpNativeStatus === 'connected') {
+        this.tcpNativeService.disconnect(true); // Force manual disconnect
       }
       
       this.tcpConnectionStatus = 'disconnected';
+      this.tcpNativeStatus = 'disconnected';
       this.reconnectAttempts = 0;
       this.currentTcpConfig = null;
+      this.currentNativeConfig = null;
       this.onConnectionChange('disconnected');
       this.updateButtonStates(false, false);
       this.updateSelectedPortInfo();
       this.updateTcpStatusDisplay();
+      this.updateTcpNativeStatusDisplay();
       
     } catch (error) {
       console.error('Disconnect failed:', error);
@@ -947,12 +1269,20 @@ export class ConnectionPanel {
           stopBits: 1 
         }
       };
-    } else {
+    } else if (this.activeTab === 'TCP') {
       const host = (document.getElementById('tcp-host') as HTMLInputElement)?.value || '127.0.0.1';
       const port = parseInt((document.getElementById('tcp-port') as HTMLInputElement)?.value || '5020');
 
       return {
         type: 'TCP',
+        tcp: { host, port }
+      };
+    } else if (this.activeTab === 'TCP_NATIVE') {
+      const host = (document.getElementById('tcp-native-host') as HTMLInputElement)?.value || '127.0.0.1';
+      const port = parseInt((document.getElementById('tcp-native-port') as HTMLInputElement)?.value || '5020');
+
+      return {
+        type: 'TCP_NATIVE',
         tcp: { host, port }
       };
     }
@@ -991,6 +1321,11 @@ export class ConnectionPanel {
   // Public method to get WebSocket service for TCP command sending
   getWebSocketService(): WebSocketService {
     return this.webSocketService;
+  }
+
+  // Public method to get TCP Native service for TCP Native command sending
+  getTcpNativeService(): TcpNativeService {
+    return this.tcpNativeService;
   }
 
   // WebSocket status helper methods
@@ -1198,6 +1533,127 @@ export class ConnectionPanel {
     return 'No connection attempted';
   }
 
+  // TCP Native status methods
+  private getNativeProxyStatusClass(): string {
+    switch (this.nativeProxyStatus) {
+      case 'connected':
+        return 'bg-green-900/20 border border-green-500/30';
+      case 'connecting':
+        return 'bg-yellow-900/20 border border-yellow-500/30';
+      case 'error':
+        return 'bg-red-900/20 border border-red-500/30';
+      default:
+        return 'bg-gray-900/20 border border-gray-500/30';
+    }
+  }
+
+  private getNativeProxyIndicatorClass(): string {
+    switch (this.nativeProxyStatus) {
+      case 'connected':
+        return 'bg-green-500';
+      case 'connecting':
+        return 'bg-yellow-500 animate-pulse';
+      case 'error':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  }
+
+  private getNativeProxyStatusText(): string {
+    switch (this.nativeProxyStatus) {
+      case 'connected':
+        return 'Native Proxy Connected';
+      case 'connecting':
+        return 'Connecting to Native Proxy...';
+      case 'error':
+        return 'Native Proxy Connection Failed';
+      default:
+        return 'Native Proxy Disconnected';
+    }
+  }
+
+  private getTcpNativeStatusClass(): string {
+    switch (this.tcpNativeStatus) {
+      case 'connected':
+        return 'bg-green-900/20 border border-green-500/30';
+      case 'connecting':
+        return 'bg-yellow-900/20 border border-yellow-500/30';
+      case 'error':
+        return 'bg-red-900/20 border border-red-500/30';
+      default:
+        return 'bg-gray-900/20 border border-gray-500/30';
+    }
+  }
+
+  private getTcpNativeIndicatorClass(): string {
+    switch (this.tcpNativeStatus) {
+      case 'connected':
+        return 'bg-green-500';
+      case 'connecting':
+        return 'bg-yellow-500 animate-pulse';
+      case 'error':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
+    }
+  }
+
+  private getTcpNativeStatusText(): string {
+    switch (this.tcpNativeStatus) {
+      case 'connected':
+        return 'TCP Native Connected';
+      case 'connecting':
+        return 'Connecting to TCP Device...';
+      case 'error':
+        return 'TCP Native Connection Failed';
+      default:
+        return 'TCP Native Disconnected';
+    }
+  }
+
+  private getTcpNativeStatusDetail(): string {
+    if (this.currentNativeConfig) {
+      const statusPrefix = this.tcpNativeStatus === 'connected' ? 'Connected to:' :
+                          this.tcpNativeStatus === 'connecting' ? 'Connecting to:' :
+                          this.tcpNativeStatus === 'error' ? 'Failed to connect to:' :
+                          'Last attempted:';
+      return `${statusPrefix} ${this.currentNativeConfig.host}:${this.currentNativeConfig.port}`;
+    }
+    return 'No connection attempted';
+  }
+
+  private updateTcpNativeStatusDisplay(): void {
+    if (this.activeTab === 'TCP_NATIVE') {
+      // Only update status displays without full re-render to prevent event listener issues
+      this.updateStatusIndicators();
+    }
+  }
+
+  private updateStatusIndicators(): void {
+    // Update Native Proxy status
+    const nativeProxyContainer = document.querySelector('.tcp-native-proxy-status');
+    if (nativeProxyContainer) {
+      nativeProxyContainer.className = `p-3 rounded-md ${this.getNativeProxyStatusClass()} tcp-native-proxy-status`;
+      const indicator = nativeProxyContainer.querySelector('.status-indicator');
+      const text = nativeProxyContainer.querySelector('.status-text');
+      if (indicator) indicator.className = `w-2 h-2 rounded-full ${this.getNativeProxyIndicatorClass()} status-indicator`;
+      if (text) text.textContent = this.getNativeProxyStatusText();
+    }
+
+    // Update TCP Native status  
+    const tcpNativeContainer = document.querySelector('.tcp-native-connection-status');
+    if (tcpNativeContainer) {
+      tcpNativeContainer.className = `p-3 rounded-md ${this.getTcpNativeStatusClass()} tcp-native-connection-status`;
+      const indicator = tcpNativeContainer.querySelector('.status-indicator');
+      const text = tcpNativeContainer.querySelector('.status-text');
+      const detail = tcpNativeContainer.querySelector('.status-detail');
+      if (indicator) indicator.className = `w-2 h-2 rounded-full ${this.getTcpNativeIndicatorClass()} status-indicator`;
+      if (text) text.textContent = this.getTcpNativeStatusText();
+      if (detail) detail.textContent = this.getTcpNativeStatusDetail();
+    }
+  }
+
   // Cleanup method to remove event handlers
   public cleanup(): void {
     // Clear any pending timeouts
@@ -1215,6 +1671,11 @@ export class ConnectionPanel {
     // Disconnect services
     if (this.webSocketService.isConnected()) {
       this.webSocketService.disconnect();
+    }
+    
+    // Cleanup TCP Native service
+    if (this.tcpNativeService.isProxyReady() || this.tcpNativeService.isTcpConnected()) {
+      this.tcpNativeService.cleanup();
     }
   }
 }

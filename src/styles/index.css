@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --header-height: 120px;
+    --panel-padding: 32px;
+    --connection-panel-height: 200px;
+  }
+
   html {
     scroll-behavior: smooth;
   }
@@ -14,7 +20,14 @@
   body {
     margin: 0;
     padding: 0;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  html, body, #app {
+    height: 100vh;
+    margin: 0;
+    padding: 0;
   }
 }
 
@@ -143,63 +156,63 @@
   .layout-transition {
     @apply transition-all duration-300 ease-in-out;
   }
-  
-  /* Full screen height adjustments */
-  .h-screen-adjusted {
-    height: calc(100vh - 12rem); /* Subtract header height and padding */
-  }
-  
-  /* Full height panels for side layouts */
-  .panel-full-height {
-    @apply h-full flex flex-col;
-  }
-  
-  .panel-full-height .panel-content {
-    @apply flex-1 overflow-y-auto;
-  }
-  
-  /* Ensure log content uses full available height */
-  .log-content-full {
-    @apply h-full overflow-y-auto;
+
+  /* Fixed height panel styles for proper scrolling - ONLY for log panel */
+  #log-panel.panel-fixed {
+    @apply flex flex-col;
+    height: calc(100vh - var(--header-height) - var(--panel-padding));
+    min-height: 400px;
   }
 
-  /* Fix for log panel growth preventing command panel stretching */
-  .main-content-grid {
-    display: grid;
-    align-items: start;
-    height: 100%;
+  /* Adjust log panel height when connection panel is visible at top */
+  .space-y-4 #log-panel.panel-fixed {
+    height: calc(100vh - var(--header-height) - var(--connection-panel-height) - var(--panel-padding) - 32px);
+    min-height: 350px;
   }
-  
-  .main-content-grid > * {
-    min-height: 0; /* Prevent flex items from growing beyond their container */
+
+  /* When connection panel is on the side, log panel can use more height */
+  .xl\\:grid-cols-5 #log-panel.panel-fixed {
+    height: calc(100vh - var(--header-height) - 24px);
+    min-height: 500px;
   }
-  
-  /* Explicitly limit panel heights to prevent stretching */
-  .panel-height-limited {
-    max-height: 100%;
-    overflow: hidden;
+
+  #log-panel.panel-fixed .panel-header {
+    @apply flex-shrink-0;
   }
-  
-  /* Fixed height grid layout for main content */
+
+  #log-panel.panel-fixed .panel-content {
+    @apply flex-1 min-h-0 overflow-hidden;
+  }
+
+  /* Command panel should remain flexible height but responsive */
+  #command-panel {
+    @apply flex flex-col;
+    height: auto;
+    min-height: 300px;
+    max-height: calc(100vh - var(--header-height) - 100px);
+  }
+
+  #command-panel .panel-content {
+    @apply overflow-auto;
+  }
+
+  /* Fixed height grid for main content area */
   .fixed-height-grid {
-    height: calc(100vh - 200px); /* Subtract header and padding */
-    display: grid;
-    align-items: start;
+    height: calc(100vh - 200px); /* Adjust based on header height */
+    min-height: 500px;
   }
-  
-  /* Ensure panels maintain fixed height */
-  .panel-fixed {
+
+  /* Ensure proper height inheritance */
+  .h-screen-adjusted {
+    height: calc(100vh - 120px);
+    min-height: 400px;
+  }
+
+  .panel-full-height {
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+    min-height: 500px;
   }
   
-  .panel-fixed .panel-content {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
-  }
 }
 
 @layer utilities {

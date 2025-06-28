@@ -56,7 +56,7 @@ export interface TcpConfig {
   port: number;
 }
 
-export type ConnectionType = 'RTU' | 'TCP';
+export type ConnectionType = 'RTU' | 'TCP' | 'TCP_NATIVE';
 
 export interface ConnectionConfig {
   type: ConnectionType;
