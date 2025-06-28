@@ -220,9 +220,6 @@ export class ConnectionPanel {
           <button class="btn-secondary" id="disconnect-btn" disabled>
             Disconnect
           </button>
-          <button class="btn-secondary" id="test-btn">
-            Test Connection
-          </button>
           ${SerialService.isSupported() && this.selectedPort ? `
             <button class="btn-secondary text-xs px-2 py-1" id="force-close-btn" title="Force close port if stuck">
               🔧 Force Close
@@ -326,7 +323,18 @@ export class ConnectionPanel {
               <option value="38400">38400</option>
               <option value="57600">57600</option>
               <option value="115200">115200</option>
+              <option value="230400">230400</option>
+              <option value="460800">460800</option>
+              <option value="custom">Custom...</option>
             </select>
+            <input 
+              type="text" 
+              class="input-field w-full ${this.isCompactMode ? 'text-sm' : ''} mt-2 hidden" 
+              id="baud-rate-custom" 
+              placeholder="Enter custom baud rate"
+              pattern="[0-9]*"
+              inputmode="numeric"
+            >
           </div>
 
           <!-- Parity -->
@@ -422,13 +430,24 @@ export class ConnectionPanel {
     // Connection buttons
     const connectBtn = document.getElementById('connect-btn');
     const disconnectBtn = document.getElementById('disconnect-btn');
-    const testBtn = document.getElementById('test-btn');
     const forceCloseBtn = document.getElementById('force-close-btn');
 
     connectBtn?.addEventListener('click', () => this.handleConnect());
     disconnectBtn?.addEventListener('click', () => this.handleDisconnect());
-    testBtn?.addEventListener('click', () => this.handleTest());
     forceCloseBtn?.addEventListener('click', () => this.handleForceClose());
+
+    // Baud rate custom input toggle
+    const baudRateSelect = document.getElementById('baud-rate') as HTMLSelectElement;
+    const baudRateCustom = document.getElementById('baud-rate-custom') as HTMLInputElement;
+    
+    baudRateSelect?.addEventListener('change', () => {
+      if (baudRateSelect.value === 'custom') {
+        baudRateCustom?.classList.remove('hidden');
+        baudRateCustom?.focus();
+      } else {
+        baudRateCustom?.classList.add('hidden');
+      }
+    });
 
     // Serial port buttons (RTU tab only)
     if (this.activeTab === 'RTU' && SerialService.isSupported()) {
@@ -743,90 +762,6 @@ export class ConnectionPanel {
     }
   }
 
-  private async handleTest(): Promise<void> {
-    if (this.activeTab === 'RTU') {
-      await this.handleRtuTest();
-    } else {
-      await this.handleTcpTest();
-    }
-  }
-
-  private async handleRtuTest(): Promise<void> {
-    if (!SerialService.isSupported()) {
-      alert('Web Serial API is not supported in this browser');
-      return;
-    }
-
-    if (!this.selectedPort) {
-      alert('Please select a serial port first');
-      return;
-    }
-
-    this.onConnectionChange('connecting');
-
-    try {
-      const config = this.getCurrentConfig();
-      const serialOptions = {
-        baudRate: config.serial.baudRate,
-        dataBits: config.serial.dataBits,
-        stopBits: config.serial.stopBits,
-        parity: config.serial.parity
-      };
-
-      // Test connection
-      await this.serialService.connect(this.selectedPort, serialOptions);
-      await this.serialService.disconnect();
-      
-      this.onConnectionChange('disconnected');
-      alert('✅ Serial port test successful! The port is accessible and can be opened.');
-      
-    } catch (error) {
-      this.onConnectionChange('error');
-      setTimeout(() => this.onConnectionChange('disconnected'), 2000);
-      
-      if (error instanceof Error) {
-        alert(`❌ Serial port test failed: ${error.message}`);
-      }
-    }
-  }
-
-  private async handleTcpTest(): Promise<void> {
-    this.onConnectionChange('connecting');
-    
-    try {
-      // Connect to WebSocket proxy server
-      if (!this.webSocketService.isConnected()) {
-        await this.webSocketService.connect();
-      }
-
-      // Get TCP connection config
-      const config = this.getCurrentConfig();
-      const tcpConfig: ModbusTcpConfig = {
-        host: config.tcp.host,
-        port: config.tcp.port
-      };
-
-      // Test connection to Modbus device
-      await this.webSocketService.connectToModbusDevice(tcpConfig);
-      
-      // Wait a moment for connection
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Disconnect after test
-      await this.webSocketService.disconnectFromModbusDevice();
-      
-      this.onConnectionChange('disconnected');
-      alert(`✅ TCP connection test successful! Can connect to ${tcpConfig.host}:${tcpConfig.port}`);
-      
-    } catch (error) {
-      this.onConnectionChange('error');
-      setTimeout(() => this.onConnectionChange('disconnected'), 2000);
-      
-      if (error instanceof Error) {
-        alert(`❌ TCP connection test failed: ${error.message}`);
-      }
-    }
-  }
 
   // Handle force close port
   private async handleForceClose(): Promise<void> {
@@ -889,7 +824,9 @@ export class ConnectionPanel {
 
   private getCurrentConfig(): any {
     if (this.activeTab === 'RTU') {
-      const baudRate = parseInt((document.getElementById('baud-rate') as HTMLSelectElement)?.value || '9600');
+      const baudRateSelect = (document.getElementById('baud-rate') as HTMLSelectElement)?.value || '9600';
+      const baudRateCustom = (document.getElementById('baud-rate-custom') as HTMLInputElement)?.value || '9600';
+      const baudRate = parseInt(baudRateSelect === 'custom' ? baudRateCustom : baudRateSelect);
       const parity = (document.getElementById('parity') as HTMLSelectElement)?.value || 'none';
       
       return {

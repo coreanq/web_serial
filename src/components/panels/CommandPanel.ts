@@ -38,7 +38,7 @@ export class CommandPanel {
           <div class="grid grid-cols-1 gap-2" id="quick-commands">
             ${this.renderQuickCommands()}
           </div>
-          <div class="text-xs text-dark-text-muted mt-2" id="mode-info">
+          <div class="text-xs text-blue-400 mt-2" id="mode-info">
             ${this.renderModeInfo()}
           </div>
         </div>
@@ -73,9 +73,6 @@ export class CommandPanel {
               <div class="text-xs mt-1" id="hex-preview">
                 <span class="text-dark-text-muted">Preview:</span> 
                 <span class="text-dark-text-secondary font-mono">Enter data above (toggle ASCII Mode for text input)...</span>
-              </div>
-              <div class="text-xs text-blue-400 mt-1">
-                💡 RTU Mode: Device ID + Function Code + Data | TCP Mode: MBAP header (Transaction ID + Protocol ID + Length + Unit ID) automatically added
               </div>
             </div>
 
@@ -134,7 +131,7 @@ export class CommandPanel {
                 </button>
               </div>
               
-              <button class="btn-secondary w-full mt-2 text-sm" id="build-command">
+              <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition-colors duration-200 font-medium w-full mt-2 text-sm" id="build-command">
                 Build Command
               </button>
             </div>
@@ -159,7 +156,7 @@ export class CommandPanel {
               <input 
                 type="number" 
                 id="repeat-interval" 
-                class="input-field text-xs w-16" 
+                class="input-field text-xs w-20" 
                 value="1000" 
                 min="10" 
                 max="999999"
@@ -967,7 +964,7 @@ export class CommandPanel {
     
     let finalCommand = convertedHex;
     let protocolInfo = '';
-    const typeInfo = isAsciiMode ? ` <span class="text-blue-400">[ASCII→HEX]</span>` : ` <span class="text-green-400">[HEX]</span>`;
+    const typeInfo = '';
     
     if (this.connectionType === 'TCP') {
       // TCP mode: Show MBAP header will be added
@@ -993,10 +990,7 @@ export class CommandPanel {
           <span class="text-dark-text-secondary font-mono">${finalCommand}</span>${protocolInfo}
         </div>
         <div class="text-xs">
-          <span class="text-dark-text-muted">Mode:</span>${typeInfo}
-          <span class="text-dark-text-muted ml-2">PDU Size:</span> 
-          <span class="text-dark-text-secondary">${byteCount} bytes</span>
-          ${this.connectionType === 'TCP' ? `<span class="text-dark-text-muted ml-2">Protocol:</span> <span class="text-cyan-400">Modbus TCP</span>` : ''}
+          ${this.connectionType === 'TCP' ? `<span class="text-dark-text-muted">Protocol:</span> <span class="text-cyan-400">Modbus TCP</span>` : ''}
         </div>
         ${packetAnalysis ? `
         <div class="text-xs border-t border-dark-border pt-1 mt-1">
@@ -1766,14 +1760,12 @@ export class CommandPanel {
     if (this.connectionType === 'TCP') {
       return `
         💡 <strong>TCP Mode:</strong> MBAP header (includes Unit ID) automatically added<br>
-        💡 Examples show PDU only (Device ID handled by MBAP header)<br>
-        💡 Try pasting: "Hello", "03000000A", or any clipboard text
+        💡 Preview show PDU only (Device ID handled by MBAP header)<br>
       `;
     } else {
       return `
         💡 <strong>RTU Mode:</strong> Device ID + Function Code + Data<br>
         💡 CRC automatically added when Auto CRC is enabled<br>
-        💡 Try pasting: "Hello", "01030000000A", or any clipboard text
       `;
     }
   }
