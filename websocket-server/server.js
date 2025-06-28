@@ -128,9 +128,10 @@ class ModbusTcpProxy {
     client.targetHost = host;
     client.targetPort = port;
     
-    // Set keep-alive and timeout options
-    tcpSocket.setKeepAlive(true, 30000);
-    tcpSocket.setTimeout(60000);
+    // Set keep-alive and timeout options for longer connections
+    tcpSocket.setKeepAlive(true, 10000); // Send keep-alive every 10 seconds
+    tcpSocket.setTimeout(300000); // 5 minute timeout instead of 1 minute
+    tcpSocket.setNoDelay(true); // Disable Nagle's algorithm for faster response
     
     tcpSocket.connect(port, host, () => {
       console.log(`Client ${client.id} connected to Modbus device ${host}:${port}`);

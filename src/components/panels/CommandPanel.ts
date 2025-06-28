@@ -71,10 +71,23 @@ export class CommandPanel {
             <!-- Command Builder -->
             <div class="border-t border-dark-border pt-3">
               <h4 class="text-xs font-medium text-dark-text-muted mb-2">Command Builder</h4>
+              
+              <!-- Hex Base Mode Checkbox -->
+              <div class="mb-3">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" id="hex-base-mode" checked class="rounded border-dark-border bg-dark-surface">
+                  <span class="text-dark-text-secondary">Hex Base?</span>
+                  <span class="text-xs text-dark-text-muted">(Input values as hex strings)</span>
+                </label>
+              </div>
+
               <div class="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <label class="block text-xs text-dark-text-muted mb-1">Slave ID</label>
-                  <input type="number" id="slave-id" class="input-field w-full text-sm" value="1" min="1" max="247">
+                  <label class="block text-xs text-dark-text-muted mb-1">
+                    ${this.connectionType === 'TCP' ? 'Unit ID (for MBAP header)' : 'Slave ID'}
+                  </label>
+                  <input id="slave-id" class="input-field w-full text-sm" value="01" 
+                         placeholder="${this.connectionType === 'TCP' ? '01 (Unit ID for MBAP)' : '01 (hex) or 1 (dec)'}">
                 </div>
                 <div>
                   <label class="block text-xs text-dark-text-muted mb-1">Function Code</label>
@@ -85,17 +98,31 @@ export class CommandPanel {
                     <option value="04">04 - Read Input Registers</option>
                     <option value="05">05 - Write Single Coil</option>
                     <option value="06">06 - Write Single Register</option>
+                    <option value="0F">0F - Write Multiple Coils</option>
+                    <option value="10">10 - Write Multiple Registers</option>
                   </select>
                 </div>
                 <div>
                   <label class="block text-xs text-dark-text-muted mb-1">Start Address</label>
-                  <input type="number" id="start-address" class="input-field w-full text-sm" value="0" min="0" max="65535">
+                  <input id="start-address" class="input-field w-full text-sm" value="0000" placeholder="0000 (hex) or 0 (dec)">
                 </div>
                 <div>
                   <label class="block text-xs text-dark-text-muted mb-1">Quantity/Value</label>
-                  <input type="number" id="quantity" class="input-field w-full text-sm" value="1" min="1" max="65535">
+                  <input id="quantity" class="input-field w-full text-sm" value="000A" placeholder="000A (hex) or 10 (dec)">
                 </div>
               </div>
+              
+              <!-- Data Values for Function Code 0F/10 -->
+              <div id="data-values-section" class="mt-3 hidden">
+                <label class="block text-xs text-dark-text-muted mb-2" id="data-values-label">Data Values</label>
+                <div class="space-y-2" id="data-values-container">
+                  <!-- Data value inputs will be dynamically added here -->
+                </div>
+                <button type="button" class="btn-secondary text-xs mt-2" id="add-data-value">
+                  + Add Value
+                </button>
+              </div>
+              
               <button class="btn-secondary w-full mt-2 text-sm" id="build-command">
                 Build Command
               </button>
@@ -170,6 +197,36 @@ export class CommandPanel {
     // Build command
     const buildButton = document.getElementById('build-command');
     buildButton?.addEventListener('click', () => this.buildCommand());
+
+    // Hex base mode checkbox
+    const hexBaseModeCheckbox = document.getElementById('hex-base-mode') as HTMLInputElement;
+    hexBaseModeCheckbox?.addEventListener('change', () => {
+      this.updateInputFieldsForHexBase();
+    });
+
+    // Function code selection change
+    const functionCodeSelect = document.getElementById('function-code') as HTMLSelectElement;
+    functionCodeSelect?.addEventListener('change', () => {
+      this.handleFunctionCodeChange();
+    });
+
+    // Quantity input change (for FC 0F/10 data count)
+    const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+    quantityInput?.addEventListener('input', () => {
+      this.updateDataValuesSection();
+    });
+
+    // Add data value button
+    const addDataButton = document.getElementById('add-data-value');
+    addDataButton?.addEventListener('click', () => {
+      this.addDataValueInput();
+    });
+
+    // Initialize input fields for hex base mode (default checked)
+    this.updateInputFieldsForHexBase();
+    
+    // Initialize function code UI
+    this.handleFunctionCodeChange();
 
     // Manual HEX input keyboard shortcuts and formatting
     const manualHexInput = document.getElementById('manual-hex-input') as HTMLTextAreaElement;
@@ -355,20 +412,145 @@ export class CommandPanel {
   }
 
   private buildCommand(): void {
-    const slaveId = parseInt((document.getElementById('slave-id') as HTMLInputElement).value);
-    const functionCode = parseInt((document.getElementById('function-code') as HTMLSelectElement).value);
-    const startAddress = parseInt((document.getElementById('start-address') as HTMLInputElement).value);
-    const quantity = parseInt((document.getElementById('quantity') as HTMLInputElement).value);
+    const hexBaseMode = (document.getElementById('hex-base-mode') as HTMLInputElement).checked;
+    const slaveIdValue = (document.getElementById('slave-id') as HTMLInputElement).value;
+    const functionCodeValue = (document.getElementById('function-code') as HTMLSelectElement).value;
+    const startAddressValue = (document.getElementById('start-address') as HTMLInputElement).value;
+    const quantityValue = (document.getElementById('quantity') as HTMLInputElement).value;
 
-    // Build basic Modbus RTU frame (without CRC for manual input)
-    const frame = [
-      slaveId,
-      functionCode,
-      (startAddress >> 8) & 0xFF, // High byte
-      startAddress & 0xFF,        // Low byte
-      (quantity >> 8) & 0xFF,     // High byte
-      quantity & 0xFF             // Low byte
-    ];
+    let slaveId: number;
+    let functionCode: number;
+    let startAddress: number;
+    let quantity: number;
+
+    // Function code is always hex in the select options
+    functionCode = parseInt(functionCodeValue, 16);
+    
+    if (hexBaseMode) {
+      // Parse values as hex strings
+      slaveId = parseInt(slaveIdValue, 16);
+      startAddress = parseInt(startAddressValue, 16);
+      quantity = parseInt(quantityValue, 16);
+    } else {
+      // Parse values as decimal numbers
+      slaveId = parseInt(slaveIdValue, 10);
+      startAddress = parseInt(startAddressValue, 10);
+      quantity = parseInt(quantityValue, 10);
+    }
+
+    // Validate parsed values
+    if (isNaN(slaveId) || isNaN(functionCode) || isNaN(startAddress) || isNaN(quantity)) {
+      alert('Invalid input values. Please check your entries.');
+      return;
+    }
+
+    // Build Modbus frame based on connection type and function code
+    let frame: number[];
+    
+    if (this.connectionType === 'TCP') {
+      // TCP mode: Generate PDU only (no Device ID - it goes in MBAP header)
+      if (functionCode === 0x0F) { // Write Multiple Coils
+        const coilData = this.getCoilValuesFromInputs();
+        if (!coilData) {
+          alert('Please enter valid coil values for Function Code 0F');
+          return;
+        }
+        
+        const coilCount = coilData.coilCount;
+        const byteCount = coilData.bytes.length;
+
+        frame = [
+          functionCode,
+          (startAddress >> 8) & 0xFF,  // Start Address High
+          startAddress & 0xFF,         // Start Address Low
+          (coilCount >> 8) & 0xFF,     // Quantity High
+          coilCount & 0xFF,            // Quantity Low
+          byteCount,                   // Byte Count
+          ...coilData.bytes            // Coil data bytes
+        ];
+      } else if (functionCode === 0x10) { // Write Multiple Registers
+        const registerData = this.getRegisterValuesFromInputs(hexBaseMode);
+        if (!registerData) {
+          alert('Please enter valid register values for Function Code 10');
+          return;
+        }
+        
+        const registerCount = registerData.length / 2; // Each register is 2 bytes
+        const byteCount = registerData.length;
+
+        frame = [
+          functionCode,
+          (startAddress >> 8) & 0xFF,  // Start Address High
+          startAddress & 0xFF,         // Start Address Low
+          (registerCount >> 8) & 0xFF, // Quantity High
+          registerCount & 0xFF,        // Quantity Low
+          byteCount,                   // Byte Count
+          ...registerData              // User-entered register values
+        ];
+      } else {
+        // Standard read/write commands for TCP
+        frame = [
+          functionCode,
+          (startAddress >> 8) & 0xFF, // High byte
+          startAddress & 0xFF,        // Low byte
+          (quantity >> 8) & 0xFF,     // High byte
+          quantity & 0xFF             // Low byte
+        ];
+      }
+    } else {
+      // RTU mode: Include Device ID in frame
+      if (functionCode === 0x0F) { // Write Multiple Coils
+        const coilData = this.getCoilValuesFromInputs();
+        if (!coilData) {
+          alert('Please enter valid coil values for Function Code 0F');
+          return;
+        }
+        
+        const coilCount = coilData.coilCount;
+        const byteCount = coilData.bytes.length;
+
+        frame = [
+          slaveId,
+          functionCode,
+          (startAddress >> 8) & 0xFF,  // Start Address High
+          startAddress & 0xFF,         // Start Address Low
+          (coilCount >> 8) & 0xFF,     // Quantity High
+          coilCount & 0xFF,            // Quantity Low
+          byteCount,                   // Byte Count
+          ...coilData.bytes            // Coil data bytes
+        ];
+      } else if (functionCode === 0x10) { // Write Multiple Registers
+        const registerData = this.getRegisterValuesFromInputs(hexBaseMode);
+        if (!registerData) {
+          alert('Please enter valid register values for Function Code 10');
+          return;
+        }
+        
+        const registerCount = registerData.length / 2; // Each register is 2 bytes
+        const byteCount = registerData.length;
+
+        frame = [
+          slaveId,
+          functionCode,
+          (startAddress >> 8) & 0xFF,  // Start Address High
+          startAddress & 0xFF,         // Start Address Low
+          (registerCount >> 8) & 0xFF, // Quantity High
+          registerCount & 0xFF,        // Quantity Low
+          byteCount,                   // Byte Count
+          ...registerData              // User-entered register values
+        ];
+      } else {
+        // Standard read/write commands for RTU
+        frame = [
+          slaveId,
+          functionCode,
+          (startAddress >> 8) & 0xFF, // High byte
+          startAddress & 0xFF,        // Low byte
+          (quantity >> 8) & 0xFF,     // High byte
+          quantity & 0xFF             // Low byte
+        ];
+      }
+    }
 
     // Format as HEX string (CRC will be added automatically when sending)
     const hexCommand = frame.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
@@ -408,6 +590,90 @@ export class CommandPanel {
       manualHexInput.value = command;
       manualHexInput.focus();
       this.updateHexPreview();
+    }
+  }
+
+  private updateInputFieldsForHexBase(): void {
+    const hexBaseMode = (document.getElementById('hex-base-mode') as HTMLInputElement).checked;
+    const slaveIdInput = document.getElementById('slave-id') as HTMLInputElement;
+    const startAddressInput = document.getElementById('start-address') as HTMLInputElement;
+    const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+
+    if (hexBaseMode) {
+      // Hex mode - update placeholders and values
+      slaveIdInput.placeholder = '01 (hex)';
+      startAddressInput.placeholder = '0000 (hex)';
+      quantityInput.placeholder = '000A (hex)';
+      
+      // Convert current decimal values to hex if needed
+      this.convertInputValuesToHex();
+    } else {
+      // Decimal mode - update placeholders and values
+      slaveIdInput.placeholder = '1 (decimal)';
+      startAddressInput.placeholder = '0 (decimal)';
+      quantityInput.placeholder = '10 (decimal)';
+      
+      // Convert current hex values to decimal if needed
+      this.convertInputValuesToDecimal();
+    }
+    
+    // Update data values section (register/coil inputs) to reflect hex base mode change
+    this.updateDataValuesSection();
+  }
+
+  private convertInputValuesToHex(): void {
+    const slaveIdInput = document.getElementById('slave-id') as HTMLInputElement;
+    const startAddressInput = document.getElementById('start-address') as HTMLInputElement;
+    const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+
+    // Convert only if values look like decimal numbers
+    if (slaveIdInput.value && /^\d+$/.test(slaveIdInput.value)) {
+      const decValue = parseInt(slaveIdInput.value, 10);
+      if (!isNaN(decValue)) {
+        slaveIdInput.value = decValue.toString(16).padStart(2, '0').toUpperCase();
+      }
+    }
+
+    if (startAddressInput.value && /^\d+$/.test(startAddressInput.value)) {
+      const decValue = parseInt(startAddressInput.value, 10);
+      if (!isNaN(decValue)) {
+        startAddressInput.value = decValue.toString(16).padStart(4, '0').toUpperCase();
+      }
+    }
+
+    if (quantityInput.value && /^\d+$/.test(quantityInput.value)) {
+      const decValue = parseInt(quantityInput.value, 10);
+      if (!isNaN(decValue)) {
+        quantityInput.value = decValue.toString(16).padStart(4, '0').toUpperCase();
+      }
+    }
+  }
+
+  private convertInputValuesToDecimal(): void {
+    const slaveIdInput = document.getElementById('slave-id') as HTMLInputElement;
+    const startAddressInput = document.getElementById('start-address') as HTMLInputElement;
+    const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+
+    // Convert only if values look like hex strings
+    if (slaveIdInput.value && /^[0-9A-Fa-f]+$/.test(slaveIdInput.value)) {
+      const hexValue = parseInt(slaveIdInput.value, 16);
+      if (!isNaN(hexValue)) {
+        slaveIdInput.value = hexValue.toString(10);
+      }
+    }
+
+    if (startAddressInput.value && /^[0-9A-Fa-f]+$/.test(startAddressInput.value)) {
+      const hexValue = parseInt(startAddressInput.value, 16);
+      if (!isNaN(hexValue)) {
+        startAddressInput.value = hexValue.toString(10);
+      }
+    }
+
+    if (quantityInput.value && /^[0-9A-Fa-f]+$/.test(quantityInput.value)) {
+      const hexValue = parseInt(quantityInput.value, 16);
+      if (!isNaN(hexValue)) {
+        quantityInput.value = hexValue.toString(10);
+      }
     }
   }
 
@@ -595,6 +861,9 @@ export class CommandPanel {
     
     const byteCount = finalCommand.replace(/\s+/g, '').length / 2;
     
+    // Add packet analysis like in LogPanel
+    const packetAnalysis = this.analyzePacketForPreview(finalCommand, this.connectionType);
+    
     previewElement.innerHTML = `
       <div class="flex flex-col gap-1">
         <div>
@@ -607,8 +876,535 @@ export class CommandPanel {
           <span class="text-dark-text-secondary">${byteCount} bytes</span>
           ${this.connectionType === 'TCP' ? `<span class="text-dark-text-muted ml-2">Protocol:</span> <span class="text-cyan-400">Modbus TCP</span>` : ''}
         </div>
+        ${packetAnalysis ? `
+        <div class="text-xs border-t border-dark-border pt-1 mt-1">
+          <span class="text-dark-text-muted">Analysis:</span>
+          <div class="mt-1 p-2 bg-dark-surface rounded text-xs text-dark-text-secondary whitespace-pre-line font-mono">${packetAnalysis}</div>
+        </div>
+        ` : ''}
       </div>
     `;
+  }
+
+  private handleFunctionCodeChange(): void {
+    const functionCodeSelect = document.getElementById('function-code') as HTMLSelectElement;
+    const dataValuesSection = document.getElementById('data-values-section');
+    const dataValuesLabel = document.getElementById('data-values-label');
+    const addDataButton = document.getElementById('add-data-value');
+    
+    if (!functionCodeSelect || !dataValuesSection || !dataValuesLabel || !addDataButton) return;
+    
+    const selectedFC = parseInt(functionCodeSelect.value, 16);
+    
+    if (selectedFC === 0x0F || selectedFC === 0x10) { // Write Multiple Coils or Registers
+      dataValuesSection.classList.remove('hidden');
+      
+      if (selectedFC === 0x0F) {
+        dataValuesLabel.textContent = 'Coil Values (for FC 0F)';
+        addDataButton.textContent = '+ Add Coil';
+      } else {
+        dataValuesLabel.textContent = 'Register Values (for FC 10)';
+        addDataButton.textContent = '+ Add Register';
+      }
+      
+      this.updateDataValuesSection();
+    } else {
+      dataValuesSection.classList.add('hidden');
+    }
+  }
+
+  private updateDataValuesSection(): void {
+    const functionCodeSelect = document.getElementById('function-code') as HTMLSelectElement;
+    const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+    const container = document.getElementById('data-values-container');
+    
+    if (!functionCodeSelect || !quantityInput || !container) return;
+    
+    const selectedFC = parseInt(functionCodeSelect.value, 16);
+    if (selectedFC !== 0x0F && selectedFC !== 0x10) return;
+    
+    const hexBaseMode = (document.getElementById('hex-base-mode') as HTMLInputElement)?.checked || false;
+    let quantity: number;
+    
+    if (hexBaseMode) {
+      quantity = parseInt(quantityInput.value, 16);
+    } else {
+      quantity = parseInt(quantityInput.value, 10);
+    }
+    
+    if (isNaN(quantity) || quantity <= 0) {
+      container.innerHTML = '<p class="text-xs text-dark-text-muted">Enter valid quantity first</p>';
+      return;
+    }
+    
+    // Limit to reasonable number
+    quantity = Math.min(quantity, selectedFC === 0x0F ? 32 : 20); // More coils allowed
+    
+    const isCoils = selectedFC === 0x0F;
+    const labelPrefix = isCoils ? 'Coil' : 'Reg';
+    const cssClass = isCoils ? 'coil-value-input' : 'register-value-input';
+    
+    // Preserve existing values if available
+    const existingInputs = container.querySelectorAll(`.${cssClass}`) as NodeListOf<HTMLInputElement>;
+    const existingValues: string[] = [];
+    for (let i = 0; i < existingInputs.length; i++) {
+      existingValues[i] = existingInputs[i].value;
+    }
+    
+    // Generate data value inputs
+    let html = '';
+    for (let i = 0; i < quantity; i++) {
+      let currentValue: string;
+      let placeholder: string;
+      
+      if (isCoils) {
+        // Coils are boolean (0 or 1) - preserve existing or use default
+        currentValue = existingValues[i] || (i % 2 === 0 ? '1' : '0');
+        placeholder = '1 (ON) or 0 (OFF)';
+      } else {
+        // Registers are 16-bit values - preserve existing or convert/default
+        if (existingValues[i]) {
+          // Convert existing value based on current hex base mode
+          currentValue = this.convertRegisterValue(existingValues[i], !hexBaseMode, hexBaseMode);
+        } else {
+          // Use default value
+          currentValue = hexBaseMode ? (i + 1).toString(16).padStart(4, '0').toUpperCase() : (i + 1).toString();
+        }
+        placeholder = hexBaseMode ? '0001 (hex)' : '1 (decimal)';
+      }
+      
+      html += `
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-dark-text-muted min-w-max">${labelPrefix} ${i}:</label>
+          <input type="text" 
+                 class="input-field flex-1 text-xs ${cssClass}" 
+                 data-value-index="${i}"
+                 value="${currentValue}" 
+                 placeholder="${placeholder}">
+          <button type="button" 
+                  class="text-red-400 hover:text-red-300 text-xs px-1 remove-value-btn"
+                  data-value-index="${i}">×</button>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = html;
+    
+    // Add event listeners for remove buttons
+    container.querySelectorAll('.remove-value-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const index = (e.target as HTMLElement).dataset.valueIndex;
+        this.removeDataValueInput(parseInt(index || '0'));
+      });
+    });
+  }
+
+  private addDataValueInput(): void {
+    const functionCodeSelect = document.getElementById('function-code') as HTMLSelectElement;
+    const container = document.getElementById('data-values-container');
+    if (!container || !functionCodeSelect) return;
+    
+    const selectedFC = parseInt(functionCodeSelect.value, 16);
+    const isCoils = selectedFC === 0x0F;
+    const maxItems = isCoils ? 32 : 20;
+    const currentInputs = container.querySelectorAll(isCoils ? '.coil-value-input' : '.register-value-input');
+    const nextIndex = currentInputs.length;
+    
+    if (nextIndex >= maxItems) {
+      alert(`Maximum ${maxItems} ${isCoils ? 'coils' : 'registers'} allowed`);
+      return;
+    }
+    
+    const hexBaseMode = (document.getElementById('hex-base-mode') as HTMLInputElement)?.checked || false;
+    const labelPrefix = isCoils ? 'Coil' : 'Reg';
+    const cssClass = isCoils ? 'coil-value-input' : 'register-value-input';
+    
+    let defaultValue: string;
+    let placeholder: string;
+    
+    if (isCoils) {
+      defaultValue = nextIndex % 2 === 0 ? '1' : '0';
+      placeholder = '1 (ON) or 0 (OFF)';
+    } else {
+      defaultValue = hexBaseMode ? (nextIndex + 1).toString(16).padStart(4, '0').toUpperCase() : (nextIndex + 1).toString();
+      placeholder = hexBaseMode ? '0001 (hex)' : '1 (decimal)';
+    }
+    
+    const newInput = document.createElement('div');
+    newInput.className = 'flex items-center gap-2';
+    newInput.innerHTML = `
+      <label class="text-xs text-dark-text-muted min-w-max">${labelPrefix} ${nextIndex}:</label>
+      <input type="text" 
+             class="input-field flex-1 text-xs ${cssClass}" 
+             data-value-index="${nextIndex}"
+             value="${defaultValue}" 
+             placeholder="${placeholder}">
+      <button type="button" 
+              class="text-red-400 hover:text-red-300 text-xs px-1 remove-value-btn"
+              data-value-index="${nextIndex}">×</button>
+    `;
+    
+    container.appendChild(newInput);
+    
+    // Add event listener for remove button
+    const removeBtn = newInput.querySelector('.remove-value-btn');
+    removeBtn?.addEventListener('click', (e) => {
+      const index = (e.target as HTMLElement).dataset.valueIndex;
+      this.removeDataValueInput(parseInt(index || '0'));
+    });
+    
+    // Update quantity to match data count
+    const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+    if (quantityInput) {
+      const hexBaseMode = (document.getElementById('hex-base-mode') as HTMLInputElement)?.checked || false;
+      const newQuantity = nextIndex + 1;
+      quantityInput.value = hexBaseMode ? newQuantity.toString(16).padStart(4, '0').toUpperCase() : newQuantity.toString();
+    }
+  }
+
+  private removeDataValueInput(indexToRemove: number): void {
+    const functionCodeSelect = document.getElementById('function-code') as HTMLSelectElement;
+    const container = document.getElementById('data-values-container');
+    if (!container || !functionCodeSelect) return;
+    
+    const selectedFC = parseInt(functionCodeSelect.value, 16);
+    const isCoils = selectedFC === 0x0F;
+    const cssClass = isCoils ? '.coil-value-input' : '.register-value-input';
+    const labelPrefix = isCoils ? 'Coil' : 'Reg';
+    const fcName = isCoils ? 'FC 0F' : 'FC 10';
+    
+    const inputs = container.querySelectorAll(cssClass);
+    if (inputs.length <= 1) {
+      alert(`At least one ${isCoils ? 'coil' : 'register'} is required for ${fcName}`);
+      return;
+    }
+    
+    // Remove the specific input
+    const inputToRemove = container.querySelector(`[data-value-index="${indexToRemove}"]`)?.parentElement;
+    if (inputToRemove) {
+      inputToRemove.remove();
+    }
+    
+    // Re-index remaining inputs
+    const remainingInputs = container.querySelectorAll(cssClass);
+    remainingInputs.forEach((input, index) => {
+      const inputElement = input as HTMLInputElement;
+      const parentDiv = inputElement.parentElement;
+      
+      inputElement.dataset.valueIndex = index.toString();
+      
+      const label = parentDiv?.querySelector('label');
+      if (label) {
+        label.textContent = `${labelPrefix} ${index}:`;
+      }
+      
+      const removeBtn = parentDiv?.querySelector('.remove-value-btn') as HTMLElement;
+      if (removeBtn) {
+        removeBtn.dataset.valueIndex = index.toString();
+      }
+    });
+    
+    // Update quantity to match data count
+    const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+    if (quantityInput) {
+      const hexBaseMode = (document.getElementById('hex-base-mode') as HTMLInputElement)?.checked || false;
+      const newQuantity = remainingInputs.length;
+      quantityInput.value = hexBaseMode ? newQuantity.toString(16).padStart(4, '0').toUpperCase() : newQuantity.toString();
+    }
+  }
+
+  private convertRegisterValue(value: string, fromHex: boolean, toHex: boolean): string {
+    if (fromHex === toHex) {
+      return value; // No conversion needed
+    }
+    
+    try {
+      let numValue: number;
+      
+      if (fromHex) {
+        // Converting from hex to decimal
+        numValue = parseInt(value, 16);
+        if (isNaN(numValue)) return value; // Return original if invalid
+        return numValue.toString(10);
+      } else {
+        // Converting from decimal to hex
+        numValue = parseInt(value, 10);
+        if (isNaN(numValue)) return value; // Return original if invalid
+        return numValue.toString(16).padStart(4, '0').toUpperCase();
+      }
+    } catch (error) {
+      return value; // Return original value if conversion fails
+    }
+  }
+
+  private getCoilValuesFromInputs(): { coilCount: number; bytes: number[] } | null {
+    const coilInputs = document.querySelectorAll('.coil-value-input') as NodeListOf<HTMLInputElement>;
+    
+    if (coilInputs.length === 0) {
+      return null;
+    }
+    
+    const coilValues: boolean[] = [];
+    
+    for (const input of coilInputs) {
+      const value = input.value.trim();
+      if (!value) {
+        return null; // Empty value
+      }
+      
+      const coilValue = parseInt(value, 10);
+      if (isNaN(coilValue) || (coilValue !== 0 && coilValue !== 1)) {
+        return null; // Invalid coil value (must be 0 or 1)
+      }
+      
+      coilValues.push(coilValue === 1);
+    }
+    
+    // Pack coils into bytes (8 coils per byte, LSB first)
+    const bytes: number[] = [];
+    for (let i = 0; i < coilValues.length; i += 8) {
+      let byte = 0;
+      for (let j = 0; j < 8 && (i + j) < coilValues.length; j++) {
+        if (coilValues[i + j]) {
+          byte |= (1 << j); // Set bit j if coil is ON
+        }
+      }
+      bytes.push(byte);
+    }
+    
+    return {
+      coilCount: coilValues.length,
+      bytes: bytes
+    };
+  }
+
+  private getRegisterValuesFromInputs(hexBaseMode: boolean): number[] | null {
+    const registerInputs = document.querySelectorAll('.register-value-input') as NodeListOf<HTMLInputElement>;
+    
+    if (registerInputs.length === 0) {
+      return null;
+    }
+    
+    const registerData: number[] = [];
+    
+    for (const input of registerInputs) {
+      const value = input.value.trim();
+      if (!value) {
+        return null; // Empty value
+      }
+      
+      let regValue: number;
+      
+      if (hexBaseMode) {
+        regValue = parseInt(value, 16);
+      } else {
+        regValue = parseInt(value, 10);
+      }
+      
+      if (isNaN(regValue) || regValue < 0 || regValue > 0xFFFF) {
+        return null; // Invalid value
+      }
+      
+      // Convert to 2 bytes (high byte, low byte)
+      registerData.push((regValue >> 8) & 0xFF, regValue & 0xFF);
+    }
+    
+    return registerData;
+  }
+
+  private analyzePacketForPreview(hexData: string, connectionType: 'RTU' | 'TCP'): string | null {
+    const cleaned = hexData.replace(/\s+/g, '').toUpperCase();
+    if (cleaned.length < 2) return null;
+    
+    if (connectionType === 'TCP') {
+      // For TCP preview, we're analyzing the PDU only (before MBAP header is added)
+      return this.analyzePduForPreview(cleaned, 'TCP');
+    } else {
+      return this.analyzeRtuPacketForPreview(cleaned);
+    }
+  }
+
+  private analyzePduForPreview(hexData: string, protocol: 'TCP' | 'RTU'): string | null {
+    if (hexData.length < 2) return null;
+    
+    const pduAnalysis = this.analyzeModbusPduForPreview(hexData);
+    
+    if (protocol === 'TCP') {
+      let result = `🌐 MODBUS TCP PDU (will be wrapped in MBAP header)\n`;
+      if (pduAnalysis) {
+        result += `\n${pduAnalysis}`;
+      }
+      return result;
+    } else {
+      return pduAnalysis;
+    }
+  }
+
+  private analyzeTcpPacketForPreview(hexData: string): string | null {
+    if (hexData.length < 14) return null;
+    
+    try {
+      const transactionId = hexData.substring(0, 4);
+      const protocolId = hexData.substring(4, 8);
+      const length = hexData.substring(8, 12);
+      const unitId = hexData.substring(12, 14);
+      const pdu = hexData.substring(14);
+      
+      const pduAnalysis = this.analyzeModbusPduForPreview(pdu);
+      
+      let result = `🌐 MODBUS TCP PACKET\n`;
+      result += `Transaction ID: 0x${transactionId} (${parseInt(transactionId, 16)})\n`;
+      result += `Protocol ID: 0x${protocolId} (${parseInt(protocolId, 16)})\n`;
+      result += `Length: 0x${length} (${parseInt(length, 16)} bytes)\n`;
+      result += `Unit ID: 0x${unitId} (${parseInt(unitId, 16)})`;
+      
+      if (pduAnalysis) {
+        result += `\n\n${pduAnalysis}`;
+      }
+      
+      return result;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  private analyzeRtuPacketForPreview(hexData: string): string | null {
+    if (hexData.length < 8) return null;
+    
+    try {
+      const deviceId = hexData.substring(0, 2);
+      const pdu = hexData.substring(2, hexData.length - 4);
+      const crc = hexData.substring(hexData.length - 4);
+      
+      const pduAnalysis = this.analyzeModbusPduForPreview(pdu);
+      
+      let result = `📡 MODBUS RTU PACKET\n`;
+      result += `Device ID: 0x${deviceId} (${parseInt(deviceId, 16)})\n`;
+      result += `CRC: 0x${crc}`;
+      
+      if (pduAnalysis) {
+        result += `\n\n${pduAnalysis}`;
+      }
+      
+      return result;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  private analyzeModbusPduForPreview(pdu: string): string | null {
+    if (pdu.length < 2) return null;
+    
+    const functionCode = pdu.substring(0, 2);
+    const functionCodeInt = parseInt(functionCode, 16);
+    
+    switch (functionCodeInt) {
+      case 0x01:
+        return this.analyzeReadCoilsForPreview(pdu);
+      case 0x02:
+        return this.analyzeReadDiscreteInputsForPreview(pdu);
+      case 0x03:
+        return this.analyzeReadHoldingRegistersForPreview(pdu);
+      case 0x04:
+        return this.analyzeReadInputRegistersForPreview(pdu);
+      case 0x06:
+        return this.analyzeWriteSingleRegisterForPreview(pdu);
+      case 0x0F:
+        return this.analyzeWriteMultipleCoilsForPreview(pdu);
+      case 0x10:
+        return this.analyzeWriteMultipleRegistersForPreview(pdu);
+      default:
+        return `📋 MODBUS PDU\nFunction Code: 0x${functionCode} (${functionCodeInt}) - Unknown/Unsupported`;
+    }
+  }
+
+  private analyzeReadCoilsForPreview(pdu: string): string {
+    const startAddr = pdu.substring(2, 6);
+    const quantity = pdu.substring(6, 10);
+    
+    return `📖 READ COILS (0x01) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} coils)`;
+  }
+
+  private analyzeReadDiscreteInputsForPreview(pdu: string): string {
+    const startAddr = pdu.substring(2, 6);
+    const quantity = pdu.substring(6, 10);
+    
+    return `📖 READ DISCRETE INPUTS (0x02) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} inputs)`;
+  }
+
+  private analyzeReadHoldingRegistersForPreview(pdu: string): string {
+    const startAddr = pdu.substring(2, 6);
+    const quantity = pdu.substring(6, 10);
+    
+    return `📊 READ HOLDING REGISTERS (0x03) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} registers)`;
+  }
+
+  private analyzeReadInputRegistersForPreview(pdu: string): string {
+    const startAddr = pdu.substring(2, 6);
+    const quantity = pdu.substring(6, 10);
+    
+    return `📊 READ INPUT REGISTERS (0x04) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} registers)`;
+  }
+
+  private analyzeWriteSingleRegisterForPreview(pdu: string): string {
+    const regAddr = pdu.substring(2, 6);
+    const regValue = pdu.substring(6, 10);
+    
+    return `✏️ WRITE SINGLE REGISTER (0x06)\nRegister Address: 0x${regAddr} (${parseInt(regAddr, 16)})\nRegister Value: 0x${regValue} (${parseInt(regValue, 16)})`;
+  }
+
+  private analyzeWriteMultipleCoilsForPreview(pdu: string): string {
+    if (pdu.length >= 12) {
+      const startAddr = pdu.substring(2, 6);
+      const quantity = pdu.substring(6, 10);
+      const byteCount = pdu.substring(10, 12);
+      const data = pdu.substring(12);
+      
+      let result = `🔘 WRITE MULTIPLE COILS (0x0F) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} coils)\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\n`;
+      
+      // Parse coil data bytes
+      const quantityInt = parseInt(quantity, 16);
+      let coilIndex = 0;
+      for (let i = 0; i < data.length; i += 2) {
+        if (i + 2 <= data.length && coilIndex < quantityInt) {
+          const byteHex = data.substring(i, i + 2);
+          const byteValue = parseInt(byteHex, 16);
+          
+          // Decode each bit in the byte
+          for (let bit = 0; bit < 8 && coilIndex < quantityInt; bit++) {
+            const coilState = (byteValue & (1 << bit)) !== 0 ? 'ON' : 'OFF';
+            result += `Coil ${coilIndex}: ${coilState}\n`;
+            coilIndex++;
+          }
+        }
+      }
+      
+      return result.trim();
+    }
+    return `🔘 WRITE MULTIPLE COILS (0x0F)`;
+  }
+
+  private analyzeWriteMultipleRegistersForPreview(pdu: string): string {
+    if (pdu.length >= 12) {
+      const startAddr = pdu.substring(2, 6);
+      const quantity = pdu.substring(6, 10);
+      const byteCount = pdu.substring(10, 12);
+      const data = pdu.substring(12);
+      
+      let result = `✏️ WRITE MULTIPLE REGISTERS (0x10) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} registers)\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\n`;
+      
+      // Parse individual register values
+      for (let i = 0; i < data.length; i += 4) {
+        if (i + 4 <= data.length) {
+          const regHex = data.substring(i, i + 4);
+          const regDec = parseInt(regHex, 16);
+          result += `Reg ${i/4}: 0x${regHex} (${regDec})\n`;
+        }
+      }
+      
+      return result.trim();
+    }
+    return `✏️ WRITE MULTIPLE REGISTERS (0x10)`;
   }
 
   private addToHistory(command: string): void {
@@ -668,7 +1464,7 @@ export class CommandPanel {
   }
 
   // Public method to update connection status
-  updateConnectionStatus(type: 'RTU' | 'TCP', connected: boolean): void {
+  updateConnectionStatus(type: 'RTU' | 'TCP', _connected: boolean): void {
     // Prevent duplicate execution - only update if connection type actually changed
     if (this.lastConnectionType === type) {
       return;

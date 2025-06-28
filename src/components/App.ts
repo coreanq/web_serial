@@ -219,32 +219,29 @@ export class App {
 
   private renderMainContent(): string {
     const isConnectionPanelSide = this.connectionPanelPosition === 'left' || this.connectionPanelPosition === 'right';
-    const logPanelHeight = isConnectionPanelSide ? 'h-screen-adjusted panel-full-height' : 'h-96';
-    const commandPanelHeight = isConnectionPanelSide ? 'h-screen-adjusted panel-full-height' : 'h-96';
-    const logContentClass = isConnectionPanelSide ? 'panel-content p-0 log-content-full' : 'panel-content p-0';
     
     return `
-      <!-- Main Layout: Log Panel (left) + Command Panel (right) -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 ${isConnectionPanelSide ? 'h-screen-adjusted' : ''}">
-        <!-- Log Panel -->
-        <div class="lg:col-span-2 ${isConnectionPanelSide ? 'h-full' : ''}">
-          <div id="log-panel" class="panel ${logPanelHeight}">
-            <div class="panel-header">
+      <!-- Main Layout: Log Panel (left) + Command Panel (right) with fixed heights -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 ${isConnectionPanelSide ? 'fixed-height-grid' : 'fixed-height-grid'} items-start">
+        <!-- Log Panel with fixed height -->
+        <div class="lg:col-span-2">
+          <div id="log-panel" class="panel panel-fixed">
+            <div class="panel-header flex-shrink-0">
               Real-time Communication Log
             </div>
-            <div class="${logContentClass}" id="log-content">
+            <div class="panel-content flex-1 min-h-0 p-0" id="log-content">
               <!-- Log panel content will be mounted here -->
             </div>
           </div>
         </div>
 
-        <!-- Command Panel -->
-        <div class="lg:col-span-1 ${isConnectionPanelSide ? 'h-full' : ''}">
-          <div id="command-panel" class="panel ${commandPanelHeight}">
-            <div class="panel-header">
+        <!-- Command Panel with fixed height -->
+        <div class="lg:col-span-1">
+          <div id="command-panel" class="panel panel-fixed">
+            <div class="panel-header flex-shrink-0">
               Manual Command
             </div>
-            <div class="panel-content ${isConnectionPanelSide ? 'h-full overflow-y-auto' : ''}" id="command-content">
+            <div class="panel-content flex-1 min-h-0" id="command-content">
               <!-- Command panel content will be mounted here -->
             </div>
           </div>

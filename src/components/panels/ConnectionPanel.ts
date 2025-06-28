@@ -15,11 +15,13 @@ export class ConnectionPanel {
   private webSocketStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private autoReconnectEnabled: boolean = true;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
+  private maxReconnectAttempts: number = 3; // Reduced from 5 to 3
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private currentTcpConfig: ModbusTcpConfig | null = null;
   private lastDisconnectTime: number = 0;
   private disconnectDebounceMs: number = 100; // 100ms debounce for disconnect events - more responsive
+  private lastErrorTime: number = 0;
+  private errorDebounceMs: number = 5000; // 5 second debounce for error messages
 
   constructor(
     onConnectionChange: (status: ConnectionStatus, config?: any) => void, 
@@ -71,9 +73,11 @@ export class ConnectionPanel {
       // Clear any pending reconnect attempts immediately
       this.clearReconnectTimeout();
       
-      // Reset reconnection state
+      // Reset reconnection state and re-enable auto reconnect
       this.reconnectAttempts = 0;
       this.lastDisconnectTime = 0;
+      this.lastErrorTime = 0;
+      this.autoReconnectEnabled = true;
       
       // Update connection status
       this.tcpConnectionStatus = 'connected';
@@ -139,11 +143,34 @@ export class ConnectionPanel {
     });
 
     this.webSocketService.onMessage('tcp_error', (data) => {
-      console.error('TCP Modbus error:', data);
+      const now = Date.now();
+      const timeSinceLastError = now - this.lastErrorTime;
+      
+      // Debounce error messages to prevent spam
+      if (timeSinceLastError >= this.errorDebounceMs) {
+        console.error('TCP Modbus error:', data);
+        this.lastErrorTime = now;
+      }
+      
       this.tcpConnectionStatus = 'error';
       this.onConnectionChange('error');
       this.updateButtonStates(false);
       this.updateTcpStatusDisplay();
+      
+      // Auto-reconnect on timeout errors with attempt limit
+      if (data.error === 'Connection timeout' && 
+          this.autoReconnectEnabled && 
+          this.currentTcpConfig &&
+          this.reconnectAttempts < this.maxReconnectAttempts) {
+        
+        if (timeSinceLastError >= this.errorDebounceMs) {
+          console.log(`Connection timeout detected (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts}), attempting auto-reconnect...`);
+        }
+        this.scheduleReconnect();
+      } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.warn(`Max reconnection attempts (${this.maxReconnectAttempts}) reached. Auto-reconnect disabled.`);
+        this.autoReconnectEnabled = false;
+      }
     });
 
     // Data received from Modbus device
@@ -664,13 +691,14 @@ export class ConnectionPanel {
         port: config.tcp.port
       };
 
+      console.log(`🔌 Attempting to connect to Modbus TCP device at ${tcpConfig.host}:${tcpConfig.port}`);
+      console.log(`📊 Connection state: WS=${this.webSocketStatus}, TCP=${this.tcpConnectionStatus}, Reconnect attempts=${this.reconnectAttempts}`);
+
       // Store current config for status display
       this.currentTcpConfig = tcpConfig;
       
       // Connect to Modbus device via WebSocket proxy
       await this.webSocketService.connectToModbusDevice(tcpConfig);
-      
-      console.log(`Connecting to Modbus TCP device at ${tcpConfig.host}:${tcpConfig.port}`);
 
     } catch (error) {
       console.error('TCP connection failed:', error);

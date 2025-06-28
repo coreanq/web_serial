@@ -22,7 +22,7 @@ class TCPLoopbackServer {
       return {
         server: { host: '0.0.0.0', port: 502, name: 'TCP Loopback Server' },
         logging: { enabled: true, logConnections: true, logData: true },
-        options: { maxConnections: 10, timeout: 30000, keepAlive: true }
+        options: { maxConnections: 10, timeout: 300000, keepAlive: true }
       };
     }
   }

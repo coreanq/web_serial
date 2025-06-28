@@ -159,11 +159,11 @@ export class LogPanel {
     }, 150);
   }
 
-  private handleTooltipMouseOver = (e: Event) => {
+  private handleTooltipMouseOver = () => {
     // This will be bound to the class instance
   }
 
-  private handleTooltipMouseOut = (e: Event) => {
+  private handleTooltipMouseOut = () => {
     // This will be bound to the class instance  
   }
 

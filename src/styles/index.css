@@ -162,6 +162,44 @@
   .log-content-full {
     @apply h-full overflow-y-auto;
   }
+
+  /* Fix for log panel growth preventing command panel stretching */
+  .main-content-grid {
+    display: grid;
+    align-items: start;
+    height: 100%;
+  }
+  
+  .main-content-grid > * {
+    min-height: 0; /* Prevent flex items from growing beyond their container */
+  }
+  
+  /* Explicitly limit panel heights to prevent stretching */
+  .panel-height-limited {
+    max-height: 100%;
+    overflow: hidden;
+  }
+  
+  /* Fixed height grid layout for main content */
+  .fixed-height-grid {
+    height: calc(100vh - 200px); /* Subtract header and padding */
+    display: grid;
+    align-items: start;
+  }
+  
+  /* Ensure panels maintain fixed height */
+  .panel-fixed {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  
+  .panel-fixed .panel-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
 }
 
 @layer utilities {
