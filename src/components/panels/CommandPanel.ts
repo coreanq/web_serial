@@ -1,14 +1,20 @@
 export class CommandPanel {
-  private onCommandSend: (command: string) => void;
+  private onCommandSend: (command: string, isRepeating?: boolean) => void;
+  private onRepeatModeChanged?: (isRepeating: boolean) => void;
   private commandHistory: string[] = [];
   private historyIndex = -1;
   private connectionType: 'RTU' | 'TCP' = 'RTU';
   private lastConnectionType: 'RTU' | 'TCP' | null = null;
   private recentCommands: string[] = [];
   private maxRecentCommands = 10;
+  private repeatTimer: NodeJS.Timeout | null = null;
+  private isRepeating = false;
+  private repeatInterval = 1000; // Default 1 second
+  private checkedCommands: Set<string> = new Set(); // Track checked commands
 
-  constructor(onCommandSend: (command: string) => void) {
+  constructor(onCommandSend: (command: string, isRepeating?: boolean) => void, onRepeatModeChanged?: (isRepeating: boolean) => void) {
     this.onCommandSend = onCommandSend;
+    this.onRepeatModeChanged = onRepeatModeChanged;
   }
 
   mount(container: HTMLElement): void {
@@ -16,6 +22,11 @@ export class CommandPanel {
     this.attachEventListeners();
     // Apply initial AutoCRC setting based on current connection type
     this.updateAutoCrcForConnectionType(this.connectionType);
+  }
+
+  destroy(): void {
+    // Clean up repeat timer when component is destroyed
+    this.stopRepeatMode();
   }
 
   private render(): string {
@@ -57,14 +68,14 @@ export class CommandPanel {
               <textarea 
                 id="manual-hex-input"
                 class="input-field w-full h-20 font-mono text-sm resize-none"
-                placeholder="Enter Modbus PDU data:&#10;• HEX Mode: 01 03 00 00 00 0A (MBAP header auto-added for TCP)&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
+                placeholder="Enter Modbus PDU data:&#10;• HEX Mode: 01 03 00 00 00 0A&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
               ></textarea>
-              <div class="text-xs text-blue-400 mt-1">
-                💡 TCP Mode: MBAP header (Transaction ID + Protocol ID + Length + Unit ID) automatically added
-              </div>
               <div class="text-xs mt-1" id="hex-preview">
                 <span class="text-dark-text-muted">Preview:</span> 
                 <span class="text-dark-text-secondary font-mono">Enter data above (toggle ASCII Mode for text input)...</span>
+              </div>
+              <div class="text-xs text-blue-400 mt-1">
+                💡 RTU Mode: Device ID + Function Code + Data | TCP Mode: MBAP header (Transaction ID + Protocol ID + Length + Unit ID) automatically added
               </div>
             </div>
 
@@ -142,7 +153,26 @@ export class CommandPanel {
 
         <!-- Command History -->
         <div class="border-t border-dark-border pt-3">
-          <h3 class="text-sm font-medium text-dark-text-secondary mb-2">Recent Commands (Max 10)</h3>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-medium text-dark-text-secondary">Recent Commands (Max 10)</h3>
+            <div class="flex items-center gap-2">
+              <input 
+                type="number" 
+                id="repeat-interval" 
+                class="input-field text-xs w-16" 
+                value="1000" 
+                min="10" 
+                max="999999"
+                step="1"
+                pattern="[0-9]*"
+                placeholder="1000"
+                title="Interval in milliseconds (min 10ms, integers only)">
+              <span class="text-xs text-dark-text-muted">ms</span>
+              <button class="btn-secondary text-xs py-1 px-2" id="toggle-repeat">
+                Start
+              </button>
+            </div>
+          </div>
           <div class="space-y-1 max-h-32 overflow-y-auto scrollbar-thin" id="command-history">
             ${this.renderCommandHistory()}
           </div>
@@ -164,11 +194,13 @@ export class CommandPanel {
           class="rounded border-dark-border bg-dark-surface flex-shrink-0"
           data-repeat-command="${cmd}"
           title="Enable for periodic repeat sending"
+          ${this.checkedCommands.has(cmd) ? 'checked' : ''}
         >
         <button 
-          class="flex-1 text-left text-xs font-mono text-dark-text-primary hover:text-blue-400 transition-colors min-w-0 truncate"
+          class="flex-1 text-left text-xs font-mono text-dark-text-primary hover:text-blue-400 transition-colors min-w-0 truncate select-none"
           data-history-command="${cmd}"
-          title="Single click: Load to input field | Double click: Send directly"
+          title="Click: Send directly"
+          style="user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;"
         >
           ${cmd}
         </button>
@@ -227,6 +259,44 @@ export class CommandPanel {
     
     // Initialize function code UI
     this.handleFunctionCodeChange();
+
+    // Repeat interval input
+    const repeatIntervalInput = document.getElementById('repeat-interval') as HTMLInputElement;
+    if (repeatIntervalInput) {
+      // Ensure HTML value matches JavaScript initial value after DOM is ready
+      setTimeout(() => {
+        if (repeatIntervalInput) {
+          repeatIntervalInput.value = this.repeatInterval.toString();
+        }
+      }, 0);
+      
+      repeatIntervalInput.addEventListener('change', () => {
+        const value = parseInt(repeatIntervalInput.value, 10);
+        if (value >= 10 && Number.isInteger(value)) {
+          this.repeatInterval = value;
+        } else {
+          repeatIntervalInput.value = '10';
+          this.repeatInterval = 10;
+          alert('Minimum interval is 10ms (integers only)');
+        }
+      });
+      
+      // Also handle input event for real-time validation
+      repeatIntervalInput.addEventListener('input', () => {
+        const value = parseInt(repeatIntervalInput.value, 10);
+        if (isNaN(value) || value < 10) {
+          repeatIntervalInput.setCustomValidity('Minimum interval is 10ms');
+        } else {
+          repeatIntervalInput.setCustomValidity('');
+        }
+      });
+    }
+
+    // Toggle repeat button
+    const toggleRepeatButton = document.getElementById('toggle-repeat');
+    toggleRepeatButton?.addEventListener('click', () => {
+      this.toggleRepeatMode();
+    });
 
     // Manual HEX input keyboard shortcuts and formatting
     const manualHexInput = document.getElementById('manual-hex-input') as HTMLTextAreaElement;
@@ -315,22 +385,27 @@ export class CommandPanel {
   }
 
   private attachHistoryListeners(): void {
-    // Single click to use history command (set in input field)
+    // Handle single click to send history command directly (faster than double-click)
     document.querySelectorAll('[data-history-command]').forEach(button => {
+      let clickTimeout: NodeJS.Timeout | null = null;
+      
       button.addEventListener('click', (e) => {
-        const command = (e.target as HTMLElement).dataset.historyCommand;
-        if (command) {
-          this.setManualHexInput(command);
+        // Prevent default behavior and event propagation
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Clear any existing timeout
+        if (clickTimeout) {
+          clearTimeout(clickTimeout);
         }
-      });
-
-      // Double click to send history command directly
-      button.addEventListener('dblclick', (e) => {
-        const rawInput = (e.target as HTMLElement).dataset.historyCommand;
-        if (rawInput) {
-          // Send command directly without setting input field
-          this.sendCommandDirectly(rawInput);
-        }
+        
+        // Add small delay to prevent accidental rapid clicks
+        clickTimeout = setTimeout(() => {
+          const rawInput = (e.target as HTMLElement).dataset.historyCommand;
+          if (rawInput) {
+            this.sendCommandDirectly(rawInput);
+          }
+        }, 100); // 100ms delay to prevent rapid accidental clicks
       });
     });
 
@@ -345,13 +420,27 @@ export class CommandPanel {
       });
     });
 
-    // Handle repeat checkboxes (for future periodic sending feature)
+    // Handle repeat checkboxes
     document.querySelectorAll('[data-repeat-command]').forEach(checkbox => {
       checkbox.addEventListener('change', (e) => {
         const command = (e.target as HTMLInputElement).dataset.repeatCommand;
         const isChecked = (e.target as HTMLInputElement).checked;
+        
+        // Update checked commands set
+        if (command) {
+          if (isChecked) {
+            this.checkedCommands.add(command);
+          } else {
+            this.checkedCommands.delete(command);
+          }
+        }
+        
         console.log(`Repeat command ${isChecked ? 'enabled' : 'disabled'} for: ${command}`);
-        // TODO: Implement periodic sending logic here
+        
+        // If we're currently repeating and no commands are checked, stop the repeat
+        if (this.isRepeating && !this.hasCheckedCommands()) {
+          this.stopRepeatMode();
+        }
       });
     });
   }
@@ -409,6 +498,39 @@ export class CommandPanel {
     
     // Send command
     this.onCommandSend(command);
+  }
+
+  private sendCommandDirectlyWithoutHistory(rawInput: string, isAsciiMode?: boolean): void {
+    if (!rawInput) {
+      return;
+    }
+
+    // Determine ASCII mode from checkbox if not provided
+    if (isAsciiMode === undefined) {
+      const asciiModeCheckbox = document.getElementById('ascii-mode') as HTMLInputElement;
+      isAsciiMode = asciiModeCheckbox?.checked || false;
+    }
+
+    // Convert to HEX format based on input mode
+    let command: string;
+    if (isAsciiMode) {
+      command = this.asciiToHex(rawInput);
+    } else {
+      command = this.formatHexInput(rawInput);
+      if (!this.isValidHexInput(command)) {
+        console.error('Invalid HEX format during repeat mode:', rawInput);
+        return;
+      }
+    }
+
+    // Add CRC automatically for RTU mode if enabled
+    const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
+    if (autoCrcCheckbox?.checked && this.connectionType === 'RTU') {
+      command = this.addCrcToCommand(command);
+    }
+
+    // Send command without adding to recent commands
+    this.onCommandSend(command, false);
   }
 
   private buildCommand(): void {
@@ -1212,6 +1334,95 @@ export class CommandPanel {
     return registerData;
   }
 
+  private toggleRepeatMode(): void {
+    if (this.isRepeating) {
+      this.stopRepeatMode();
+    } else {
+      this.startRepeatMode();
+    }
+  }
+
+  private startRepeatMode(): void {
+    const checkedCommands = this.getCheckedCommands();
+    if (checkedCommands.length === 0) {
+      alert('Please check at least one command for periodic sending');
+      return;
+    }
+
+    this.isRepeating = true;
+    this.updateToggleButton();
+    
+    // Notify App that repeat mode started
+    if (this.onRepeatModeChanged) {
+      this.onRepeatModeChanged(true);
+    }
+    
+    let currentIndex = 0;
+    
+    const sendNextCommand = () => {
+      if (!this.isRepeating) return;
+      
+      const checkedCommands = this.getCheckedCommands();
+      if (checkedCommands.length === 0) {
+        this.stopRepeatMode();
+        return;
+      }
+      
+      // Send current command
+      const command = checkedCommands[currentIndex];
+      this.sendCommandDirectlyWithoutHistory(command);
+      
+      // Move to next command
+      currentIndex = (currentIndex + 1) % checkedCommands.length;
+      
+      // Schedule next send
+      this.repeatTimer = setTimeout(sendNextCommand, this.repeatInterval);
+    };
+    
+    // Start immediately
+    sendNextCommand();
+  }
+
+  private stopRepeatMode(): void {
+    this.isRepeating = false;
+    if (this.repeatTimer) {
+      clearTimeout(this.repeatTimer);
+      this.repeatTimer = null;
+    }
+    this.updateToggleButton();
+    
+    // Notify App that repeat mode stopped (to flush pending logs)
+    if (this.onRepeatModeChanged) {
+      this.onRepeatModeChanged(false);
+    }
+  }
+
+  private updateToggleButton(): void {
+    const toggleButton = document.getElementById('toggle-repeat') as HTMLButtonElement;
+    if (toggleButton) {
+      toggleButton.textContent = this.isRepeating ? 'Stop' : 'Start';
+      toggleButton.className = this.isRepeating ? 
+        'btn-secondary text-xs py-1 px-2 bg-red-600 hover:bg-red-700 text-white' : 
+        'btn-secondary text-xs py-1 px-2';
+    }
+  }
+
+  private getCheckedCommands(): string[] {
+    // Filter checkedCommands to only include commands that are still in recentCommands
+    const validCheckedCommands = Array.from(this.checkedCommands).filter(cmd => 
+      this.recentCommands.includes(cmd)
+    );
+    
+    // Update checkedCommands set to remove invalid commands
+    this.checkedCommands = new Set(validCheckedCommands);
+    
+    return validCheckedCommands;
+  }
+
+  private hasCheckedCommands(): boolean {
+    return this.getCheckedCommands().length > 0;
+  }
+
   private analyzePacketForPreview(hexData: string, connectionType: 'RTU' | 'TCP'): string | null {
     const cleaned = hexData.replace(/\s+/g, '').toUpperCase();
     if (cleaned.length < 2) return null;
@@ -1590,7 +1801,12 @@ export class CommandPanel {
   // Remove command from recent commands
   private removeFromRecentCommands(index: number): void {
     if (index >= 0 && index < this.recentCommands.length) {
+      const commandToRemove = this.recentCommands[index];
       this.recentCommands.splice(index, 1);
+      
+      // Also remove from checked commands if it was checked
+      this.checkedCommands.delete(commandToRemove);
+      
       this.updateHistoryDisplay();
     }
   }

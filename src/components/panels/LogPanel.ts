@@ -4,6 +4,7 @@ export class LogPanel {
   private logs: LogEntry[] = [];
   private isAutoScroll = true;
   private container: HTMLElement | null = null;
+  private onClearLogs?: () => void;
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -12,6 +13,10 @@ export class LogPanel {
     this.addCustomStyles();
     this.setupTooltipPositioning();
     this.generateSampleLogs();
+  }
+
+  setClearLogsCallback(callback: () => void): void {
+    this.onClearLogs = callback;
   }
 
   private addCustomStyles(): void {
@@ -616,9 +621,15 @@ export class LogPanel {
 
   private clearLogs(): void {
     if (confirm('Are you sure you want to clear all logs?')) {
-      this.logs = [];
-      this.refreshLogDisplay();
-      this.updateLogCount();
+      // Notify App to clear all logs (including pending repeat logs)
+      if (this.onClearLogs) {
+        this.onClearLogs();
+      } else {
+        // Fallback to clearing only local logs if no callback is set
+        this.logs = [];
+        this.refreshLogDisplay();
+        this.updateLogCount();
+      }
     }
   }
 

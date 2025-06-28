@@ -10,6 +10,9 @@ export class App {
   private commandPanel: CommandPanel;
   private connectionPanelPosition: 'top' | 'left' | 'right' = 'left';
   private connectionPanelVisible: boolean = true;
+  private pendingRepeatLogs: any[] = [];
+  private lastLogUpdateTime = 0;
+  private logUpdateThrottleMs = 250; // Update logs every 250ms during repeat mode for better sequence visibility
 
   constructor() {
     this.state = {
@@ -36,7 +39,7 @@ export class App {
       this.onDataReceived.bind(this)
     );
     this.logPanel = new LogPanel();
-    this.commandPanel = new CommandPanel(this.onCommandSend.bind(this));
+    this.commandPanel = new CommandPanel(this.onCommandSend.bind(this), this.onRepeatModeChanged.bind(this));
     
     // Set initial compact mode based on default position
     const isCompact = this.connectionPanelPosition === 'left' || this.connectionPanelPosition === 'right';
@@ -139,6 +142,8 @@ export class App {
 
     if (logContent) {
       this.logPanel.mount(logContent);
+      // Set callback for log clearing to handle pending repeat logs
+      this.logPanel.setClearLogsCallback(this.onLogsClear.bind(this));
     }
 
     if (commandContent) {
@@ -319,7 +324,7 @@ export class App {
     this.updateStatus();
   }
 
-  private async onCommandSend(command: string): Promise<void> {
+  private async onCommandSend(command: string, isRepeating?: boolean): Promise<void> {
     // Send command to actual connection if connected
     try {
       if (this.state.connectionStatus === 'connected') {
@@ -327,7 +332,7 @@ export class App {
         const currentConnectionType = this.getCurrentConnectionType();
         
         if (currentConnectionType === 'RTU') {
-          // For RTU, log the original command
+          // Create log entry
           const logEntry = {
             id: Date.now().toString(),
             timestamp: new Date(),
@@ -335,14 +340,22 @@ export class App {
             data: command
           };
           
-          this.state.logs.push(logEntry);
-          this.logPanel.updateLogs(this.state.logs);
+          if (isRepeating) {
+            // Add to pending logs and update with throttling
+            this.addToThrottledLogs(logEntry);
+          } else {
+            // Immediate update for non-repeating commands
+            this.state.logs.push(logEntry);
+            this.logPanel.updateLogs(this.state.logs);
+          }
           
           // Get serial service from connection panel
           const serialService = this.connectionPanel.getSerialService();
           if (serialService && serialService.getConnectionStatus()) {
             await serialService.sendHexString(command);
-            console.log('RTU Command sent successfully:', command);
+            if (!isRepeating) {
+              console.log('RTU Command sent successfully:', command);
+            }
           }
         } else if (currentConnectionType === 'TCP') {
           // Get WebSocket service from connection panel
@@ -351,7 +364,7 @@ export class App {
             // Get the actual data that will be sent (with MBAP header)
             const actualSentData = this.getActualTcpData(command);
             
-            // Log the actual data being sent (with MBAP header)
+            // Create log entry
             const logEntry = {
               id: Date.now().toString(),
               timestamp: new Date(),
@@ -359,29 +372,102 @@ export class App {
               data: actualSentData
             };
             
-            this.state.logs.push(logEntry);
-            this.logPanel.updateLogs(this.state.logs);
+            if (isRepeating) {
+              // Add to pending logs and update with throttling
+              this.addToThrottledLogs(logEntry);
+            } else {
+              // Immediate update for non-repeating commands
+              this.state.logs.push(logEntry);
+              this.logPanel.updateLogs(this.state.logs);
+            }
             
             await webSocketService.sendModbusCommand(command);
-            console.log('TCP Command sent successfully:', command);
+            if (!isRepeating) {
+              console.log('TCP Command sent successfully:', command);
+            }
           }
         }
       }
     } catch (error) {
       console.error('Failed to send command:', error);
       
-      // Add error to log
-      const errorLogEntry = {
-        id: (Date.now() + 1).toString(),
-        timestamp: new Date(),
-        direction: 'recv' as const,
-        data: '',
-        error: error instanceof Error ? error.message : String(error)
-      };
-      
-      this.state.logs.push(errorLogEntry);
-      this.logPanel.updateLogs(this.state.logs);
+      // Only add error to log if not repeating (errors are rare and should be shown immediately)
+      if (!isRepeating) {
+        const errorLogEntry = {
+          id: (Date.now() + 1).toString(),
+          timestamp: new Date(),
+          direction: 'recv' as const,
+          data: '',
+          error: error instanceof Error ? error.message : String(error)
+        };
+        
+        this.state.logs.push(errorLogEntry);
+        this.logPanel.updateLogs(this.state.logs);
+      }
     }
+  }
+
+  private addToThrottledLogs(logEntry: any): void {
+    this.pendingRepeatLogs.push(logEntry);
+    
+    const now = Date.now();
+    if (now - this.lastLogUpdateTime >= this.logUpdateThrottleMs) {
+      this.flushThrottledLogs();
+    }
+  }
+
+  private flushThrottledLogs(): void {
+    if (this.pendingRepeatLogs.length === 0) return;
+    
+    const logCount = this.pendingRepeatLogs.length;
+    
+    // Insert pending logs in chronological order to maintain sequence
+    this.pendingRepeatLogs.forEach(pendingLog => {
+      // Find the correct position to insert based on timestamp
+      const insertIndex = this.state.logs.findIndex(existingLog => 
+        existingLog.timestamp > pendingLog.timestamp
+      );
+      
+      if (insertIndex === -1) {
+        // No log found with later timestamp, append to end
+        this.state.logs.push(pendingLog);
+      } else {
+        // Insert at the correct chronological position
+        this.state.logs.splice(insertIndex, 0, pendingLog);
+      }
+    });
+    
+    this.logPanel.updateLogs(this.state.logs);
+    
+    // Clear pending logs and update timestamp
+    this.pendingRepeatLogs = [];
+    this.lastLogUpdateTime = Date.now();
+    
+  }
+
+  private flushPendingLogs(): void {
+    if (this.pendingRepeatLogs.length > 0) {
+      this.flushThrottledLogs();
+    }
+  }
+
+  private onRepeatModeChanged(isRepeating: boolean): void {
+    if (!isRepeating) {
+      // Repeat mode stopped, flush any remaining pending logs
+      this.flushPendingLogs();
+    }
+    
+  }
+
+  private onLogsClear(): void {
+    // Clear all logs including pending repeat logs
+    this.state.logs = [];
+    this.pendingRepeatLogs = [];
+    this.lastLogUpdateTime = 0;
+    
+    // Update the log panel
+    this.logPanel.updateLogs(this.state.logs);
+    
   }
 
   private getCurrentConnectionType(): 'RTU' | 'TCP' {
@@ -415,7 +501,12 @@ export class App {
   }
 
   private onDataReceived(data: string): void {
-    // Add received data to log
+    // Flush any pending repeat logs first to maintain chronological order
+    if (this.pendingRepeatLogs.length > 0) {
+      this.flushThrottledLogs();
+    }
+    
+    // Add received data to log immediately
     const logEntry = {
       id: Date.now().toString(),
       timestamp: new Date(),
