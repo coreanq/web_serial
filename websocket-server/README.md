@@ -8,7 +8,34 @@
 Browser (WebSocket) ↔ Proxy Server ↔ Modbus Device (TCP)
 ```
 
-## 설치 및 실행
+## 빠른 시작 (실행 파일 사용)
+
+가장 간단한 방법입니다. Node.js 설치가 불필요합니다.
+
+### 1. 실행 파일 빌드
+```bash
+# 모든 플랫폼용 빌드
+npm run build:all
+
+# 또는 특정 플랫폼용 빌드
+npm run build:win    # Windows
+npm run build:mac    # macOS  
+npm run build:linux  # Linux
+```
+
+### 2. 실행 파일 사용
+```bash
+# Windows
+dist/modbus-proxy-windows.exe
+
+# macOS
+./dist/modbus-proxy-macos
+
+# Linux
+./dist/modbus-proxy-linux
+```
+
+## 개발 환경 설정
 
 ### 1. 의존성 설치
 ```bash
@@ -26,6 +53,18 @@ npm run dev
 ```
 
 서버는 기본적으로 포트 8080에서 실행됩니다.
+
+## 빌드 스크립트
+
+편의를 위해 제공되는 빌드 스크립트:
+
+```bash
+# Unix/Linux/macOS
+./build.sh
+
+# Windows
+build.bat
+```
 
 ## 사용법
 

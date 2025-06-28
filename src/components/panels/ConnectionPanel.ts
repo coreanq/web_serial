@@ -493,19 +493,87 @@ export class ConnectionPanel {
     });
     document.querySelector(`[data-tab="${tabType}"]`)?.classList.add('active');
 
-    // Auto-connect to WebSocket when switching to TCP tab
+    // Auto-connect to WebSocket when switching to TCP tab with server status check
     if (tabType === 'TCP' && !this.webSocketService.isConnected()) {
-      console.log('TCP tab selected, connecting to WebSocket...');
+      console.log('TCP tab selected, checking proxy server status...');
       this.webSocketStatus = 'connecting';
       this.updateWebSocketStatusDisplay();
-      this.webSocketService.connect().then(() => {
+      
+      // Check if proxy server is running first
+      this.webSocketService.checkServerStatus().then(status => {
+        if (status.running) {
+          console.log('Proxy server is running, connecting...');
+          return this.webSocketService.connect();
+        } else {
+          console.warn('Proxy server not running:', status.error);
+          this.webSocketStatus = 'error';
+          this.updateWebSocketStatusDisplay();
+          this.showProxyServerGuide(status.error || 'Proxy server not available');
+          throw new Error(status.error || 'Proxy server not running');
+        }
+      }).then(() => {
         console.log('WebSocket connection completed successfully');
       }).catch(error => {
-        console.error('Auto WebSocket connection failed:', error);
+        console.error('WebSocket connection failed:', error);
         this.webSocketStatus = 'error';
         this.updateWebSocketStatusDisplay();
       });
     }
+  }
+
+  // Show proxy server download and setup guide
+  private showProxyServerGuide(errorMessage: string): void {
+    const guideHtml = `
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="proxy-guide-modal">
+        <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-md mx-4 shadow-xl">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-dark-text-primary">Proxy Server Required</h3>
+            <button class="text-dark-text-muted hover:text-dark-text-primary" onclick="document.getElementById('proxy-guide-modal').remove()">
+              ✕
+            </button>
+          </div>
+          
+          <div class="mb-4">
+            <p class="text-sm text-dark-text-secondary mb-2">${errorMessage}</p>
+            <p class="text-sm text-dark-text-secondary">TCP/IP Modbus 기능을 사용하려면 프록시 서버가 필요합니다.</p>
+          </div>
+          
+          <div class="space-y-3">
+            <div class="bg-dark-panel rounded p-3">
+              <h4 class="text-sm font-medium text-dark-text-primary mb-2">📥 다운로드 & 실행</h4>
+              <p class="text-xs text-dark-text-muted mb-2">플랫폼에 맞는 실행 파일을 다운로드하세요:</p>
+              <div class="space-y-1 text-xs">
+                <div>• Windows: <code class="bg-dark-surface px-1 rounded">modbus-proxy-windows.exe</code></div>
+                <div>• macOS: <code class="bg-dark-surface px-1 rounded">modbus-proxy-macos</code></div>
+                <div>• Linux: <code class="bg-dark-surface px-1 rounded">modbus-proxy-linux</code></div>
+              </div>
+            </div>
+            
+            <div class="bg-dark-panel rounded p-3">
+              <h4 class="text-sm font-medium text-dark-text-primary mb-2">🚀 실행 방법</h4>
+              <p class="text-xs text-dark-text-muted mb-1">1. 다운로드한 파일을 더블클릭하여 실행</p>
+              <p class="text-xs text-dark-text-muted mb-1">2. 서버가 포트 8080에서 시작됨</p>
+              <p class="text-xs text-dark-text-muted">3. 이 페이지에서 TCP 탭을 다시 클릭</p>
+            </div>
+          </div>
+          
+          <div class="flex gap-2 mt-4">
+            <button class="btn-primary flex-1 text-sm" onclick="window.open('https://github.com/your-repo/releases', '_blank')">
+              📥 다운로드
+            </button>
+            <button class="btn-secondary text-sm" onclick="document.getElementById('proxy-guide-modal').remove()">
+              나중에
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Remove existing modal if any
+    document.getElementById('proxy-guide-modal')?.remove();
+    
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', guideHtml);
   }
 
   // Load previously granted serial ports

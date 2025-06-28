@@ -19,6 +19,44 @@ export class WebSocketService {
   private messageDebounceMs = 50; // 50ms debounce for duplicate messages
   
   constructor(private serverUrl: string = 'ws://localhost:8080') {}
+
+  // Check if proxy server is running
+  async checkServerStatus(): Promise<{ running: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const testWs = new WebSocket(this.serverUrl);
+      const timeout = setTimeout(() => {
+        testWs.close();
+        resolve({ 
+          running: false, 
+          error: 'Connection timeout - proxy server may not be running' 
+        });
+      }, 3000); // 3 second timeout
+
+      testWs.onopen = () => {
+        clearTimeout(timeout);
+        testWs.close();
+        resolve({ running: true });
+      };
+
+      testWs.onerror = () => {
+        clearTimeout(timeout);
+        resolve({ 
+          running: false, 
+          error: 'Cannot connect to proxy server - please start the proxy server' 
+        });
+      };
+
+      testWs.onclose = (event) => {
+        clearTimeout(timeout);
+        if (event.code === 1006) {
+          resolve({ 
+            running: false, 
+            error: 'Proxy server not responding - please check if server is running on port 8080' 
+          });
+        }
+      };
+    });
+  }
   
   async connect(): Promise<void> {
     if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
