@@ -4,6 +4,8 @@ export class CommandPanel {
   private historyIndex = -1;
   private connectionType: 'RTU' | 'TCP' = 'RTU';
   private lastConnectionType: 'RTU' | 'TCP' | null = null;
+  private recentCommands: string[] = [];
+  private maxRecentCommands = 10;
 
   constructor(onCommandSend: (command: string) => void) {
     this.onCommandSend = onCommandSend;
@@ -113,8 +115,8 @@ export class CommandPanel {
 
         <!-- Command History -->
         <div class="border-t border-dark-border pt-3">
-          <h3 class="text-sm font-medium text-dark-text-secondary mb-2">Recent Commands</h3>
-          <div class="space-y-1 max-h-20 overflow-y-auto scrollbar-thin" id="command-history">
+          <h3 class="text-sm font-medium text-dark-text-secondary mb-2">Recent Commands (Max 10)</h3>
+          <div class="space-y-1 max-h-32 overflow-y-auto scrollbar-thin" id="command-history">
             ${this.renderCommandHistory()}
           </div>
         </div>
@@ -123,19 +125,35 @@ export class CommandPanel {
   }
 
   private renderCommandHistory(): string {
-    if (this.commandHistory.length === 0) {
-      return '<p class="text-xs text-dark-text-muted">No recent commands</p>';
+    if (this.recentCommands.length === 0) {
+      return '<p class="text-xs text-dark-text-muted text-center py-2">No recent commands yet</p>';
     }
 
-    return this.commandHistory
-      .slice(-5) // Show last 5 commands
-      .reverse()
-      .map(cmd => `
-        <button class="text-xs text-dark-text-secondary hover:text-dark-text-primary font-mono w-full text-left p-1 rounded hover:bg-dark-panel transition-colors" 
-                data-history-command="${cmd}">
+    return this.recentCommands.map((cmd, index) => `
+      <div class="flex items-center gap-2 p-1 bg-dark-surface rounded border border-dark-border hover:bg-dark-panel transition-colors">
+        <input 
+          type="checkbox" 
+          id="repeat-${index}" 
+          class="rounded border-dark-border bg-dark-surface flex-shrink-0"
+          data-repeat-command="${cmd}"
+          title="Enable for periodic repeat sending"
+        >
+        <button 
+          class="flex-1 text-left text-xs font-mono text-dark-text-primary hover:text-blue-400 transition-colors min-w-0 truncate"
+          data-history-command="${cmd}"
+          title="Single click: Load to input field | Double click: Send directly"
+        >
           ${cmd}
         </button>
-      `).join('');
+        <button 
+          class="text-xs text-red-400 hover:text-red-300 px-1 flex-shrink-0"
+          data-remove-history="${index}"
+          title="Remove from recent commands"
+        >
+          ✕
+        </button>
+      </div>
+    `).join('');
   }
 
   private attachEventListeners(): void {
@@ -240,23 +258,43 @@ export class CommandPanel {
   }
 
   private attachHistoryListeners(): void {
+    // Single click to use history command (set in input field)
     document.querySelectorAll('[data-history-command]').forEach(button => {
       button.addEventListener('click', (e) => {
         const command = (e.target as HTMLElement).dataset.historyCommand;
         if (command) {
-          // Remove CRC from history commands for manual editing
-          const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
-          let commandToSet = command;
-          
-          if (autoCrcCheckbox?.checked && this.connectionType === 'RTU') {
-            const bytes = command.replace(/\s+/g, '');
-            if (bytes.length >= 8) { // Remove last 2 bytes (CRC)
-              commandToSet = bytes.substring(0, bytes.length - 4).replace(/(.{2})/g, '$1 ').trim();
-            }
-          }
-          
-          this.setManualHexInput(commandToSet);
+          this.setManualHexInput(command);
         }
+      });
+
+      // Double click to send history command directly
+      button.addEventListener('dblclick', (e) => {
+        const rawInput = (e.target as HTMLElement).dataset.historyCommand;
+        if (rawInput) {
+          // Send command directly without setting input field
+          this.sendCommandDirectly(rawInput);
+        }
+      });
+    });
+
+    // Click to remove history command
+    document.querySelectorAll('[data-remove-history]').forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering the use command click
+        const index = parseInt((e.target as HTMLElement).dataset.removeHistory || '');
+        if (!isNaN(index)) {
+          this.removeFromRecentCommands(index);
+        }
+      });
+    });
+
+    // Handle repeat checkboxes (for future periodic sending feature)
+    document.querySelectorAll('[data-repeat-command]').forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        const command = (e.target as HTMLInputElement).dataset.repeatCommand;
+        const isChecked = (e.target as HTMLInputElement).checked;
+        console.log(`Repeat command ${isChecked ? 'enabled' : 'disabled'} for: ${command}`);
+        // TODO: Implement periodic sending logic here
       });
     });
   }
@@ -270,6 +308,25 @@ export class CommandPanel {
     if (!rawInput) {
       alert('Please enter a command');
       return;
+    }
+
+    // Send the command
+    this.sendCommandDirectly(rawInput, isAsciiMode);
+    
+    // Clear input
+    manualHexInput.value = '';
+    this.updateHexPreview();
+  }
+
+  private sendCommandDirectly(rawInput: string, isAsciiMode?: boolean): void {
+    if (!rawInput) {
+      return;
+    }
+
+    // Determine ASCII mode from checkbox if not provided
+    if (isAsciiMode === undefined) {
+      const asciiModeCheckbox = document.getElementById('ascii-mode') as HTMLInputElement;
+      isAsciiMode = asciiModeCheckbox?.checked || false;
     }
 
     // Convert to HEX format based on input mode
@@ -290,15 +347,11 @@ export class CommandPanel {
       command = this.addCrcToCommand(command);
     }
 
-    // Add to history (store the final HEX command)
-    this.addToHistory(command);
+    // Add to recent commands (store the original input for reuse)
+    this.addToRecentCommands(rawInput);
     
     // Send command
     this.onCommandSend(command);
-    
-    // Clear input
-    manualHexInput.value = '';
-    this.updateHexPreview();
   }
 
   private buildCommand(): void {
@@ -643,6 +696,9 @@ export class CommandPanel {
       modeInfoContainer.innerHTML = this.renderModeInfo();
     }
     
+    // Also update history display to ensure listeners are attached
+    this.updateHistoryDisplay();
+    
     console.log(`Quick commands updated for ${type} mode`);
   }
 
@@ -659,6 +715,7 @@ export class CommandPanel {
       });
     });
   }
+
 
   // Render quick command buttons based on connection type
   private renderQuickCommands(): string {
@@ -713,6 +770,36 @@ export class CommandPanel {
       `;
     }
   }
+
+  // Add command to recent commands list
+  private addToRecentCommands(command: string): void {
+    // Remove if already exists
+    const existingIndex = this.recentCommands.indexOf(command);
+    if (existingIndex !== -1) {
+      this.recentCommands.splice(existingIndex, 1);
+    }
+    
+    // Add to beginning
+    this.recentCommands.unshift(command);
+    
+    // Keep only last 10 commands
+    if (this.recentCommands.length > this.maxRecentCommands) {
+      this.recentCommands = this.recentCommands.slice(0, this.maxRecentCommands);
+    }
+    
+    // Update UI
+    this.updateHistoryDisplay();
+  }
+
+  // Remove command from recent commands
+  private removeFromRecentCommands(index: number): void {
+    if (index >= 0 && index < this.recentCommands.length) {
+      this.recentCommands.splice(index, 1);
+      this.updateHistoryDisplay();
+    }
+  }
+
+
 
   // Auto-configure CRC setting based on connection type
   private updateAutoCrcForConnectionType(type: 'RTU' | 'TCP'): void {

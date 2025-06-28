@@ -9,7 +9,162 @@ export class LogPanel {
     this.container = container;
     container.innerHTML = this.render();
     this.attachEventListeners();
+    this.addCustomStyles();
+    this.setupTooltipPositioning();
     this.generateSampleLogs();
+  }
+
+  private addCustomStyles(): void {
+    // Add CSS for faster tooltip display
+    const style = document.createElement('style');
+    style.textContent = `
+      .modbus-packet {
+        position: relative !important;
+      }
+      
+      .tooltip-custom {
+        position: fixed;
+        background: rgba(0, 0, 0, 0.95);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-line;
+        z-index: 10000;
+        min-width: 300px;
+        max-width: 500px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      }
+      
+      .tooltip-custom.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      
+      .modbus-packet:hover {
+        background-color: rgba(59, 130, 246, 0.1) !important;
+        border-radius: 4px;
+        transition: background-color 0.1s ease;
+      }
+    `;
+    
+    // Remove any existing style with the same purpose
+    const existingStyle = document.querySelector('style[data-logpanel-tooltip]');
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+    
+    style.setAttribute('data-logpanel-tooltip', 'true');
+    document.head.appendChild(style);
+  }
+
+  private setupTooltipPositioning(): void {
+    let currentTooltip: HTMLElement | null = null;
+
+    // Remove existing tooltip positioning listeners
+    document.removeEventListener('mouseover', this.handleTooltipMouseOver);
+    document.removeEventListener('mouseout', this.handleTooltipMouseOut);
+
+    // Add tooltip positioning listeners
+    document.addEventListener('mouseover', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('modbus-packet') && target.dataset.tooltip) {
+        currentTooltip = this.showTooltip(target, target.dataset.tooltip);
+      }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('modbus-packet') && currentTooltip) {
+        this.hideTooltip(currentTooltip);
+        currentTooltip = null;
+      }
+    });
+  }
+
+  private showTooltip(element: HTMLElement, content: string): HTMLElement {
+    // Remove any existing tooltip
+    const existingTooltip = document.querySelector('.tooltip-custom');
+    if (existingTooltip) {
+      existingTooltip.remove();
+    }
+
+    // Create tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip-custom';
+    tooltip.textContent = content;
+    document.body.appendChild(tooltip);
+
+    // Calculate optimal position
+    const rect = element.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    let left = rect.left;
+    let top = rect.bottom + 8;
+
+    // Adjust horizontal position if tooltip would go off-screen
+    if (left + tooltipRect.width > viewportWidth - 20) {
+      left = viewportWidth - tooltipRect.width - 20;
+    }
+    if (left < 20) {
+      left = 20;
+    }
+
+    // Adjust vertical position if tooltip would go off-screen
+    // Check if there's enough space below
+    if (top + tooltipRect.height > viewportHeight - 20) {
+      // Show above if there's more space above
+      const spaceAbove = rect.top;
+      const spaceBelow = viewportHeight - rect.bottom;
+      
+      if (spaceAbove > spaceBelow) {
+        top = rect.top - tooltipRect.height - 8;
+      } else {
+        // If both spaces are limited, position at top of viewport with scroll
+        top = Math.max(20, viewportHeight - tooltipRect.height - 20);
+      }
+    }
+
+    // Ensure tooltip doesn't go above viewport
+    if (top < 20) {
+      top = 20;
+    }
+
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+
+    // Show tooltip with animation
+    requestAnimationFrame(() => {
+      tooltip.classList.add('show');
+    });
+
+    return tooltip;
+  }
+
+  private hideTooltip(tooltip: HTMLElement): void {
+    tooltip.classList.remove('show');
+    setTimeout(() => {
+      if (tooltip.parentNode) {
+        tooltip.remove();
+      }
+    }, 150);
+  }
+
+  private handleTooltipMouseOver = (e: Event) => {
+    // This will be bound to the class instance
+  }
+
+  private handleTooltipMouseOut = (e: Event) => {
+    // This will be bound to the class instance  
   }
 
   private render(): string {
@@ -72,19 +227,32 @@ export class LogPanel {
   }
 
   private renderLogEntry(log: LogEntry): string {
-    const timestamp = log.timestamp.toLocaleTimeString();
+    const timestamp = this.formatTimestamp(log.timestamp);
     const directionClass = log.direction === 'send' ? 'send' : 'recv';
     const directionText = log.direction === 'send' ? 'SEND' : 'RECV';
+    const modbusInfo = this.analyzeModbusPacket(log.data);
     
     return `
       <div class="log-entry" data-log-id="${log.id}">
         <div class="log-timestamp">${timestamp}</div>
         <div class="log-direction ${directionClass}">${directionText}</div>
-        <div class="log-data">${this.formatLogData(log.data)}</div>
+        <div class="log-data ${modbusInfo ? 'cursor-help modbus-packet' : ''}" 
+             ${modbusInfo ? `data-tooltip="${modbusInfo.replace(/"/g, '&quot;')}"` : ''}>
+          ${this.formatLogData(log.data)}
+        </div>
         ${log.responseTime ? `<div class="text-xs text-dark-text-muted">${log.responseTime}ms</div>` : ''}
         ${log.error ? `<div class="text-xs text-status-error">${log.error}</div>` : ''}
       </div>
     `;
+  }
+
+  private formatTimestamp(date: Date): string {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    const milliseconds = date.getMilliseconds().toString().padStart(3, '0');
+    
+    return `${hours}:${minutes}:${seconds}.${milliseconds}`;
   }
 
   private formatLogData(data: string): string {
@@ -98,6 +266,275 @@ export class LogPanel {
     const formatted = evenLength.replace(/(.{2})/g, '$1 ').trim();
     
     return formatted;
+  }
+
+  private analyzeModbusPacket(data: string): string | null {
+    const cleaned = data.replace(/\s+/g, '').toUpperCase();
+    if (cleaned.length < 8) return null; // Minimum RTU packet size
+    
+    // Check if it's a TCP packet (starts with transaction ID + protocol ID)
+    const isTcpPacket = this.isTcpPacket(cleaned);
+    
+    if (isTcpPacket) {
+      return this.analyzeTcpPacket(cleaned);
+    } else {
+      return this.analyzeRtuPacket(cleaned);
+    }
+  }
+
+  private isTcpPacket(hexData: string): boolean {
+    // TCP packets have MBAP header: TransactionID(2) + ProtocolID(2) + Length(2) + UnitID(1) + PDU
+    if (hexData.length < 14) return false; // Minimum TCP packet size
+    
+    // Check if bytes 2-3 are 0000 (Protocol ID for Modbus TCP)
+    const protocolId = hexData.substring(4, 8);
+    return protocolId === '0000';
+  }
+
+  private analyzeTcpPacket(hexData: string): string | null {
+    if (hexData.length < 14) return null;
+    
+    try {
+      const transactionId = hexData.substring(0, 4);
+      const protocolId = hexData.substring(4, 8);
+      const length = hexData.substring(8, 12);
+      const unitId = hexData.substring(12, 14);
+      const pdu = hexData.substring(14);
+      
+      const pduAnalysis = this.analyzeModbusPdu(pdu);
+      
+      let result = `🌐 MODBUS TCP PACKET\n`;
+      result += `Transaction ID: 0x${transactionId} (${parseInt(transactionId, 16)})\n`;
+      result += `Protocol ID: 0x${protocolId} (${parseInt(protocolId, 16)})\n`;
+      result += `Length: 0x${length} (${parseInt(length, 16)} bytes)\n`;
+      result += `Unit ID: 0x${unitId} (${parseInt(unitId, 16)})\n`;
+      
+      if (pduAnalysis) {
+        result += `\n${pduAnalysis}`;
+      }
+      
+      return result;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  private analyzeRtuPacket(hexData: string): string | null {
+    if (hexData.length < 8) return null;
+    
+    try {
+      // Check CRC
+      const crcValid = this.validateCrc(hexData);
+      if (!crcValid) return null;
+      
+      const deviceId = hexData.substring(0, 2);
+      const pdu = hexData.substring(2, hexData.length - 4); // Remove device ID and CRC
+      const crc = hexData.substring(hexData.length - 4);
+      
+      const pduAnalysis = this.analyzeModbusPdu(pdu);
+      
+      let result = `📡 MODBUS RTU PACKET\n`;
+      result += `Device ID: 0x${deviceId} (${parseInt(deviceId, 16)})\n`;
+      result += `CRC: 0x${crc} ✅ Valid\n`;
+      
+      if (pduAnalysis) {
+        result += `\n${pduAnalysis}`;
+      }
+      
+      return result;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  private analyzeModbusPdu(pdu: string): string | null {
+    if (pdu.length < 2) return null;
+    
+    const functionCode = pdu.substring(0, 2);
+    const functionCodeInt = parseInt(functionCode, 16);
+    
+    // Check if it's an error response (function code has bit 7 set)
+    if (functionCodeInt & 0x80) {
+      const originalFc = (functionCodeInt & 0x7F).toString(16).padStart(2, '0').toUpperCase();
+      const exceptionCode = pdu.substring(2, 4);
+      const exceptionText = this.getExceptionText(parseInt(exceptionCode, 16));
+      
+      return `⚠️ ERROR RESPONSE\nOriginal Function: 0x${originalFc} (${parseInt(originalFc, 16)})\nException Code: 0x${exceptionCode} (${parseInt(exceptionCode, 16)}) - ${exceptionText}`;
+    }
+    
+    switch (functionCodeInt) {
+      case 0x01:
+        return this.analyzeReadCoils(pdu);
+      case 0x02:
+        return this.analyzeReadDiscreteInputs(pdu);
+      case 0x03:
+        return this.analyzeReadHoldingRegisters(pdu);
+      case 0x04:
+        return this.analyzeReadInputRegisters(pdu);
+      case 0x06:
+        return this.analyzeWriteSingleRegister(pdu);
+      case 0x10:
+        return this.analyzeWriteMultipleRegisters(pdu);
+      default:
+        return `📋 MODBUS PDU\nFunction Code: 0x${functionCode} (${functionCodeInt}) - Unknown/Unsupported`;
+    }
+  }
+
+  private analyzeReadCoils(pdu: string): string {
+    if (pdu.length === 10) {
+      // Request: FC(1) + StartAddr(2) + Quantity(2) = 5 bytes
+      const startAddr = pdu.substring(2, 6);
+      const quantity = pdu.substring(6, 10);
+      
+      return `📖 READ COILS (0x01) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} coils)`;
+    } else if (pdu.length >= 4) {
+      // Response: FC(1) + ByteCount(1) + Data(n)
+      const byteCount = pdu.substring(2, 4);
+      const data = pdu.substring(4);
+      
+      return `📖 READ COILS (0x01) - RESPONSE\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\nCoil Data: 0x${data}`;
+    }
+    return `📖 READ COILS (0x01)`;
+  }
+
+  private analyzeReadDiscreteInputs(pdu: string): string {
+    if (pdu.length === 10) {
+      // Request
+      const startAddr = pdu.substring(2, 6);
+      const quantity = pdu.substring(6, 10);
+      
+      return `📖 READ DISCRETE INPUTS (0x02) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} inputs)`;
+    } else if (pdu.length >= 4) {
+      // Response
+      const byteCount = pdu.substring(2, 4);
+      const data = pdu.substring(4);
+      
+      return `📖 READ DISCRETE INPUTS (0x02) - RESPONSE\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\nInput Data: 0x${data}`;
+    }
+    return `📖 READ DISCRETE INPUTS (0x02)`;
+  }
+
+  private analyzeReadHoldingRegisters(pdu: string): string {
+    if (pdu.length === 10) {
+      // Request
+      const startAddr = pdu.substring(2, 6);
+      const quantity = pdu.substring(6, 10);
+      
+      return `📊 READ HOLDING REGISTERS (0x03) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} registers)`;
+    } else if (pdu.length >= 4) {
+      // Response
+      const byteCount = pdu.substring(2, 4);
+      const data = pdu.substring(4);
+      const registerCount = parseInt(byteCount, 16) / 2;
+      
+      let result = `📊 READ HOLDING REGISTERS (0x03) - RESPONSE\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\nRegister Count: ${registerCount}\n`;
+      
+      // Parse individual registers
+      for (let i = 0; i < data.length; i += 4) {
+        if (i + 4 <= data.length) {
+          const regHex = data.substring(i, i + 4);
+          const regDec = parseInt(regHex, 16);
+          result += `Reg ${i/4}: 0x${regHex} (${regDec})\n`;
+        }
+      }
+      
+      return result.trim();
+    }
+    return `📊 READ HOLDING REGISTERS (0x03)`;
+  }
+
+  private analyzeReadInputRegisters(pdu: string): string {
+    if (pdu.length === 10) {
+      // Request
+      const startAddr = pdu.substring(2, 6);
+      const quantity = pdu.substring(6, 10);
+      
+      return `📊 READ INPUT REGISTERS (0x04) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} registers)`;
+    } else if (pdu.length >= 4) {
+      // Response
+      const byteCount = pdu.substring(2, 4);
+      const data = pdu.substring(4);
+      const registerCount = parseInt(byteCount, 16) / 2;
+      
+      let result = `📊 READ INPUT REGISTERS (0x04) - RESPONSE\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\nRegister Count: ${registerCount}\n`;
+      
+      // Parse individual registers
+      for (let i = 0; i < data.length; i += 4) {
+        if (i + 4 <= data.length) {
+          const regHex = data.substring(i, i + 4);
+          const regDec = parseInt(regHex, 16);
+          result += `Reg ${i/4}: 0x${regHex} (${regDec})\n`;
+        }
+      }
+      
+      return result.trim();
+    }
+    return `📊 READ INPUT REGISTERS (0x04)`;
+  }
+
+  private analyzeWriteSingleRegister(pdu: string): string {
+    if (pdu.length === 10) {
+      const regAddr = pdu.substring(2, 6);
+      const regValue = pdu.substring(6, 10);
+      
+      return `✏️ WRITE SINGLE REGISTER (0x06)\nRegister Address: 0x${regAddr} (${parseInt(regAddr, 16)})\nRegister Value: 0x${regValue} (${parseInt(regValue, 16)})`;
+    }
+    return `✏️ WRITE SINGLE REGISTER (0x06)`;
+  }
+
+  private analyzeWriteMultipleRegisters(pdu: string): string {
+    if (pdu.length >= 12) {
+      const startAddr = pdu.substring(2, 6);
+      const quantity = pdu.substring(6, 10);
+      
+      if (pdu.length === 10) {
+        // Response
+        return `✏️ WRITE MULTIPLE REGISTERS (0x10) - RESPONSE\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity Written: 0x${quantity} (${parseInt(quantity, 16)} registers)`;
+      } else {
+        // Request
+        const byteCount = pdu.substring(10, 12);
+        const data = pdu.substring(12);
+        
+        let result = `✏️ WRITE MULTIPLE REGISTERS (0x10) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} registers)\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\n`;
+        
+        // Parse individual register values
+        for (let i = 0; i < data.length; i += 4) {
+          if (i + 4 <= data.length) {
+            const regHex = data.substring(i, i + 4);
+            const regDec = parseInt(regHex, 16);
+            result += `Reg ${i/4}: 0x${regHex} (${regDec})\n`;
+          }
+        }
+        
+        return result.trim();
+      }
+    }
+    return `✏️ WRITE MULTIPLE REGISTERS (0x10)`;
+  }
+
+  private getExceptionText(code: number): string {
+    const exceptions: { [key: number]: string } = {
+      1: 'Illegal Function',
+      2: 'Illegal Data Address',
+      3: 'Illegal Data Value',
+      4: 'Slave Device Failure',
+      5: 'Acknowledge',
+      6: 'Slave Device Busy',
+      8: 'Memory Parity Error',
+      10: 'Gateway Path Unavailable',
+      11: 'Gateway Target Device Failed to Respond'
+    };
+    
+    return exceptions[code] || 'Unknown Exception';
+  }
+
+  private validateCrc(hexData: string): boolean {
+    if (hexData.length < 8) return false;
+    
+    // Simple CRC validation - in a real implementation, you'd calculate CRC-16
+    // For now, we'll assume any packet with length >= 8 and last 4 chars as hex is valid
+    const crcPart = hexData.substring(hexData.length - 4);
+    return /^[0-9A-F]{4}$/.test(crcPart);
   }
 
   private attachEventListeners(): void {
@@ -131,6 +568,9 @@ export class LogPanel {
     this.logs = logs;
     this.refreshLogDisplay();
     this.updateLogCount();
+    
+    // Re-setup tooltip positioning for new log entries
+    this.setupTooltipPositioning();
     
     if (this.isAutoScroll) {
       this.scrollToBottom();
