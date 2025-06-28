@@ -525,45 +525,84 @@ export class ConnectionPanel {
   private showProxyServerGuide(errorMessage: string): void {
     const guideHtml = `
       <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="proxy-guide-modal">
-        <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-md mx-4 shadow-xl">
+        <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-lg mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-dark-text-primary">Proxy Server Required</h3>
-            <button class="text-dark-text-muted hover:text-dark-text-primary" onclick="document.getElementById('proxy-guide-modal').remove()">
+            <h3 class="text-lg font-semibold text-dark-text-primary">🌐 TCP 프록시 서버 필요</h3>
+            <button class="text-dark-text-muted hover:text-dark-text-primary text-xl" onclick="document.getElementById('proxy-guide-modal').remove()">
               ✕
             </button>
           </div>
           
           <div class="mb-4">
-            <p class="text-sm text-dark-text-secondary mb-2">${errorMessage}</p>
-            <p class="text-sm text-dark-text-secondary">TCP/IP Modbus 기능을 사용하려면 프록시 서버가 필요합니다.</p>
+            <div class="bg-red-900/20 border border-red-600/30 rounded p-3 mb-3">
+              <p class="text-sm text-red-300 mb-1">⚠️ ${errorMessage}</p>
+            </div>
+            <p class="text-sm text-dark-text-secondary">TCP/IP Modbus 통신을 위해서는 별도의 프록시 서버가 필요합니다.</p>
+            <p class="text-xs text-dark-text-muted mt-1">브라우저 보안 정책으로 인해 JavaScript에서 직접 TCP 연결이 불가능하기 때문입니다.</p>
           </div>
           
           <div class="space-y-3">
             <div class="bg-dark-panel rounded p-3">
-              <h4 class="text-sm font-medium text-dark-text-primary mb-2">📥 다운로드 & 실행</h4>
-              <p class="text-xs text-dark-text-muted mb-2">플랫폼에 맞는 실행 파일을 다운로드하세요:</p>
-              <div class="space-y-1 text-xs">
-                <div>• Windows: <code class="bg-dark-surface px-1 rounded">modbus-proxy-windows.exe</code></div>
-                <div>• macOS: <code class="bg-dark-surface px-1 rounded">modbus-proxy-macos</code></div>
-                <div>• Linux: <code class="bg-dark-surface px-1 rounded">modbus-proxy-linux</code></div>
+              <h4 class="text-sm font-medium text-dark-text-primary mb-2">🛠️ 설치 옵션</h4>
+              <div class="space-y-2">
+                <div class="border border-dark-border rounded p-2">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-green-400">옵션 1: 소스에서 빌드 (권장)</span>
+                  </div>
+                  <p class="text-xs text-dark-text-muted mb-2">Node.js가 있는 환경에서 직접 빌드</p>
+                  <div class="bg-dark-surface rounded p-2 text-xs font-mono">
+                    <div>cd websocket-server</div>
+                    <div>npm install</div>
+                    <div>npm start</div>
+                  </div>
+                </div>
+                
+                <div class="border border-dark-border rounded p-2">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-blue-400">옵션 2: 실행 파일 빌드</span>
+                  </div>
+                  <p class="text-xs text-dark-text-muted mb-2">플랫폼별 실행 파일 생성</p>
+                  <div class="bg-dark-surface rounded p-2 text-xs font-mono">
+                    <div>cd websocket-server</div>
+                    <div>npm install</div>
+                    <div>npm run build:all</div>
+                  </div>
+                </div>
               </div>
             </div>
             
             <div class="bg-dark-panel rounded p-3">
-              <h4 class="text-sm font-medium text-dark-text-primary mb-2">🚀 실행 방법</h4>
-              <p class="text-xs text-dark-text-muted mb-1">1. 다운로드한 파일을 더블클릭하여 실행</p>
-              <p class="text-xs text-dark-text-muted mb-1">2. 서버가 포트 8080에서 시작됨</p>
-              <p class="text-xs text-dark-text-muted">3. 이 페이지에서 TCP 탭을 다시 클릭</p>
+              <h4 class="text-sm font-medium text-dark-text-primary mb-2">📋 실행 확인</h4>
+              <div class="space-y-1 text-xs text-dark-text-muted">
+                <div>✅ 서버가 포트 8080에서 실행됨</div>
+                <div>✅ 콘솔에 "running on port 8080" 메시지 확인</div>
+                <div>✅ 이 페이지에서 TCP 탭 다시 클릭</div>
+              </div>
+            </div>
+            
+            <div class="bg-blue-900/20 border border-blue-600/30 rounded p-3">
+              <h4 class="text-sm font-medium text-blue-300 mb-2">📚 자세한 가이드</h4>
+              <p class="text-xs text-blue-200 mb-2">설정 방법과 문제 해결 방법을 확인하세요.</p>
             </div>
           </div>
           
-          <div class="flex gap-2 mt-4">
-            <button class="btn-primary flex-1 text-sm" onclick="window.open('https://github.com/your-repo/releases', '_blank')">
-              📥 다운로드
-            </button>
-            <button class="btn-secondary text-sm" onclick="document.getElementById('proxy-guide-modal').remove()">
-              나중에
-            </button>
+          <div class="flex flex-col gap-2 mt-4">
+            <div class="flex gap-2">
+              <button class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm flex-1" onclick="window.open('./QUICK_START_TCP.md', '_blank')">
+                ⚡ 빠른 시작
+              </button>
+              <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm flex-1" onclick="window.open('./PROXY_DOWNLOAD_GUIDE.md', '_blank')">
+                📖 상세 가이드
+              </button>
+            </div>
+            <div class="flex gap-2">
+              <button class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded text-sm flex-1" onclick="window.open('./websocket-server/', '_blank')">
+                💾 서버 폴더
+              </button>
+              <button class="btn-secondary text-sm px-3 py-2 flex-1" onclick="document.getElementById('proxy-guide-modal').remove()">
+                나중에
+              </button>
+            </div>
           </div>
         </div>
       </div>

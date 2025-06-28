@@ -1,0 +1,146 @@
+name: Build and Release Proxy Server
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: websocket-server/package-lock.json
+
+    - name: Install dependencies
+      run: |
+        cd websocket-server
+        npm ci
+
+    - name: Build executables
+      run: |
+        cd websocket-server
+        npm run build:all
+
+    - name: Prepare release assets
+      run: |
+        cd websocket-server/dist
+        # Rename files for clarity
+        mv modbus-proxy-macos modbus-proxy-macos
+        mv modbus-proxy-windows.exe modbus-proxy-windows.exe  
+        mv modbus-proxy-linux modbus-proxy-linux
+        
+        # Create archive with setup guide
+        mkdir -p release-files
+        cp modbus-proxy-* release-files/
+        cp ../README.md release-files/
+        cp ../../TCP_SETUP_GUIDE.md release-files/
+        
+        # Create ZIP archive for Windows users
+        zip -j modbus-proxy-all-platforms.zip release-files/*
+
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.VERSION }}
+        release_name: Modbus Proxy Server ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## Modbus WebSocket Proxy Server ${{ steps.get_version.outputs.VERSION }}
+          
+          웹 브라우저에서 TCP/IP Modbus 통신을 위한 프록시 서버입니다.
+          
+          ### 📥 다운로드
+          
+          플랫폼에 맞는 파일을 다운로드하여 실행하세요:
+          
+          - **Windows**: `modbus-proxy-windows.exe`
+          - **macOS**: `modbus-proxy-macos` 
+          - **Linux**: `modbus-proxy-linux`
+          - **모든 플랫폼**: `modbus-proxy-all-platforms.zip` (설정 가이드 포함)
+          
+          ### 🚀 사용 방법
+          
+          1. 플랫폼에 맞는 실행 파일을 다운로드
+          2. 파일을 더블클릭하여 실행 (macOS/Linux는 실행 권한 필요)
+          3. 서버가 포트 8080에서 시작됨
+          4. 웹 대시보드에서 TCP 탭 선택
+          
+          ### 📚 자세한 설정 가이드
+          
+          [TCP 설정 가이드](https://github.com/${{ github.repository }}/blob/${{ steps.get_version.outputs.VERSION }}/TCP_SETUP_GUIDE.md)를 참조하세요.
+          
+          ### ⚠️ 시스템 요구사항
+          
+          - **Windows**: Windows 10 이상
+          - **macOS**: macOS 10.15 이상
+          - **Linux**: Ubuntu 18.04 이상 또는 동등한 배포판
+          
+          Node.js 설치가 불필요합니다.
+        draft: false
+        prerelease: false
+
+    - name: Upload Windows executable
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./websocket-server/dist/modbus-proxy-windows.exe
+        asset_name: modbus-proxy-windows.exe
+        asset_content_type: application/octet-stream
+
+    - name: Upload macOS executable
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./websocket-server/dist/modbus-proxy-macos
+        asset_name: modbus-proxy-macos
+        asset_content_type: application/octet-stream
+
+    - name: Upload Linux executable
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./websocket-server/dist/modbus-proxy-linux
+        asset_name: modbus-proxy-linux
+        asset_content_type: application/octet-stream
+
+    - name: Upload All Platforms Archive
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./websocket-server/dist/modbus-proxy-all-platforms.zip
+        asset_name: modbus-proxy-all-platforms.zip
+        asset_content_type: application/zip
