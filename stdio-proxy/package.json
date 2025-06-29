@@ -3,8 +3,22 @@
   "version": "1.0.0",
   "description": "Chrome Native Messaging Host for TCP proxy connections - enables direct TCP connectivity for ModbusTCP debugging",
   "main": "proxy.js",
+  "bin": "proxy.js",
   "scripts": {
-    "start": "node proxy.js"
+    "start": "node proxy.js",
+    "build": "./build.sh",
+    "package": "./build.sh",
+    "release": "./build.sh",
+    "build:all": "./build.sh",
+    "build:macos": "pkg . --targets node18-macos-x64 --output ./dist/stdio-proxy-macos-x64",
+    "build:windows": "pkg . --targets node18-win-x64 --output ./dist/stdio-proxy-windows-x64.exe", 
+    "build:linux": "pkg . --targets node18-linux-x64 --output ./dist/stdio-proxy-linux-x64"
+  },
+  "pkg": {
+    "assets": [
+      "manifest.json"
+    ],
+    "outputPath": "dist"
   },
   "author": "Modbus Protocol Debugger",
   "license": "MIT",
@@ -16,5 +30,8 @@
   ],
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
   }
 }

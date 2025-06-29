@@ -272,15 +272,22 @@ export class ConnectionPanel {
     return `
       <div class="space-y-4">
         <!-- Native Proxy Status -->
-        <div class="p-3 rounded-md ${this.getNativeProxyStatusClass()} tcp-native-proxy-status">
-          <div class="flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full ${this.getNativeProxyIndicatorClass()} status-indicator"></div>
-            <span class="text-sm font-medium status-text">
-              ${this.getNativeProxyStatusText()}
-            </span>
+        <div class="p-3 rounded-md ${this.getNativeProxyStatusClass()} tcp-native-proxy-status cursor-pointer hover:bg-opacity-80 transition-colors" 
+             title="${this.isNativeProxyFailed() ? '클릭하여 설치 가이드 보기' : '클릭하여 설치/설정 가이드 보기'}">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full ${this.getNativeProxyIndicatorClass()} status-indicator"></div>
+              <span class="text-sm font-medium status-text">
+                ${this.getNativeProxyStatusText()}
+              </span>
+            </div>
+            <div class="text-xs opacity-75">
+              ${this.isNativeProxyFailed() ? '💡 설치하기' : 'ℹ️ 가이드'}
+            </div>
           </div>
-          <p class="text-xs text-dark-text-muted mt-1">
-            Native Host: com.my_company.stdio_proxy
+          <p class="text-xs text-dark-text-muted mt-1 flex items-center justify-between">
+            <span>Native Host: com.my_company.stdio_proxy</span>
+            ${this.isNativeProxyFailed() ? '<span class="text-yellow-400 animate-pulse">← 클릭하여 설치하세요!</span>' : '<span class="text-gray-400">← 재설치/문제해결</span>'}
           </p>
         </div>
 
@@ -380,6 +387,15 @@ export class ConnectionPanel {
         }
       });
     }
+
+    // Native Proxy status panel click handler (TCP_NATIVE tab only)
+    if (this.activeTab === 'TCP_NATIVE') {
+      const nativeProxyPanel = document.querySelector('.tcp-native-proxy-status');
+      nativeProxyPanel?.addEventListener('click', () => {
+        this.showNativeHostInstallGuide();
+      });
+    }
+
   }
 
   private switchTab(tabType: ConnectionType): void {
@@ -434,7 +450,7 @@ export class ConnectionPanel {
         <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-lg mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-dark-text-primary">🔌 Native Proxy 설치 필요</h3>
-            <button class="text-dark-text-muted hover:text-dark-text-primary text-xl" onclick="document.getElementById('native-guide-modal').remove()">
+            <button class="modal-close text-dark-text-muted hover:text-dark-text-primary text-xl" data-modal="native-guide-modal">
               ✕
             </button>
           </div>
@@ -507,10 +523,10 @@ export class ConnectionPanel {
           </div>
           
           <div class="flex gap-2 mt-4">
-            <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm flex-1" onclick="window.open('stdio-proxy/', '_blank')">
+            <button class="open-folder bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm flex-1" data-path="stdio-proxy/">
               📁 stdio-proxy 폴더
             </button>
-            <button class="btn-secondary text-sm px-3 py-2 flex-1" onclick="document.getElementById('native-guide-modal').remove()">
+            <button class="modal-close btn-secondary text-sm px-3 py-2 flex-1" data-modal="native-guide-modal">
               닫기
             </button>
           </div>
@@ -523,6 +539,9 @@ export class ConnectionPanel {
     
     // Add new modal
     document.body.insertAdjacentHTML('beforeend', guideHtml);
+    
+    // 모달 생성 후 이벤트 리스너 연결
+    this.attachModalEventListeners();
   }
 
   // Load previously granted serial ports
@@ -958,6 +977,230 @@ export class ConnectionPanel {
     this.handleForceClose();
   };
 
+  private isNativeProxyFailed(): boolean {
+    return this.nativeProxyStatus === 'error' || this.nativeProxyStatus === 'disconnected';
+  }
+
+  private showNativeHostInstallGuide(): void {
+    const currentExtensionId = chrome?.runtime?.id || 'YOUR_EXTENSION_ID';
+    const isConnected = !this.isNativeProxyFailed();
+    const titleText = isConnected ? '🔌 TCP Native 가이드 및 문제해결' : '🔌 TCP Native 기능 설치하기';
+    
+    const guideHtml = `
+      <div id="native-install-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-dark-text-primary">${titleText}</h3>
+            <button class="modal-close text-dark-text-muted hover:text-dark-text-primary" data-modal="native-install-modal">✕</button>
+          </div>
+          
+          ${isConnected ? `
+            <!-- 연결됨 상태 -->
+            <div class="bg-green-900/20 border border-green-600/30 rounded p-4 mb-4">
+              <h4 class="text-sm font-medium text-green-300 mb-2">✅ Native Host가 정상적으로 연결되었습니다!</h4>
+              <p class="text-sm text-green-200">
+                TCP Native 기능을 사용할 수 있습니다. 아래는 추가 설정 및 문제해결 방법입니다.
+              </p>
+            </div>
+          ` : `
+            <!-- 연결 안됨 상태 -->
+            <div class="bg-red-900/20 border border-red-600/30 rounded p-4 mb-4">
+              <h4 class="text-sm font-medium text-red-300 mb-2">❌ Native Host 설치가 필요합니다</h4>
+              <p class="text-sm text-red-200">
+                TCP Native 기능을 사용하려면 아래 단계를 따라 설치해주세요.
+              </p>
+            </div>
+          `}
+          
+          <div class="space-y-4">
+            <!-- 왜 설치가 필요한지 설명 -->
+            <div class="bg-blue-900/20 border border-blue-600/30 rounded p-4">
+              <h4 class="text-sm font-medium text-blue-300 mb-2">🤔 왜 별도 설치가 필요한가요?</h4>
+              <div class="text-sm text-blue-200 space-y-2">
+                <p><strong>브라우저 보안 제한:</strong> Chromium 기반 브라우저는 보안상 직접 TCP 연결을 할 수 없습니다.</p>
+                <p><strong>Web Serial vs TCP:</strong></p>
+                <ul class="list-disc list-inside ml-4 space-y-1">
+                  <li><span class="text-green-300">RTU (시리얼)</span> → 브라우저 내장 Web Serial API 사용 ✅</li>
+                  <li><span class="text-yellow-300">TCP Native</span> → 외부 프로그램(Native Host) 필요 📦</li>
+                </ul>
+                <p><strong>Native Host 역할:</strong> 확장과 TCP 장치 사이의 브리지 역할을 합니다.</p>
+                <p><strong>지원 브라우저:</strong> Chrome, Edge, Brave, Opera, Vivaldi 등 모든 Chromium 기반 브라우저</p>
+              </div>
+            </div>
+
+            <!-- 설치 단계 -->
+            <div class="bg-dark-panel border border-dark-border rounded p-4">
+              <h4 class="text-sm font-medium text-dark-text-primary mb-3">📋 간단 설치 (Node.js 불필요)</h4>
+              
+              <div class="space-y-3">
+                <div class="flex items-start gap-3">
+                  <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">1</span>
+                  <div>
+                    <p class="text-sm font-medium text-dark-text-primary">OS별 설치 패키지 다운로드</p>
+                    <p class="text-xs text-dark-text-muted mb-2">실행파일 + 설치스크립트가 포함된 압축파일</p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                      <button data-download-url="https://github.com/coreanq/release/releases/download/stdio-proxy-v1.0.0/stdio-proxy-macos.zip"
+                              class="download-btn bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
+                        🍎 macOS (.zip)
+                      </button>
+                      <button data-download-url="https://github.com/coreanq/release/releases/download/stdio-proxy-v1.0.0/stdio-proxy-windows.zip"
+                              class="download-btn bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
+                        🪟 Windows (.zip)
+                      </button>
+                      <button data-download-url="https://github.com/coreanq/release/releases/download/stdio-proxy-v1.0.0/stdio-proxy-linux.tar.gz"
+                              class="download-btn bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
+                        🐧 Linux (.tar.gz)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                  <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">2</span>
+                  <div>
+                    <p class="text-sm font-medium text-dark-text-primary">압축 해제 후 설치 실행</p>
+                    <div class="text-sm text-dark-text-secondary mt-1 space-y-1">
+                      <div><strong>macOS/Linux:</strong> 압축 해제 → <code class="bg-dark-bg px-2 py-1 rounded">./install-*.sh</code></div>
+                      <div><strong>Windows:</strong> 압축 해제 → <code class="bg-dark-bg px-2 py-1 rounded">install-windows.bat</code> 더블클릭</div>
+                    </div>
+                    <p class="text-xs text-yellow-300 mt-1">💡 Extension ID 자동 감지, 모든 브라우저 자동 설치</p>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                  <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">3</span>
+                  <div>
+                    <p class="text-sm font-medium text-dark-text-primary">브라우저 재시작</p>
+                    <p class="text-sm text-dark-text-secondary">사용 중인 브라우저를 완전히 종료 후 다시 실행하세요</p>
+                    <p class="text-xs text-gray-400 mt-1">✨ Chrome, Edge, Brave, Opera, Vivaldi 등 모든 Chromium 기반 브라우저 지원</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Extension ID 정보 -->
+            <div class="bg-yellow-900/20 border border-yellow-600/30 rounded p-3">
+              <h4 class="text-sm font-medium text-yellow-300 mb-2">🔑 현재 Extension ID</h4>
+              <div class="bg-dark-bg p-2 rounded font-mono text-sm text-dark-text-primary break-all">
+                ${currentExtensionId}
+              </div>
+              <p class="text-xs text-yellow-200 mt-2">
+                이 ID가 설치 스크립트에 자동으로 설정됩니다.
+              </p>
+            </div>
+
+            <!-- 설치 후 확인 -->
+            <div class="bg-green-900/20 border border-green-600/30 rounded p-3">
+              <h4 class="text-sm font-medium text-green-300 mb-2">✅ 설치 완료 확인</h4>
+              <p class="text-sm text-green-200">
+                설치가 완료되면 위의 "Native Proxy" 상태가 "🟢 Connected"로 변경됩니다.
+              </p>
+            </div>
+
+            <!-- 트러블슈팅 -->
+            <div class="bg-orange-900/20 border border-orange-600/30 rounded p-3">
+              <h4 class="text-sm font-medium text-orange-300 mb-2">🔧 문제 해결</h4>
+              <div class="text-sm text-orange-200 space-y-1">
+                <p>• 실행파일에 실행 권한이 있는지 확인 (macOS/Linux)</p>
+                <p>• Windows에서 바이러스 검사기가 차단하지 않는지 확인</p>
+                <p>• Extension ID가 정확히 설정되었는지 확인</p>
+                <p>• 브라우저를 완전히 재시작 (Chrome, Edge, Brave 등)</p>
+                <p>• 다른 Chromium 기반 브라우저에서도 테스트해보기</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-center mt-6">
+            <button class="modal-close bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded text-sm" data-modal="native-install-modal">
+              확인
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Remove existing modal if any
+    document.getElementById('native-install-modal')?.remove();
+    
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', guideHtml);
+    
+    // 모달 생성 후 이벤트 리스너 연결
+    this.attachModalEventListeners();
+  };
+
+  private attachModalEventListeners(): void {
+    // Download buttons
+    const downloadBtns = document.querySelectorAll('.download-btn');
+    downloadBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const button = e.target as HTMLElement;
+        const url = button.closest('button')?.getAttribute('data-download-url');
+        console.log('Download button clicked, URL:', url);
+        if (url) {
+          try {
+            // Chrome 확장에서는 chrome.tabs.create를 사용
+            if (chrome && chrome.tabs && chrome.tabs.create) {
+              chrome.tabs.create({ url: url });
+              console.log('Chrome tabs.create called successfully');
+            } else {
+              // 폴백: a 태그를 통한 다운로드
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = '';
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              console.log('Fallback download link clicked');
+            }
+          } catch (error) {
+            console.error('Failed to open download URL:', error);
+            // 최종 폴백: 직접 location 변경
+            try {
+              window.location.href = url;
+            } catch (locationError) {
+              console.error('All download methods failed:', locationError);
+              alert('다운로드 링크를 수동으로 열어주세요: ' + url);
+            }
+          }
+        } else {
+          console.error('No download URL found for button:', button);
+        }
+      });
+    });
+
+    // Modal close buttons
+    const modalCloseBtns = document.querySelectorAll('.modal-close');
+    modalCloseBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const button = e.target as HTMLElement;
+        const modalId = button.closest('button')?.getAttribute('data-modal');
+        console.log('Modal close clicked, modalId:', modalId);
+        if (modalId) {
+          document.getElementById(modalId)?.remove();
+        }
+      });
+    });
+
+    // Open folder buttons
+    const openFolderBtns = document.querySelectorAll('.open-folder');
+    openFolderBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const button = e.target as HTMLElement;
+        const path = button.closest('button')?.getAttribute('data-path');
+        console.log('Open folder clicked, path:', path);
+        if (path) {
+          window.open(path, '_blank');
+        }
+      });
+    });
+  }
+
   private hideConnectionProgress(): void {
     const progressDiv = document.getElementById('connection-progress');
     const connectSpinner = document.getElementById('connect-spinner');
@@ -1116,7 +1359,7 @@ export class ConnectionPanel {
     // Update Native Proxy status
     const nativeProxyContainer = document.querySelector('.tcp-native-proxy-status');
     if (nativeProxyContainer) {
-      nativeProxyContainer.className = `p-3 rounded-md ${this.getNativeProxyStatusClass()} tcp-native-proxy-status`;
+      nativeProxyContainer.className = `p-3 rounded-md ${this.getNativeProxyStatusClass()} tcp-native-proxy-status cursor-pointer hover:bg-opacity-80 transition-colors`;
       const indicator = nativeProxyContainer.querySelector('.status-indicator');
       const text = nativeProxyContainer.querySelector('.status-text');
       if (indicator) indicator.className = `w-2 h-2 rounded-full ${this.getNativeProxyIndicatorClass()} status-indicator`;
@@ -1135,6 +1378,7 @@ export class ConnectionPanel {
       if (detail) detail.textContent = this.getTcpNativeStatusDetail();
     }
   }
+
 
   // Cleanup method to remove event handlers
   public cleanup(): void {

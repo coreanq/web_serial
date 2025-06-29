@@ -1,7 +1,7 @@
 {
   "name": "modbus-debugger-dashboard",
   "version": "1.0.0",
-  "description": "Modbus Protocol Debugger Dashboard with real-time monitoring and analysis",
+  "description": "Modbus Protocol Debugger with real-time monitoring and analysis",
   "main": "dist/index.js",
   "scripts": {
     "dev": "webpack serve --mode development --open",

@@ -61,7 +61,7 @@ export class App {
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-4">
                 <h1 class="text-2xl font-bold text-dark-text-primary">
-                  🔧 Modbus Protocol Debugger Dashboard
+                  🔧 Modbus Protocol Debugger
                 </h1>
               </div>
               

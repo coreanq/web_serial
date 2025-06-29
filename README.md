@@ -1,4 +1,4 @@
-# 🔧 Modbus Protocol Debugger Dashboard
+# 🔧 Modbus Protocol Debugger
 
 웹 브라우저에서 사용할 수 있는 Modbus 프로토콜 디버깅 도구입니다. RTU(시리얼) 및 TCP/IP 통신을 지원하며, 실시간 패킷 분석과 다양한 디버깅 기능을 제공합니다.
 

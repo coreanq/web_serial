@@ -69,6 +69,4 @@ sessions/
 
 # Added by Task Master AI
 
-# Task files
-# tasks.json
-# tasks/ 
+.stdio-proxy/packages/*.*

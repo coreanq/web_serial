@@ -10,90 +10,165 @@ This native messaging host allows the Chrome extension to:
 - Bypass browser CORS and security limitations
 - Provide stable, low-latency communication
 
-## Prerequisites
+## Supported Browsers
 
-- Node.js 18.0.0 or higher
-- Chrome browser with Developer mode enabled
-- Modbus Protocol Debugger Chrome Extension
+- Chrome, Chrome Beta/Dev/Canary
+- Microsoft Edge, Edge Beta/Dev
+- Brave Browser
+- Opera
+- Vivaldi
+- Chromium
 
-## Installation
+## Quick Installation (Users)
 
-### 1. Get Chrome Extension ID
-1. Open Chrome and go to `chrome://extensions`
-2. Enable "Developer mode" (toggle in top right)
-3. Find your Modbus Protocol Debugger extension
-4. Copy the Extension ID (long string of letters)
+### 1. Download Installation Package
+- **macOS**: Download `stdio-proxy-macos.zip`
+- **Windows**: Download `stdio-proxy-windows.zip`  
+- **Linux**: Download `stdio-proxy-linux.tar.gz`
 
-### 2. Install Native Host
+### 2. Extract and Install
+**macOS:**
 ```bash
-cd stdio-proxy
-# Edit install.sh and replace EXTENSION_ID with your actual extension ID
-chmod +x install.sh
-./install.sh
+unzip stdio-proxy-macos.zip
+cd stdio-proxy-macos
+chmod +x install-macos.sh
+./install-macos.sh
 ```
 
-### 3. Reload Extension
-1. Go back to `chrome://extensions`
-2. Click the reload button on your extension
-3. Test TCP Native connection in the extension
+**Windows:**
+1. Extract `stdio-proxy-windows.zip`
+2. Double-click `install-windows.bat`
 
-## Files
+**Linux:**
+```bash
+tar -xzf stdio-proxy-linux.tar.gz
+cd stdio-proxy-linux
+chmod +x install-linux.sh
+./install-linux.sh
+```
 
-- `proxy.js` - Main native messaging host application
-- `manifest.json` - Chrome native messaging host manifest
-- `install.sh` - Installation script for macOS/Linux
-- `run.sh` - Node.js launcher script with path detection
-- `get-extension-id.js` - Helper to get Chrome extension ID
-- `package.json` - Node.js package configuration
+### 3. Restart Browser
+Restart your browser completely and test TCP Native connection in the extension.
 
-## Usage
+The installation script automatically:
+- Detects your Extension ID
+- Installs for all available Chromium-based browsers
+- Sets up proper permissions
 
-Once installed, the native host runs automatically when the Chrome extension requests a TCP Native connection. The host:
+## Development
 
-1. Receives connection requests from the Chrome extension
-2. Establishes TCP socket connections to specified hosts/ports
-3. Proxies data bidirectionally between Chrome extension and TCP server
-4. Handles connection lifecycle (connect, send, receive, disconnect)
+### Prerequisites
+- Node.js 18.0.0 or higher
+- npm or yarn package manager
 
-## Logging
+### Setup
+```bash
+# Clone and setup
+cd stdio-proxy
+npm install
 
-Activity logs are written to `/tmp/native-host-log.txt` for debugging purposes.
+# Install pkg globally (for building executables)
+npm install -g pkg
+```
 
-## Protocol
+### Building Executables
+```bash
+# Build all platforms
+npm run build
 
-The native host communicates with Chrome using the Native Messaging protocol:
+# Or individual platforms
+npm run build:macos
+npm run build:windows  
+npm run build:linux
 
-### Messages from Extension:
+# Or use build script directly
+./build.sh
+```
+
+### Creating Distribution Packages
+```bash
+# Build + Package in one step
+npm run release
+
+# Or step by step
+npm run build
+npm run package
+
+# Or use script directly
+./package-dist.sh
+```
+
+### Build Results
+```bash
+# Executables in dist/
+stdio-proxy-macos-x64        # macOS executable
+stdio-proxy-windows-x64.exe  # Windows executable
+stdio-proxy-linux-x64        # Linux executable
+
+# Distribution packages in packages/
+stdio-proxy-macos.zip        # macOS distribution package
+stdio-proxy-windows.zip      # Windows distribution package
+stdio-proxy-linux.tar.gz     # Linux distribution package
+```
+
+### Publishing Release
+1. Go to GitHub "Releases" page
+2. Click "Create a new release"
+3. Enter version tag (e.g., v1.0.0)
+4. Upload distribution packages:
+   - `stdio-proxy-macos.zip`
+   - `stdio-proxy-windows.zip`
+   - `stdio-proxy-linux.tar.gz`
+5. Update download URLs in Chrome extension
+
+## Technical Details
+
+### Native Messaging Protocol
+
+**Messages from Extension:**
 - `{type: "connect", host: "127.0.0.1", port: 5020}` - Establish TCP connection
 - `{type: "send", data: "01 03 00 00 00 0A"}` - Send hex data
 - `{type: "disconnect"}` - Close TCP connection
 
-### Messages to Extension:
+**Messages to Extension:**
 - `{type: "proxy_started"}` - Host ready
 - `{type: "tcp_connected", host, port}` - TCP connection established
 - `{type: "tcp_disconnected"}` - TCP connection closed
 - `{type: "data", data: "01 03 14 ..."}` - Received hex data
 - `{type: "tcp_error", message}` - Connection error
 
+### Logging
+Activity logs are written to `/tmp/native-host-log.txt` for debugging purposes.
+
+### File Structure
+- `proxy.js` - Main native messaging host application
+- `install-*.sh` / `install-*.bat` - Installation scripts
+- `build.sh` - Build script for all platforms
+- `package-dist.sh` - Distribution packaging script
+- `package.json` - Node.js package configuration
+
 ## Troubleshooting
 
 ### Connection Failed
-1. Check that Node.js is installed and accessible
-2. Verify extension ID in manifest.json is correct
-3. Check logs in `/tmp/native-host-log.txt`
-4. Restart Chrome completely
+1. Verify extension ID is correct
+2. Check logs in `/tmp/native-host-log.txt`
+3. Restart browser completely
+4. Try different browser (Chrome, Edge, Brave)
 
 ### Permission Denied
-1. Ensure install.sh was run with proper permissions
-2. Check that manifest.json was copied to correct location
-3. Verify Chrome can read the manifest file
+1. Ensure installation script ran successfully
+2. Check executable permissions (macOS/Linux)
+3. Verify manifest files are in correct locations
 
-### Path Issues
-The `run.sh` script automatically detects Node.js installation from:
-- System PATH
-- NVM installation
-- Homebrew installation
-- Manual installations in common locations
+### Windows Security Warnings
+- Windows may show security warnings for unsigned executables
+- This is normal for standalone binaries
+- Add to antivirus exceptions if needed
+
+### macOS Security Warnings
+- macOS may show "unidentified developer" warnings
+- Right-click executable and select "Open" to bypass
+- Or disable Gatekeeper temporarily
 
 ## Security Notes
 
