@@ -1,6 +1,5 @@
 import { ConnectionType, ConnectionStatus, SerialPort } from '../../types';
 import { SerialService } from '../../services/SerialService';
-import { WebSocketService, ModbusTcpConfig } from '../../services/WebSocketService';
 import { TcpNativeService, TcpNativeConnection } from '../../services/TcpNativeService';
 
 export class ConnectionPanel {
@@ -8,25 +7,13 @@ export class ConnectionPanel {
   private onConnectionChange: (status: ConnectionStatus, config?: any) => void;
   private onDataReceived?: (data: string) => void;
   private serialService: SerialService;
-  private webSocketService: WebSocketService;
   private tcpNativeService: TcpNativeService;
   private selectedPort: SerialPort | null = null;
   private grantedPorts: SerialPort[] = [];
   private isCompactMode: boolean = false;
-  private tcpConnectionStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
-  private webSocketStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private tcpNativeStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private nativeProxyStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
-  private autoReconnectEnabled: boolean = true;
-  private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 3; // Reduced from 5 to 3
-  private reconnectTimeout: NodeJS.Timeout | null = null;
-  private currentTcpConfig: ModbusTcpConfig | null = null;
   private currentNativeConfig: TcpNativeConnection | null = null;
-  private lastDisconnectTime: number = 0;
-  private disconnectDebounceMs: number = 100; // 100ms debounce for disconnect events - more responsive
-  private lastErrorTime: number = 0;
-  private errorDebounceMs: number = 5000; // 5 second debounce for error messages
   private manualDisconnect: boolean = false; // Flag to prevent auto-reconnect after manual disconnect
 
   constructor(
@@ -36,164 +23,10 @@ export class ConnectionPanel {
     this.onConnectionChange = onConnectionChange;
     this.onDataReceived = onDataReceived;
     this.serialService = new SerialService();
-    this.webSocketService = new WebSocketService();
     this.tcpNativeService = new TcpNativeService();
-    this.setupWebSocketHandlers();
     this.setupTcpNativeHandlers();
   }
 
-  private setupWebSocketHandlers(): void {
-    // WebSocket connection status
-    this.webSocketService.onMessage('ws_connected', () => {
-      console.log('WebSocket proxy connected');
-      this.webSocketStatus = 'connected';
-      this.updateWebSocketStatusDisplay();
-    });
-
-    // Handle server's 'connected' message too
-    this.webSocketService.onMessage('connected', () => {
-      console.log('WebSocket proxy server connected');
-      this.webSocketStatus = 'connected';
-      this.updateWebSocketStatusDisplay();
-    });
-
-    this.webSocketService.onMessage('ws_disconnected', () => {
-      console.log('WebSocket proxy disconnected');
-      this.webSocketStatus = 'disconnected';
-      this.updateWebSocketStatusDisplay();
-      if (this.tcpConnectionStatus === 'connected') {
-        this.tcpConnectionStatus = 'error';
-        this.onConnectionChange('error');
-        this.updateButtonStates(false);
-      }
-    });
-
-    this.webSocketService.onMessage('ws_error', () => {
-      console.error('WebSocket proxy connection error');
-      this.webSocketStatus = 'error';
-      this.updateWebSocketStatusDisplay();
-    });
-
-    // TCP Modbus connection status
-    this.webSocketService.onMessage('tcp_connected', (data) => {
-      console.log('✅ TCP Modbus connected successfully:', data.message);
-      
-      // Clear any pending reconnect attempts immediately
-      this.clearReconnectTimeout();
-      
-      // Reset reconnection state and re-enable auto reconnect
-      this.reconnectAttempts = 0;
-      this.lastDisconnectTime = 0;
-      this.lastErrorTime = 0;
-      this.autoReconnectEnabled = true;
-      
-      // Update connection status
-      this.tcpConnectionStatus = 'connected';
-      
-      // Update current config with server confirmation data if available
-      if (data.host && data.port) {
-        this.currentTcpConfig = {
-          host: data.host,
-          port: data.port
-        };
-        console.log(`📍 Connection config updated: ${data.host}:${data.port}`);
-      }
-      
-      this.onConnectionChange('connected', this.getCurrentConfig());
-      this.updateButtonStates(true);
-      this.updateTcpStatusDisplay();
-    });
-
-    this.webSocketService.onMessage('tcp_disconnected', (data) => {
-      const now = Date.now();
-      const timeSinceLastDisconnect = now - this.lastDisconnectTime;
-      
-      // Enhanced debounce logic to prevent spam and duplicate processing
-      if (timeSinceLastDisconnect < this.disconnectDebounceMs) {
-        // Only log first few duplicate events to avoid spam
-        if (timeSinceLastDisconnect === 0 || Math.random() < 0.1) {
-          console.log(`Ignoring duplicate disconnect event (${timeSinceLastDisconnect}ms since last)`);
-        }
-        return;
-      }
-      
-      // Additional check: if already disconnected, ignore
-      if (this.tcpConnectionStatus === 'disconnected') {
-        console.log('Ignoring disconnect event - already disconnected');
-        return;
-      }
-      
-      console.log(`TCP Modbus disconnected: ${data.message} (${timeSinceLastDisconnect}ms since last)`);
-      this.lastDisconnectTime = now;
-      
-      // Only process disconnect if we were previously connected or connecting
-      if (this.tcpConnectionStatus === 'connected' || this.tcpConnectionStatus === 'connecting') {
-        console.log('Processing legitimate disconnect event');
-        
-        // Clear any existing reconnect timeout before changing state
-        this.clearReconnectTimeout();
-        
-        this.tcpConnectionStatus = 'disconnected';
-        this.onConnectionChange('disconnected');
-        this.updateButtonStates(false);
-        this.updateTcpStatusDisplay();
-        
-        // Auto-reconnect if enabled, not exceeded max attempts, and current config exists
-        if (this.autoReconnectEnabled && this.reconnectAttempts < this.maxReconnectAttempts && this.currentTcpConfig) {
-          console.log('Scheduling auto-reconnect due to unexpected disconnection');
-          this.scheduleReconnect();
-        } else if (!this.currentTcpConfig) {
-          console.log('No current TCP config available for reconnection');
-        }
-      } else {
-        console.log('Ignoring disconnect event - not in connected/connecting state');
-      }
-    });
-
-    this.webSocketService.onMessage('tcp_error', (data) => {
-      const now = Date.now();
-      const timeSinceLastError = now - this.lastErrorTime;
-      
-      // Debounce error messages to prevent spam
-      if (timeSinceLastError >= this.errorDebounceMs) {
-        console.error('TCP Modbus error:', data);
-        this.lastErrorTime = now;
-      }
-      
-      this.tcpConnectionStatus = 'error';
-      this.onConnectionChange('error');
-      this.updateButtonStates(false);
-      this.updateTcpStatusDisplay();
-      
-      // Auto-reconnect on timeout errors with attempt limit
-      if (data.error === 'Connection timeout' && 
-          this.autoReconnectEnabled && 
-          this.currentTcpConfig &&
-          this.reconnectAttempts < this.maxReconnectAttempts) {
-        
-        if (timeSinceLastError >= this.errorDebounceMs) {
-          console.log(`Connection timeout detected (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts}), attempting auto-reconnect...`);
-        }
-        this.scheduleReconnect();
-      } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.warn(`Max reconnection attempts (${this.maxReconnectAttempts}) reached. Auto-reconnect disabled.`);
-        this.autoReconnectEnabled = false;
-      }
-    });
-
-    // Data received from Modbus device
-    this.webSocketService.onMessage('data', (data) => {
-      console.log('Received from Modbus device:', data.data);
-      if (this.onDataReceived) {
-        this.onDataReceived(data.data);
-      }
-    });
-
-    this.webSocketService.onMessage('error', (data) => {
-      console.error('WebSocket service error:', data);
-      alert(`WebSocket Error: ${data.message}`);
-    });
-  }
 
   private setupTcpNativeHandlers(): void {
     // TCP Native connection status
@@ -269,9 +102,6 @@ export class ConnectionPanel {
           <button class="tab-button ${this.activeTab === 'RTU' ? 'active' : ''}" data-tab="RTU">
             RTU (Serial)
           </button>
-          <button class="tab-button ${this.activeTab === 'TCP' ? 'active' : ''}" data-tab="TCP">
-            TCP/IP
-          </button>
           <button class="tab-button ${this.activeTab === 'TCP_NATIVE' ? 'active' : ''}" data-tab="TCP_NATIVE">
             TCP Native
           </button>
@@ -279,8 +109,7 @@ export class ConnectionPanel {
 
         <!-- Tab Content -->
         <div class="tab-content">
-          ${this.activeTab === 'RTU' ? this.renderRtuTab() : 
-            this.activeTab === 'TCP' ? this.renderTcpTab() : this.renderTcpNativeTab()}
+          ${this.activeTab === 'RTU' ? this.renderRtuTab() : this.renderTcpNativeTab()}
         </div>
 
         <!-- Connection Controls -->
@@ -424,68 +253,6 @@ export class ConnectionPanel {
     `;
   }
 
-  private renderTcpTab(): string {
-    return `
-      <div class="space-y-4">
-        <!-- WebSocket Server Status -->
-        <div class="p-3 rounded-md ${this.getWebSocketStatusClass()}">
-          <div class="flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full ${this.getWebSocketIndicatorClass()}"></div>
-            <span class="text-sm font-medium">
-              ${this.getWebSocketStatusText()}
-            </span>
-          </div>
-          <p class="text-xs text-dark-text-muted mt-1">
-            WebSocket Proxy: ws://localhost:8080
-          </p>
-        </div>
-
-        <!-- Modbus TCP Connection Status -->
-        <div class="p-3 rounded-md ${this.getTcpStatusClass()}">
-          <div class="flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full ${this.getTcpIndicatorClass()}"></div>
-            <span class="text-sm font-medium">
-              ${this.getTcpStatusText()}
-            </span>
-          </div>
-          <p class="text-xs text-dark-text-muted mt-1">
-            ${this.getTcpStatusDetail()}
-          </p>
-        </div>
-
-        <!-- TCP Connection Settings -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-              IP Address
-            </label>
-            <input 
-              type="text" 
-              class="input-field w-full" 
-              id="tcp-host"
-              placeholder="192.168.1.100"
-              value="127.0.0.1"
-            />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-              Port
-            </label>
-            <input 
-              type="number" 
-              class="input-field w-full" 
-              id="tcp-port"
-              placeholder="502"
-              value="5020"
-              min="1"
-              max="65535"
-            />
-          </div>
-        </div>
-      </div>
-    `;
-  }
 
   private renderTcpNativeTab(): string {
     return `
@@ -611,15 +378,13 @@ export class ConnectionPanel {
     this.activeTab = tabType;
     const container = document.querySelector('.tab-content');
     if (container) {
-      container.innerHTML = tabType === 'RTU' ? this.renderRtuTab() : 
-                           tabType === 'TCP' ? this.renderTcpTab() : this.renderTcpNativeTab();
+      container.innerHTML = tabType === 'RTU' ? this.renderRtuTab() : this.renderTcpNativeTab();
       // Reattach event listeners after content change
       this.attachEventListeners();
     }
 
     // Notify about connection type change for AutoCRC setting update
-    const currentStatus = this.tcpConnectionStatus === 'connected' || 
-                          this.tcpNativeStatus === 'connected' ||
+    const currentStatus = this.tcpNativeStatus === 'connected' ||
                           this.serialService.getConnectionStatus() ? 'connected' : 'disconnected';
     this.onConnectionChange(currentStatus as ConnectionStatus, { type: tabType });
 
@@ -628,33 +393,6 @@ export class ConnectionPanel {
       btn.classList.remove('active');
     });
     document.querySelector(`[data-tab="${tabType}"]`)?.classList.add('active');
-
-    // Auto-connect to WebSocket when switching to TCP tab with server status check
-    if (tabType === 'TCP' && !this.webSocketService.isConnected()) {
-      console.log('TCP tab selected, checking proxy server status...');
-      this.webSocketStatus = 'connecting';
-      this.updateWebSocketStatusDisplay();
-      
-      // Check if proxy server is running first
-      this.webSocketService.checkServerStatus().then(status => {
-        if (status.running) {
-          console.log('Proxy server is running, connecting...');
-          return this.webSocketService.connect();
-        } else {
-          console.warn('Proxy server not running:', status.error);
-          this.webSocketStatus = 'error';
-          this.updateWebSocketStatusDisplay();
-          this.showProxyServerGuide(status.error || 'Proxy server not available');
-          throw new Error(status.error || 'Proxy server not running');
-        }
-      }).then(() => {
-        console.log('WebSocket connection completed successfully');
-      }).catch(error => {
-        console.error('WebSocket connection failed:', error);
-        this.webSocketStatus = 'error';
-        this.updateWebSocketStatusDisplay();
-      });
-    }
 
     // Auto-connect to Native Proxy when switching to TCP_NATIVE tab (only if not manually disconnected)
     if (tabType === 'TCP_NATIVE' && !this.tcpNativeService.isProxyReady() && !this.manualDisconnect) {
@@ -675,99 +413,6 @@ export class ConnectionPanel {
     }
   }
 
-  // Show proxy server download and setup guide
-  private showProxyServerGuide(errorMessage: string): void {
-    const guideHtml = `
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="proxy-guide-modal">
-        <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-lg mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-dark-text-primary">🌐 TCP 프록시 서버 필요</h3>
-            <button class="text-dark-text-muted hover:text-dark-text-primary text-xl" onclick="document.getElementById('proxy-guide-modal').remove()">
-              ✕
-            </button>
-          </div>
-          
-          <div class="mb-4">
-            <div class="bg-red-900/20 border border-red-600/30 rounded p-3 mb-3">
-              <p class="text-sm text-red-300 mb-1">⚠️ ${errorMessage}</p>
-            </div>
-            <p class="text-sm text-dark-text-secondary">TCP/IP Modbus 통신을 위해서는 별도의 프록시 서버가 필요합니다.</p>
-            <p class="text-xs text-dark-text-muted mt-1">브라우저 보안 정책으로 인해 JavaScript에서 직접 TCP 연결이 불가능하기 때문입니다.</p>
-          </div>
-          
-          <div class="space-y-3">
-            <div class="bg-dark-panel rounded p-3">
-              <h4 class="text-sm font-medium text-dark-text-primary mb-2">🛠️ 설치 옵션</h4>
-              <div class="space-y-2">
-                <div class="border border-dark-border rounded p-2">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-medium text-green-400">옵션 1: 소스에서 빌드 (권장)</span>
-                  </div>
-                  <p class="text-xs text-dark-text-muted mb-2">Node.js가 있는 환경에서 직접 빌드</p>
-                  <div class="bg-dark-surface rounded p-2 text-xs font-mono">
-                    <div>cd websocket-server</div>
-                    <div>npm install</div>
-                    <div>npm start</div>
-                  </div>
-                </div>
-                
-                <div class="border border-dark-border rounded p-2">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-medium text-blue-400">옵션 2: 실행 파일 빌드</span>
-                  </div>
-                  <p class="text-xs text-dark-text-muted mb-2">플랫폼별 실행 파일 생성</p>
-                  <div class="bg-dark-surface rounded p-2 text-xs font-mono">
-                    <div>cd websocket-server</div>
-                    <div>npm install</div>
-                    <div>npm run build:all</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div class="bg-dark-panel rounded p-3">
-              <h4 class="text-sm font-medium text-dark-text-primary mb-2">📋 실행 확인</h4>
-              <div class="space-y-1 text-xs text-dark-text-muted">
-                <div>✅ 서버가 포트 8080에서 실행됨</div>
-                <div>✅ 콘솔에 "running on port 8080" 메시지 확인</div>
-                <div>✅ 이 페이지에서 TCP 탭 다시 클릭</div>
-              </div>
-            </div>
-            
-            <div class="bg-blue-900/20 border border-blue-600/30 rounded p-3">
-              <h4 class="text-sm font-medium text-blue-300 mb-2">📚 자세한 가이드</h4>
-              <p class="text-xs text-blue-200 mb-2">설정 방법과 문제 해결 방법을 확인하세요.</p>
-            </div>
-          </div>
-          
-          <div class="flex flex-col gap-2 mt-4">
-            <div class="flex gap-2">
-              <button class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm flex-1" onclick="window.open('./QUICK_START_TCP.md', '_blank')">
-                ⚡ 빠른 시작
-              </button>
-              <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm flex-1" onclick="window.open('./PROXY_DOWNLOAD_GUIDE.md', '_blank')">
-                📖 상세 가이드
-              </button>
-            </div>
-            <div class="flex gap-2">
-              <button class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded text-sm flex-1" onclick="window.open('./websocket-server/', '_blank')">
-                💾 서버 폴더
-              </button>
-              <button class="btn-secondary text-sm px-3 py-2 flex-1" onclick="document.getElementById('proxy-guide-modal').remove()">
-                나중에
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Remove existing modal if any
-    document.getElementById('proxy-guide-modal')?.remove();
-    
-    // Add new modal
-    document.body.insertAdjacentHTML('beforeend', guideHtml);
-  }
 
   // Show native proxy setup guide
   private showNativeProxyGuide(errorMessage: string): void {
@@ -970,8 +615,6 @@ export class ConnectionPanel {
   private async handleConnect(): Promise<void> {
     if (this.activeTab === 'RTU') {
       await this.handleRtuConnect();
-    } else if (this.activeTab === 'TCP') {
-      await this.handleTcpConnect();
     } else if (this.activeTab === 'TCP_NATIVE') {
       await this.handleTcpNativeConnect();
     }
@@ -1046,51 +689,6 @@ export class ConnectionPanel {
     }
   }
 
-  private async handleTcpConnect(): Promise<void> {
-    // Enable auto-reconnect when user initiates connection
-    this.autoReconnectEnabled = true;
-    this.reconnectAttempts = 0;
-    this.clearReconnectTimeout();
-    
-    this.tcpConnectionStatus = 'connecting';
-    this.onConnectionChange('connecting');
-    this.updateButtonStates(false, true);
-
-    try {
-      // Connect to WebSocket proxy server first
-      if (!this.webSocketService.isConnected()) {
-        this.webSocketStatus = 'connecting';
-        this.updateWebSocketStatusDisplay();
-        await this.webSocketService.connect();
-      }
-
-      // Get TCP connection config
-      const config = this.getCurrentConfig();
-      const tcpConfig: ModbusTcpConfig = {
-        host: config.tcp.host,
-        port: config.tcp.port
-      };
-
-      console.log(`🔌 Attempting to connect to Modbus TCP device at ${tcpConfig.host}:${tcpConfig.port}`);
-      console.log(`📊 Connection state: WS=${this.webSocketStatus}, TCP=${this.tcpConnectionStatus}, Reconnect attempts=${this.reconnectAttempts}`);
-
-      // Store current config for status display
-      this.currentTcpConfig = tcpConfig;
-      
-      // Connect to Modbus device via WebSocket proxy
-      await this.webSocketService.connectToModbusDevice(tcpConfig);
-
-    } catch (error) {
-      console.error('TCP connection failed:', error);
-      this.tcpConnectionStatus = 'error';
-      this.onConnectionChange('error');
-      this.updateButtonStates(false, false);
-      
-      if (error instanceof Error) {
-        alert(`TCP Connection failed: ${error.message}`);
-      }
-    }
-  }
 
   private async handleTcpNativeConnect(): Promise<void> {
     // Check if already connected
@@ -1156,38 +754,27 @@ export class ConnectionPanel {
 
   private async handleDisconnect(): Promise<void> {
     try {
-      // Disable auto-reconnect when user manually disconnects
-      this.autoReconnectEnabled = false;
-      this.manualDisconnect = true; // Set manual disconnect flag
-      this.clearReconnectTimeout();
+      // Set manual disconnect flag
+      this.manualDisconnect = true;
       
       if (this.activeTab === 'RTU' && this.serialService.getConnectionStatus()) {
         await this.serialService.disconnect();
-      } else if (this.activeTab === 'TCP' && this.tcpConnectionStatus === 'connected') {
-        await this.webSocketService.disconnectFromModbusDevice();
       } else if (this.activeTab === 'TCP_NATIVE' && this.tcpNativeStatus === 'connected') {
         this.tcpNativeService.disconnect(true); // Force manual disconnect
       }
       
-      this.tcpConnectionStatus = 'disconnected';
       this.tcpNativeStatus = 'disconnected';
-      this.reconnectAttempts = 0;
-      this.currentTcpConfig = null;
       this.currentNativeConfig = null;
       this.onConnectionChange('disconnected');
       this.updateButtonStates(false, false);
       this.updateSelectedPortInfo();
-      this.updateTcpStatusDisplay();
       this.updateTcpNativeStatusDisplay();
       
     } catch (error) {
       console.error('Disconnect failed:', error);
       // Force update UI even if disconnect fails
-      this.tcpConnectionStatus = 'disconnected';
-      this.currentTcpConfig = null;
       this.onConnectionChange('disconnected');
       this.updateButtonStates(false, false);
-      this.updateTcpStatusDisplay();
     }
   }
 
@@ -1269,14 +856,6 @@ export class ConnectionPanel {
           stopBits: 1 
         }
       };
-    } else if (this.activeTab === 'TCP') {
-      const host = (document.getElementById('tcp-host') as HTMLInputElement)?.value || '127.0.0.1';
-      const port = parseInt((document.getElementById('tcp-port') as HTMLInputElement)?.value || '5020');
-
-      return {
-        type: 'TCP',
-        tcp: { host, port }
-      };
     } else if (this.activeTab === 'TCP_NATIVE') {
       const host = (document.getElementById('tcp-native-host') as HTMLInputElement)?.value || '127.0.0.1';
       const port = parseInt((document.getElementById('tcp-native-port') as HTMLInputElement)?.value || '5020');
@@ -1318,220 +897,23 @@ export class ConnectionPanel {
     return this.serialService;
   }
 
-  // Public method to get WebSocket service for TCP command sending
-  getWebSocketService(): WebSocketService {
-    return this.webSocketService;
-  }
 
   // Public method to get TCP Native service for TCP Native command sending
   getTcpNativeService(): TcpNativeService {
     return this.tcpNativeService;
   }
 
-  // WebSocket status helper methods
-  private getWebSocketStatusClass(): string {
-    switch (this.webSocketStatus) {
-      case 'connected':
-        return 'bg-green-900/20 border border-green-500/30';
-      case 'connecting':
-        return 'bg-yellow-900/20 border border-yellow-500/30';
-      case 'error':
-        return 'bg-red-900/20 border border-red-500/30';
-      default:
-        return 'bg-gray-900/20 border border-gray-500/30';
-    }
-  }
 
-  private getWebSocketIndicatorClass(): string {
-    switch (this.webSocketStatus) {
-      case 'connected':
-        return 'bg-green-500';
-      case 'connecting':
-        return 'bg-yellow-500 animate-pulse';
-      case 'error':
-        return 'bg-red-500';
-      default:
-        return 'bg-gray-500';
-    }
-  }
 
-  private getWebSocketStatusText(): string {
-    switch (this.webSocketStatus) {
-      case 'connected':
-        return 'WebSocket Proxy Connected';
-      case 'connecting':
-        return 'Connecting to WebSocket Proxy...';
-      case 'error':
-        return 'WebSocket Proxy Connection Failed';
-      default:
-        return 'WebSocket Proxy Disconnected';
-    }
-  }
 
-  private updateWebSocketStatusDisplay(): void {
-    if (this.activeTab === 'TCP') {
-      // Refresh TCP tab to update WebSocket status
-      const container = document.querySelector('.tab-content');
-      if (container) {
-        container.innerHTML = this.renderTcpTab();
-        this.attachEventListeners();
-      }
-    }
-  }
 
-  private updateTcpStatusDisplay(): void {
-    if (this.activeTab === 'TCP') {
-      // Refresh TCP tab to update Modbus TCP status
-      const container = document.querySelector('.tab-content');
-      if (container) {
-        container.innerHTML = this.renderTcpTab();
-        this.attachEventListeners();
-      }
-    }
-  }
 
-  // Auto-reconnect helper methods
-  private scheduleReconnect(): void {
-    // Prevent multiple simultaneous reconnect attempts
-    if (this.reconnectTimeout) {
-      console.log('Reconnect already scheduled, ignoring duplicate request');
-      return;
-    }
-    
-    // Additional check: don't reconnect if we just attempted recently
-    const timeSinceLastReconnect = Date.now() - this.lastDisconnectTime;
-    if (timeSinceLastReconnect < 3000) { // Wait at least 3 seconds between reconnect attempts
-      console.log(`Delaying reconnect - only ${timeSinceLastReconnect}ms since last disconnect`);
-      this.reconnectTimeout = setTimeout(() => {
-        this.reconnectTimeout = null;
-        this.scheduleReconnect();
-      }, 3000 - timeSinceLastReconnect);
-      return;
-    }
-    
-    this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000); // Exponential backoff with max 30s
-    
-    console.log(`📞 Scheduling TCP reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
-    
-    this.reconnectTimeout = setTimeout(async () => {
-      // Double check that we still need to reconnect and haven't exceeded max attempts
-      if (!this.autoReconnectEnabled || this.tcpConnectionStatus === 'connected' || this.reconnectAttempts > this.maxReconnectAttempts) {
-        console.log('❌ Cancelling reconnect attempt - conditions changed:', {
-          autoReconnectEnabled: this.autoReconnectEnabled,
-          status: this.tcpConnectionStatus,
-          attempts: this.reconnectAttempts,
-          maxAttempts: this.maxReconnectAttempts
-        });
-        return;
-      }
-      
-      console.log(`🔄 Attempting TCP reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
-      
-      try {
-        // Use current config if available, otherwise get from form
-        let tcpConfig = this.currentTcpConfig;
-        if (!tcpConfig) {
-          const config = this.getCurrentConfig();
-          tcpConfig = {
-            host: config.tcp.host,
-            port: config.tcp.port
-          };
-          this.currentTcpConfig = tcpConfig;
-        }
-        
-        // Update status to show reconnection attempt
-        this.tcpConnectionStatus = 'connecting';
-        this.onConnectionChange('connecting');
-        this.updateButtonStates(false, true);
-        this.updateTcpStatusDisplay();
-        
-        await this.webSocketService.reconnectToModbusDevice(tcpConfig);
-        
-      } catch (error) {
-        console.error('❌ TCP reconnect failed:', error);
-        
-        // Try again if we haven't exceeded max attempts
-        if (this.reconnectAttempts < this.maxReconnectAttempts && this.autoReconnectEnabled) {
-          this.scheduleReconnect();
-        } else {
-          console.log('🚫 Max TCP reconnect attempts reached or auto-reconnect disabled');
-          this.autoReconnectEnabled = false;
-          this.tcpConnectionStatus = 'error';
-          this.onConnectionChange('error');
-          this.updateButtonStates(false, false);
-          this.updateTcpStatusDisplay();
-        }
-      }
-    }, delay);
-  }
 
-  private clearReconnectTimeout(): void {
-    if (this.reconnectTimeout) {
-      console.log('Clearing TCP reconnect timeout');
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-  }
 
-  // Public method to enable/disable auto-reconnect
-  public setAutoReconnect(enabled: boolean): void {
-    this.autoReconnectEnabled = enabled;
-    if (!enabled) {
-      this.clearReconnectTimeout();
-    }
-  }
 
-  // TCP status helper methods
-  private getTcpStatusClass(): string {
-    switch (this.tcpConnectionStatus) {
-      case 'connected':
-        return 'bg-green-900/20 border border-green-500/30';
-      case 'connecting':
-        return 'bg-yellow-900/20 border border-yellow-500/30';
-      case 'error':
-        return 'bg-red-900/20 border border-red-500/30';
-      default:
-        return 'bg-gray-900/20 border border-gray-500/30';
-    }
-  }
 
-  private getTcpIndicatorClass(): string {
-    switch (this.tcpConnectionStatus) {
-      case 'connected':
-        return 'bg-green-500';
-      case 'connecting':
-        return 'bg-yellow-500 animate-pulse';
-      case 'error':
-        return 'bg-red-500';
-      default:
-        return 'bg-gray-500';
-    }
-  }
 
-  private getTcpStatusText(): string {
-    switch (this.tcpConnectionStatus) {
-      case 'connected':
-        return 'Modbus TCP Connected';
-      case 'connecting':
-        return 'Connecting to Modbus Device...';
-      case 'error':
-        return 'Modbus TCP Connection Failed';
-      default:
-        return 'Modbus TCP Disconnected';
-    }
-  }
 
-  private getTcpStatusDetail(): string {
-    if (this.currentTcpConfig) {
-      const statusPrefix = this.tcpConnectionStatus === 'connected' ? 'Connected to:' :
-                          this.tcpConnectionStatus === 'connecting' ? 'Connecting to:' :
-                          this.tcpConnectionStatus === 'error' ? 'Failed to connect to:' :
-                          'Last attempted:';
-      return `${statusPrefix} ${this.currentTcpConfig.host}:${this.currentTcpConfig.port}`;
-    }
-    return 'No connection attempted';
-  }
 
   // TCP Native status methods
   private getNativeProxyStatusClass(): string {
@@ -1656,23 +1038,6 @@ export class ConnectionPanel {
 
   // Cleanup method to remove event handlers
   public cleanup(): void {
-    // Clear any pending timeouts
-    this.clearReconnectTimeout();
-    
-    // Remove WebSocket event handlers
-    this.webSocketService.offMessage('ws_connected');
-    this.webSocketService.offMessage('connected');
-    this.webSocketService.offMessage('ws_disconnected');
-    this.webSocketService.offMessage('ws_error');
-    this.webSocketService.offMessage('tcp_connected');
-    this.webSocketService.offMessage('tcp_disconnected');
-    this.webSocketService.offMessage('tcp_error');
-    
-    // Disconnect services
-    if (this.webSocketService.isConnected()) {
-      this.webSocketService.disconnect();
-    }
-    
     // Cleanup TCP Native service
     if (this.tcpNativeService.isProxyReady() || this.tcpNativeService.isTcpConnected()) {
       this.tcpNativeService.cleanup();

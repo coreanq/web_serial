@@ -317,7 +317,7 @@ export class App {
     
     // Update command panel with connection status
     this.commandPanel.updateConnectionStatus(
-      this.state.connectionConfig.type as 'RTU' | 'TCP' | 'TCP_NATIVE',
+      this.state.connectionConfig.type as 'RTU' | 'TCP_NATIVE',
       status === 'connected'
     );
     
@@ -355,35 +355,6 @@ export class App {
             await serialService.sendHexString(command);
             if (!isRepeating) {
               console.log('RTU Command sent successfully:', command);
-            }
-          }
-        } else if (currentConnectionType === 'TCP') {
-          // Get WebSocket service from connection panel
-          const webSocketService = this.connectionPanel.getWebSocketService();
-          if (webSocketService && webSocketService.isConnected()) {
-            // Get the actual data that will be sent (with MBAP header)
-            const actualSentData = this.getActualTcpData(command);
-            
-            // Create log entry
-            const logEntry = {
-              id: Date.now().toString(),
-              timestamp: new Date(),
-              direction: 'send' as const,
-              data: actualSentData
-            };
-            
-            if (isRepeating) {
-              // Add to pending logs and update with throttling
-              this.addToThrottledLogs(logEntry);
-            } else {
-              // Immediate update for non-repeating commands
-              this.state.logs.push(logEntry);
-              this.logPanel.updateLogs(this.state.logs);
-            }
-            
-            await webSocketService.sendModbusCommand(command);
-            if (!isRepeating) {
-              console.log('TCP Command sent successfully:', command);
             }
           }
         } else if (currentConnectionType === 'TCP_NATIVE') {
@@ -498,18 +469,17 @@ export class App {
     
   }
 
-  private getCurrentConnectionType(): 'RTU' | 'TCP' | 'TCP_NATIVE' {
+  private getCurrentConnectionType(): 'RTU' | 'TCP_NATIVE' {
     // Get current active tab from connection panel
     const activeTab = document.querySelector('.tab-button.active');
     if (activeTab) {
       const tabType = activeTab.getAttribute('data-tab');
-      if (tabType === 'TCP') return 'TCP';
       if (tabType === 'TCP_NATIVE') return 'TCP_NATIVE';
       return 'RTU';
     }
     
     // Fallback to state if tab info not available
-    return this.state.connectionConfig.type as 'RTU' | 'TCP' | 'TCP_NATIVE' || 'RTU';
+    return this.state.connectionConfig.type as 'RTU' | 'TCP_NATIVE' || 'RTU';
   }
 
   private getActualTcpData(pduHex: string, unitId: number = 1): string {
