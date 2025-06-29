@@ -46,15 +46,17 @@ export class SerialService {
     }
   }
 
-  // Connect to a serial port
-  async connect(port: SerialPort, options: SerialOptions): Promise<void> {
+  // Connect to a serial port with timeout
+  async connect(port: SerialPort, options: SerialOptions, timeoutMs: number = 15000): Promise<void> {
     // Prevent multiple simultaneous connection attempts
     if (this.isConnecting) {
-      throw new Error('Connection already in progress. Please wait for the current connection attempt to complete.');
+      console.log('Connection attempt blocked: already in progress');
+      return; // Silently ignore duplicate connection attempts
     }
 
     // If we're already connected to the same port, just return
     if (this.isConnected && this.currentPort === port) {
+      console.log('Already connected to the same port');
       return;
     }
 
@@ -64,25 +66,39 @@ export class SerialService {
     }
 
     this.isConnecting = true;
+    console.log('Starting connection attempt...');
 
     try {
-      // Check if the port is already open
-      const isPortOpen = port.readable !== null || port.writable !== null;
-      
-      if (!isPortOpen) {
-        await port.open(options);
-      }
-      
-      this.currentPort = port;
-      this.isConnected = true;
+      // Create timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Connection timeout after ${timeoutMs / 1000} seconds. The device may not be responding or permission was denied.`));
+        }, timeoutMs);
+      });
 
-      // Set up readers and writers
-      if (port.readable && !this.reader) {
-        this.reader = port.readable.getReader();
-      }
-      if (port.writable && !this.writer) {
-        this.writer = port.writable.getWriter();
-      }
+      // Create connection promise
+      const connectionPromise = async () => {
+        // Check if the port is already open
+        const isPortOpen = port.readable !== null || port.writable !== null;
+        
+        if (!isPortOpen) {
+          await port.open(options);
+        }
+        
+        this.currentPort = port;
+        this.isConnected = true;
+
+        // Set up readers and writers
+        if (port.readable && !this.reader) {
+          this.reader = port.readable.getReader();
+        }
+        if (port.writable && !this.writer) {
+          this.writer = port.writable.getWriter();
+        }
+      };
+
+      // Race between connection and timeout
+      await Promise.race([connectionPromise(), timeoutPromise]);
 
     } catch (error) {
       this.currentPort = null;
@@ -98,6 +114,8 @@ export class SerialService {
           }
         } else if (error.name === 'NetworkError') {
           throw new Error('Failed to open port. The device may be disconnected or in use by another application.');
+        } else if (error.message.includes('timeout')) {
+          throw new Error(error.message); // Pass timeout message as-is
         }
         throw new Error(`Failed to connect to serial port: ${error.message}`);
       }

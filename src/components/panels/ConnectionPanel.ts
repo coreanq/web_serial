@@ -114,8 +114,9 @@ export class ConnectionPanel {
 
         <!-- Connection Controls -->
         <div class="flex items-center gap-3 pt-4 border-t border-dark-border">
-          <button class="btn-primary" id="connect-btn">
-            Connect
+          <button class="btn-primary flex items-center gap-2" id="connect-btn">
+            <span id="connect-btn-text">Connect</span>
+            <div id="connect-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
           </button>
           <button class="btn-secondary" id="disconnect-btn" disabled>
             Disconnect
@@ -125,6 +126,19 @@ export class ConnectionPanel {
               🔧 Force Close
             </button>
           ` : ''}
+        </div>
+        
+        <!-- Connection Progress Status -->
+        <div id="connection-progress" class="hidden p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+          <div class="flex items-center gap-2">
+            <div class="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+            <span class="text-sm text-blue-700 dark:text-blue-300" id="progress-message">
+              Connecting to serial port...
+            </span>
+          </div>
+          <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+            Waiting for browser permission and port access...
+          </p>
         </div>
       </div>
     `;
@@ -318,14 +332,13 @@ export class ConnectionPanel {
   }
 
   private attachEventListeners(): void {
+    // Remove existing event listeners to prevent duplicates
+    this.removeEventListeners();
+    
     // Tab switching
     const tabButtons = document.querySelectorAll('[data-tab]');
     tabButtons.forEach(button => {
-      button.addEventListener('click', (e) => {
-        const target = e.target as HTMLButtonElement;
-        const tabType = target.dataset.tab as ConnectionType;
-        this.switchTab(tabType);
-      });
+      button.addEventListener('click', this.handleTabClick);
     });
 
     // Connection buttons
@@ -333,9 +346,9 @@ export class ConnectionPanel {
     const disconnectBtn = document.getElementById('disconnect-btn');
     const forceCloseBtn = document.getElementById('force-close-btn');
 
-    connectBtn?.addEventListener('click', () => this.handleConnect());
-    disconnectBtn?.addEventListener('click', () => this.handleDisconnect());
-    forceCloseBtn?.addEventListener('click', () => this.handleForceClose());
+    connectBtn?.addEventListener('click', this.handleConnectClick);
+    disconnectBtn?.addEventListener('click', this.handleDisconnectClick);
+    forceCloseBtn?.addEventListener('click', this.handleForceCloseClick);
 
     // Baud rate custom input toggle
     const baudRateSelect = document.getElementById('baud-rate') as HTMLSelectElement;
@@ -639,11 +652,14 @@ export class ConnectionPanel {
 
     // Check if connection is already in progress
     if (this.serialService.getConnectionProgress()) {
-      alert('Connection already in progress. Please wait for it to complete.');
+      // Connection already in progress, just update the UI to show current status
+      this.showConnectionProgress('Connection already in progress...');
+      console.log('Connection attempt ignored: already in progress');
       return;
     }
 
-    // Disable connect button to prevent multiple clicks
+    // Show connection progress UI
+    this.showConnectionProgress('Initializing connection...');
     this.updateButtonStates(false, true);
     this.onConnectionChange('connecting');
 
@@ -656,8 +672,17 @@ export class ConnectionPanel {
         parity: config.serial.parity
       };
 
+      // Update progress message for port access
+      this.updateProgressMessage('Requesting port access permission...');
+      
+      // Add small delay to show the progress message
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      this.updateProgressMessage('Opening serial port...');
       await this.serialService.connect(this.selectedPort, serialOptions);
       
+      // Hide progress and show success
+      this.hideConnectionProgress();
       this.onConnectionChange('connected', config);
       this.updateButtonStates(true, false);
       this.updateSelectedPortInfo();
@@ -667,6 +692,9 @@ export class ConnectionPanel {
       
     } catch (error) {
       console.error('Connection failed:', error);
+      
+      // Hide progress UI
+      this.hideConnectionProgress();
       
       // Immediately reset button state
       this.updateButtonStates(false, false);
@@ -867,6 +895,85 @@ export class ConnectionPanel {
     }
   }
 
+  private showConnectionProgress(message: string): void {
+    const progressDiv = document.getElementById('connection-progress');
+    const progressMessage = document.getElementById('progress-message');
+    const connectSpinner = document.getElementById('connect-spinner');
+    const connectText = document.getElementById('connect-btn-text');
+    
+    if (progressDiv) {
+      progressDiv.classList.remove('hidden');
+    }
+    if (progressMessage) {
+      progressMessage.textContent = message;
+    }
+    if (connectSpinner) {
+      connectSpinner.classList.remove('hidden');
+    }
+    if (connectText) {
+      connectText.textContent = 'Connecting...';
+    }
+  }
+
+  private updateProgressMessage(message: string): void {
+    const progressMessage = document.getElementById('progress-message');
+    if (progressMessage) {
+      progressMessage.textContent = message;
+    }
+  }
+
+  private removeEventListeners(): void {
+    // Remove tab button listeners
+    const tabButtons = document.querySelectorAll('[data-tab]');
+    tabButtons.forEach(button => {
+      button.removeEventListener('click', this.handleTabClick);
+    });
+
+    // Remove connection button listeners
+    const connectBtn = document.getElementById('connect-btn');
+    const disconnectBtn = document.getElementById('disconnect-btn');
+    const forceCloseBtn = document.getElementById('force-close-btn');
+
+    connectBtn?.removeEventListener('click', this.handleConnectClick);
+    disconnectBtn?.removeEventListener('click', this.handleDisconnectClick);
+    forceCloseBtn?.removeEventListener('click', this.handleForceCloseClick);
+  }
+
+  private handleTabClick = (e: Event) => {
+    const target = e.target as HTMLButtonElement;
+    const tabType = target.dataset.tab as ConnectionType;
+    this.switchTab(tabType);
+  };
+
+  private handleConnectClick = () => {
+    console.log('Connect button clicked');
+    this.handleConnect();
+  };
+
+  private handleDisconnectClick = () => {
+    this.handleDisconnect();
+  };
+
+  private handleForceCloseClick = () => {
+    this.handleForceClose();
+  };
+
+  private hideConnectionProgress(): void {
+    const progressDiv = document.getElementById('connection-progress');
+    const connectSpinner = document.getElementById('connect-spinner');
+    const connectText = document.getElementById('connect-btn-text');
+    
+    if (progressDiv) {
+      progressDiv.classList.add('hidden');
+    }
+    if (connectSpinner) {
+      connectSpinner.classList.add('hidden');
+    }
+    if (connectText) {
+      connectText.textContent = 'Connect';
+    }
+  }
+
   private updateButtonStates(connected: boolean, connecting: boolean = false): void {
     const connectBtn = document.getElementById('connect-btn') as HTMLButtonElement;
     const disconnectBtn = document.getElementById('disconnect-btn') as HTMLButtonElement;
@@ -874,13 +981,6 @@ export class ConnectionPanel {
     if (connectBtn && disconnectBtn) {
       // Disable connect button if connected or connecting
       connectBtn.disabled = connected || connecting;
-      
-      // Update connect button text based on state
-      if (connecting) {
-        connectBtn.textContent = 'Connecting...';
-      } else {
-        connectBtn.textContent = 'Connect';
-      }
       
       // Disable disconnect button unless connected
       disconnectBtn.disabled = !connected;
