@@ -8,7 +8,7 @@ export class App {
   private connectionPanel: ConnectionPanel;
   private logPanel: LogPanel;
   private commandPanel: CommandPanel;
-  private connectionPanelPosition: 'top' | 'left' | 'right' = 'left';
+  private connectionPanelPosition: 'top' | 'left' | 'right' = 'top';
   private connectionPanelVisible: boolean = true;
   private pendingRepeatLogs: any[] = [];
   private lastLogUpdateTime = 0;
@@ -144,6 +144,10 @@ export class App {
       this.logPanel.mount(logContent);
       // Set callback for log clearing to handle pending repeat logs
       this.logPanel.setClearLogsCallback(this.onLogsClear.bind(this));
+      // Set initial connection type for packet analysis
+      this.logPanel.setConnectionType(
+        this.state.connectionConfig.type as 'RTU' | 'TCP_NATIVE'
+      );
     }
 
     if (commandContent) {
@@ -223,8 +227,6 @@ export class App {
   }
 
   private renderMainContent(): string {
-    const isConnectionPanelSide = this.connectionPanelPosition === 'left' || this.connectionPanelPosition === 'right';
-    
     return `
       <!-- Main Layout: Log Panel (left) + Command Panel (right) -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
@@ -319,6 +321,11 @@ export class App {
     this.commandPanel.updateConnectionStatus(
       this.state.connectionConfig.type as 'RTU' | 'TCP_NATIVE',
       status === 'connected'
+    );
+    
+    // Update log panel with connection type for proper packet analysis
+    this.logPanel.setConnectionType(
+      this.state.connectionConfig.type as 'RTU' | 'TCP_NATIVE'
     );
     
     this.updateStatus();

@@ -5,6 +5,7 @@ export class LogPanel {
   private isAutoScroll = true;
   private container: HTMLElement | null = null;
   private onClearLogs?: () => void;
+  private connectionType: 'RTU' | 'TCP_NATIVE' = 'RTU';
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -17,6 +18,10 @@ export class LogPanel {
 
   setClearLogsCallback(callback: () => void): void {
     this.onClearLogs = callback;
+  }
+
+  setConnectionType(type: 'RTU' | 'TCP_NATIVE'): void {
+    this.connectionType = type;
   }
 
   private addCustomStyles(): void {
@@ -277,13 +282,19 @@ export class LogPanel {
     const cleaned = data.replace(/\s+/g, '').toUpperCase();
     if (cleaned.length < 8) return null; // Minimum RTU packet size
     
-    // Check if it's a TCP packet (starts with transaction ID + protocol ID)
+    // Force analysis based on connection type when RTU is selected
+    if (this.connectionType === 'RTU') {
+      return this.analyzeRtuPacket(cleaned);
+    }
+    
+    // For TCP_NATIVE, check if it's actually a TCP packet or fallback to analyzing PDU directly
     const isTcpPacket = this.isTcpPacket(cleaned);
     
     if (isTcpPacket) {
       return this.analyzeTcpPacket(cleaned);
     } else {
-      return this.analyzeRtuPacket(cleaned);
+      // For TCP_NATIVE mode, analyze as PDU directly (without RTU wrapper)
+      return this.analyzeTcpNativePdu(cleaned);
     }
   }
 
@@ -352,6 +363,26 @@ export class LogPanel {
     }
   }
 
+  private analyzeTcpNativePdu(hexData: string): string | null {
+    if (hexData.length < 2) return null;
+    
+    try {
+      // For TCP Native mode, the data might be just the PDU without MBAP header
+      const pduAnalysis = this.analyzeModbusPdu(hexData);
+      
+      if (pduAnalysis) {
+        let result = `🌐 MODBUS TCP NATIVE PDU\n`;
+        result += `PDU Length: ${hexData.length / 2} bytes\n`;
+        result += `\n${pduAnalysis}`;
+        return result;
+      }
+      
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   private analyzeModbusPdu(pdu: string): string | null {
     if (pdu.length < 2) return null;
     
@@ -376,10 +407,29 @@ export class LogPanel {
         return this.analyzeReadHoldingRegisters(pdu);
       case 0x04:
         return this.analyzeReadInputRegisters(pdu);
+      case 0x05:
+        return this.analyzeWriteSingleCoil(pdu);
       case 0x06:
         return this.analyzeWriteSingleRegister(pdu);
+      case 0x08:
+        // Diagnostics - Serial Line only, skip for TCP
+        return this.connectionType === 'RTU' ? this.analyzeDiagnostics(pdu) : `📋 MODBUS PDU\nFunction Code: 0x${functionCode} (${functionCodeInt}) - Not supported in TCP mode`;
+      case 0x0B:
+        // Get Comm Event Counter - Serial Line only, skip for TCP
+        return this.connectionType === 'RTU' ? this.analyzeGetCommEventCounter(pdu) : `📋 MODBUS PDU\nFunction Code: 0x${functionCode} (${functionCodeInt}) - Not supported in TCP mode`;
+      case 0x0F:
+        return this.analyzeWriteMultipleCoils(pdu);
       case 0x10:
         return this.analyzeWriteMultipleRegisters(pdu);
+      case 0x11:
+        // Report Server ID - Serial Line only, skip for TCP
+        return this.connectionType === 'RTU' ? this.analyzeReportServerId(pdu) : `📋 MODBUS PDU\nFunction Code: 0x${functionCode} (${functionCodeInt}) - Not supported in TCP mode`;
+      case 0x16:
+        return this.analyzeMaskWriteRegister(pdu);
+      case 0x17:
+        return this.analyzeReadWriteMultipleRegisters(pdu);
+      case 0x2B:
+        return this.analyzeReadDeviceIdentification(pdu);
       default:
         return `📋 MODBUS PDU\nFunction Code: 0x${functionCode} (${functionCodeInt}) - Unknown/Unsupported`;
     }
@@ -477,6 +527,17 @@ export class LogPanel {
     return `📊 READ INPUT REGISTERS (0x04)`;
   }
 
+  private analyzeWriteSingleCoil(pdu: string): string {
+    if (pdu.length === 10) {
+      const coilAddr = pdu.substring(2, 6);
+      const coilValue = pdu.substring(6, 10);
+      const coilState = coilValue === '0000' ? 'OFF' : coilValue === 'FF00' ? 'ON' : 'INVALID';
+      
+      return `⚙️ WRITE SINGLE COIL (0x05)\nCoil Address: 0x${coilAddr} (${parseInt(coilAddr, 16)})\nCoil Value: 0x${coilValue} (${coilState})`;
+    }
+    return `⚙️ WRITE SINGLE COIL (0x05)`;
+  }
+
   private analyzeWriteSingleRegister(pdu: string): string {
     if (pdu.length === 10) {
       const regAddr = pdu.substring(2, 6);
@@ -515,6 +576,162 @@ export class LogPanel {
       }
     }
     return `✏️ WRITE MULTIPLE REGISTERS (0x10)`;
+  }
+
+  private analyzeDiagnostics(pdu: string): string {
+    if (pdu.length >= 6) {
+      const subFunction = pdu.substring(2, 6);
+      const data = pdu.substring(6);
+      
+      const subFunctionNames: { [key: string]: string } = {
+        '0000': 'Return Query Data',
+        '0001': 'Restart Communications Option',
+        '0002': 'Return Diagnostic Register',
+        '0003': 'Change ASCII Input Delimiter',
+        '0004': 'Force Listen Only Mode',
+        '000A': 'Clear Counters and Diagnostic Register',
+        '000B': 'Return Bus Message Count',
+        '000C': 'Return Bus Communication Error Count',
+        '000D': 'Return Bus Exception Error Count',
+        '000E': 'Return Slave Message Count',
+        '000F': 'Return Slave No Response Count'
+      };
+      
+      const subFunctionName = subFunctionNames[subFunction] || 'Unknown Sub-function';
+      
+      return `🔍 DIAGNOSTICS (0x08)\nSub-function: 0x${subFunction} (${parseInt(subFunction, 16)}) - ${subFunctionName}\nData: 0x${data}`;
+    }
+    return `🔍 DIAGNOSTICS (0x08)`;
+  }
+
+  private analyzeGetCommEventCounter(pdu: string): string {
+    if (pdu.length === 2) {
+      // Request
+      return `📊 GET COMM EVENT COUNTER (0x0B) - REQUEST`;
+    } else if (pdu.length === 8) {
+      // Response
+      const status = pdu.substring(2, 6);
+      const eventCount = pdu.substring(6, 10);
+      
+      return `📊 GET COMM EVENT COUNTER (0x0B) - RESPONSE\nStatus: 0x${status} (${parseInt(status, 16)})\nEvent Count: 0x${eventCount} (${parseInt(eventCount, 16)})`;
+    }
+    return `📊 GET COMM EVENT COUNTER (0x0B)`;
+  }
+
+  private analyzeWriteMultipleCoils(pdu: string): string {
+    if (pdu.length >= 12) {
+      const startAddr = pdu.substring(2, 6);
+      const quantity = pdu.substring(6, 10);
+      
+      if (pdu.length === 10) {
+        // Response
+        return `🔄 WRITE MULTIPLE COILS (0x0F) - RESPONSE\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity Written: 0x${quantity} (${parseInt(quantity, 16)} coils)`;
+      } else {
+        // Request
+        const byteCount = pdu.substring(10, 12);
+        const coilData = pdu.substring(12);
+        
+        return `🔄 WRITE MULTIPLE COILS (0x0F) - REQUEST\nStart Address: 0x${startAddr} (${parseInt(startAddr, 16)})\nQuantity: 0x${quantity} (${parseInt(quantity, 16)} coils)\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\nCoil Data: 0x${coilData}`;
+      }
+    }
+    return `🔄 WRITE MULTIPLE COILS (0x0F)`;
+  }
+
+  private analyzeReportServerId(pdu: string): string {
+    if (pdu.length === 2) {
+      // Request
+      return `🏷️ REPORT SERVER ID (0x11) - REQUEST`;
+    } else if (pdu.length >= 4) {
+      // Response
+      const byteCount = pdu.substring(2, 4);
+      const serverIdData = pdu.substring(4);
+      
+      return `🏷️ REPORT SERVER ID (0x11) - RESPONSE\nByte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\nServer ID Data: 0x${serverIdData}`;
+    }
+    return `🏷️ REPORT SERVER ID (0x11)`;
+  }
+
+  private analyzeMaskWriteRegister(pdu: string): string {
+    if (pdu.length === 14) {
+      const regAddr = pdu.substring(2, 6);
+      const andMask = pdu.substring(6, 10);
+      const orMask = pdu.substring(10, 14);
+      
+      return `🎭 MASK WRITE REGISTER (0x16)\nRegister Address: 0x${regAddr} (${parseInt(regAddr, 16)})\nAND Mask: 0x${andMask} (${parseInt(andMask, 16)})\nOR Mask: 0x${orMask} (${parseInt(orMask, 16)})`;
+    }
+    return `🎭 MASK WRITE REGISTER (0x16)`;
+  }
+
+  private analyzeReadWriteMultipleRegisters(pdu: string): string {
+    if (pdu.length >= 18) {
+      const readStartAddr = pdu.substring(2, 6);
+      const readQuantity = pdu.substring(6, 10);
+      const writeStartAddr = pdu.substring(10, 14);
+      const writeQuantity = pdu.substring(14, 18);
+      
+      if (pdu.length > 18) {
+        // Request
+        const writeByteCount = pdu.substring(18, 20);
+        const writeData = pdu.substring(20);
+        
+        return `🔄 READ/WRITE MULTIPLE REGISTERS (0x17) - REQUEST\nRead Start Address: 0x${readStartAddr} (${parseInt(readStartAddr, 16)})\nRead Quantity: 0x${readQuantity} (${parseInt(readQuantity, 16)} registers)\nWrite Start Address: 0x${writeStartAddr} (${parseInt(writeStartAddr, 16)})\nWrite Quantity: 0x${writeQuantity} (${parseInt(writeQuantity, 16)} registers)\nWrite Byte Count: 0x${writeByteCount} (${parseInt(writeByteCount, 16)} bytes)\nWrite Data: 0x${writeData}`;
+      }
+    } else if (pdu.length >= 4) {
+      // Response
+      const byteCount = pdu.substring(2, 4);
+      const readData = pdu.substring(4);
+      
+      return `🔄 READ/WRITE MULTIPLE REGISTERS (0x17) - RESPONSE\nRead Byte Count: 0x${byteCount} (${parseInt(byteCount, 16)} bytes)\nRead Data: 0x${readData}`;
+    }
+    return `🔄 READ/WRITE MULTIPLE REGISTERS (0x17)`;
+  }
+
+  private analyzeReadDeviceIdentification(pdu: string): string {
+    if (pdu.length >= 8) {
+      const subFunction = pdu.substring(2, 4);
+      const readDeviceIdCode = pdu.substring(4, 6);
+      const objectId = pdu.substring(6, 8);
+      
+      const subFunctionNames: { [key: string]: string } = {
+        '0E': 'Read Device Identification'
+      };
+      
+      const readDeviceIdNames: { [key: string]: string } = {
+        '01': 'Basic Device Identification',
+        '02': 'Regular Device Identification',
+        '03': 'Extended Device Identification',
+        '04': 'Individual Access'
+      };
+      
+      const objectNames: { [key: string]: string } = {
+        '00': 'VendorName',
+        '01': 'ProductCode',
+        '02': 'MajorMinorRevision',
+        '03': 'VendorUrl',
+        '04': 'ProductName',
+        '05': 'ModelName',
+        '06': 'UserApplicationName'
+      };
+      
+      const subFunctionName = subFunctionNames[subFunction] || 'Unknown';
+      const readDeviceIdName = readDeviceIdNames[readDeviceIdCode] || 'Unknown';
+      const objectName = objectNames[objectId] || 'Unknown';
+      
+      if (pdu.length === 8) {
+        // Request
+        return `🏷️ READ DEVICE IDENTIFICATION (0x2B/0x0E) - REQUEST\nSub-function: 0x${subFunction} - ${subFunctionName}\nRead Device ID Code: 0x${readDeviceIdCode} - ${readDeviceIdName}\nObject ID: 0x${objectId} - ${objectName}`;
+      } else {
+        // Response
+        const conformityLevel = pdu.substring(8, 10);
+        const moreFollows = pdu.substring(10, 12);
+        const nextObjectId = pdu.substring(12, 14);
+        const numObjects = pdu.substring(14, 16);
+        const objectData = pdu.substring(16);
+        
+        return `🏷️ READ DEVICE IDENTIFICATION (0x2B/0x0E) - RESPONSE\nSub-function: 0x${subFunction} - ${subFunctionName}\nConformity Level: 0x${conformityLevel}\nMore Follows: 0x${moreFollows}\nNext Object ID: 0x${nextObjectId}\nNumber of Objects: 0x${numObjects} (${parseInt(numObjects, 16)})\nObject Data: 0x${objectData}`;
+      }
+    }
+    return `🏷️ READ DEVICE IDENTIFICATION (0x2B/0x0E)`;
   }
 
   private getExceptionText(code: number): string {
