@@ -69,4 +69,5 @@ sessions/
 
 # Added by Task Master AI
 
-.stdio-proxy/packages/*.*
+stdio-proxy/packages/
+stdio-proxy/dist/
