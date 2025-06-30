@@ -344,9 +344,6 @@ export class App {
     if (connectionPanelElement) {
       const newClasses = `panel ${this.getConnectionPanelClasses()}`;
       connectionPanelElement.className = newClasses;
-      console.log('Panel background updated:', newClasses);
-    } else {
-      console.warn('Connection panel element not found');
     }
   }
 

@@ -1262,17 +1262,12 @@ export class ConnectionPanel {
     if (this.activeTab === 'TCP_NATIVE') {
       // TCP Tab: Green only when both Native Proxy and TCP Native are connected
       const isFullyConnected = this.nativeProxyStatus === 'connected' && this.tcpNativeStatus === 'connected';
-      const bgClass = isFullyConnected ? 'bg-green-900/10' : 'bg-red-900/10';
-      console.log(`TCP_NATIVE tab background: ${bgClass} (proxy: ${this.nativeProxyStatus}, tcp: ${this.tcpNativeStatus})`);
-      return bgClass;
+      return isFullyConnected ? 'bg-green-900/10' : 'bg-red-900/10';
     } else if (this.activeTab === 'RTU') {
       // RTU Tab: Green when Serial is connected
       const isSerialConnected = this.serialService.getConnectionStatus();
-      const bgClass = isSerialConnected ? 'bg-green-900/10' : 'bg-red-900/10';
-      console.log(`RTU tab background: ${bgClass} (serial connected: ${isSerialConnected})`);
-      return bgClass;
+      return isSerialConnected ? 'bg-green-900/10' : 'bg-red-900/10';
     }
-    console.log('Default background: bg-gray-900/10');
     return 'bg-gray-900/10'; // Default background
   }
 
