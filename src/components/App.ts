@@ -458,11 +458,13 @@ export class App {
   }
 
   private onRepeatModeChanged(isRepeating: boolean): void {
+    // Update LogPanel repeat mode status to control tooltip display
+    this.logPanel.setRepeatMode(isRepeating);
+    
     if (!isRepeating) {
       // Repeat mode stopped, flush any remaining pending logs
       this.flushPendingLogs();
     }
-    
   }
 
   private onLogsClear(): void {

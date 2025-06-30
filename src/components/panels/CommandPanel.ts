@@ -158,12 +158,12 @@ export class CommandPanel {
                 id="repeat-interval" 
                 class="input-field text-xs w-20" 
                 value="1000" 
-                min="10" 
+                min="30" 
                 max="999999"
                 step="1"
                 pattern="[0-9]*"
                 placeholder="1000"
-                title="Interval in milliseconds (min 10ms, integers only)">
+                title="Interval in milliseconds (min 30ms, integers only)">
               <span class="text-xs text-dark-text-muted">ms</span>
               <button class="btn-secondary text-xs py-1 px-2" id="toggle-repeat">
                 Start
@@ -269,20 +269,20 @@ export class CommandPanel {
       
       repeatIntervalInput.addEventListener('change', () => {
         const value = parseInt(repeatIntervalInput.value, 10);
-        if (value >= 10 && Number.isInteger(value)) {
+        if (value >= 30 && Number.isInteger(value)) {
           this.repeatInterval = value;
         } else {
-          repeatIntervalInput.value = '10';
-          this.repeatInterval = 10;
-          alert('Minimum interval is 10ms (integers only)');
+          repeatIntervalInput.value = '30';
+          this.repeatInterval = 30;
+          alert('Minimum interval is 30ms (integers only)');
         }
       });
       
       // Also handle input event for real-time validation
       repeatIntervalInput.addEventListener('input', () => {
         const value = parseInt(repeatIntervalInput.value, 10);
-        if (isNaN(value) || value < 10) {
-          repeatIntervalInput.setCustomValidity('Minimum interval is 10ms');
+        if (isNaN(value) || value < 30) {
+          repeatIntervalInput.setCustomValidity('Minimum interval is 30ms');
         } else {
           repeatIntervalInput.setCustomValidity('');
         }

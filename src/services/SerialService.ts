@@ -143,7 +143,14 @@ export class SerialService {
     }
 
     try {
-      // Step 1: Cancel and release reader first
+      // Step 1: Clear receive timeout and buffer
+      if (this.receiveTimeout) {
+        clearTimeout(this.receiveTimeout);
+        this.receiveTimeout = null;
+      }
+      this.receiveBuffer = new Uint8Array(0);
+
+      // Step 2: Cancel and release reader first
       if (this.reader) {
         try {
           await this.reader.cancel();
@@ -245,7 +252,12 @@ export class SerialService {
     await this.sendData(bytes);
   }
 
-  // Start reading data from the serial port
+  // Buffer for collecting packet fragments
+  private receiveBuffer: Uint8Array = new Uint8Array(0);
+  private receiveTimeout: NodeJS.Timeout | null = null;
+  private readonly PACKET_TIMEOUT_MS = 5;
+
+  // Start reading data from the serial port with 10ms buffering
   async startReading(onDataReceived: (data: Uint8Array) => void, onError?: (error: Error) => void): Promise<void> {
     if (!this.isConnected || !this.reader) {
       throw new Error('Not connected to any serial port');
@@ -261,7 +273,7 @@ export class SerialService {
           }
 
           if (value && value.length > 0) {
-            onDataReceived(value);
+            this.bufferReceivedData(value, onDataReceived);
           }
         } catch (readError) {
           // If reader is cancelled or disconnected, break the loop
@@ -277,6 +289,29 @@ export class SerialService {
         onError(new Error(`Error reading from serial port: ${error}`));
       }
     }
+  }
+
+  // Buffer received data and send complete packets after timeout
+  private bufferReceivedData(data: Uint8Array, onDataReceived: (data: Uint8Array) => void): void {
+    // Append new data to buffer
+    const newBuffer = new Uint8Array(this.receiveBuffer.length + data.length);
+    newBuffer.set(this.receiveBuffer);
+    newBuffer.set(data, this.receiveBuffer.length);
+    this.receiveBuffer = newBuffer;
+
+    // Clear existing timeout
+    if (this.receiveTimeout) {
+      clearTimeout(this.receiveTimeout);
+    }
+
+    // Set new timeout to send buffered data
+    this.receiveTimeout = setTimeout(() => {
+      if (this.receiveBuffer.length > 0) {
+        onDataReceived(this.receiveBuffer);
+        this.receiveBuffer = new Uint8Array(0);
+      }
+      this.receiveTimeout = null;
+    }, this.PACKET_TIMEOUT_MS);
   }
 
   // Get connection status

@@ -31,6 +31,11 @@ export class TcpNativeService {
   private dataCallbacks: DataCallback[] = [];
   private errorCallbacks: ErrorCallback[] = [];
   private proxyStatusCallbacks: ProxyStatusCallback[] = [];
+  
+  // Buffer for collecting packet fragments
+  private receiveBuffer: string = '';
+  private receiveTimeout: NodeJS.Timeout | null = null;
+  private readonly PACKET_TIMEOUT_MS = 5;
 
   constructor() {
     this.nativeService = new NativeMessagingService('com.my_company.stdio_proxy');
@@ -77,6 +82,13 @@ export class TcpNativeService {
     }
     
     console.log('✅ Manual disconnect proceeding...');
+    
+    // Clear receive timeout and buffer
+    if (this.receiveTimeout) {
+      clearTimeout(this.receiveTimeout);
+      this.receiveTimeout = null;
+    }
+    this.receiveBuffer = '';
     
     if (this.isProxyConnected) {
       this.nativeService.sendMessage({ type: 'disconnect' });
@@ -181,7 +193,7 @@ export class TcpNativeService {
 
     this.nativeService.onMessage('data', (message: TcpNativeMessage) => {
       if (message.data) {
-        this.dataCallbacks.forEach(cb => cb(message.data!));
+        this.bufferReceivedData(message.data);
       }
     });
 
@@ -196,5 +208,25 @@ export class TcpNativeService {
       this.proxyStatusCallbacks.forEach(cb => cb(false));
       this.connectionCallbacks.forEach(cb => cb(false, 'Native proxy disconnected'));
     });
+  }
+
+  // Buffer received data and send complete packets after timeout
+  private bufferReceivedData(data: string): void {
+    // Append new data to buffer
+    this.receiveBuffer += data;
+
+    // Clear existing timeout
+    if (this.receiveTimeout) {
+      clearTimeout(this.receiveTimeout);
+    }
+
+    // Set new timeout to send buffered data
+    this.receiveTimeout = setTimeout(() => {
+      if (this.receiveBuffer.length > 0) {
+        this.dataCallbacks.forEach(cb => cb(this.receiveBuffer));
+        this.receiveBuffer = '';
+      }
+      this.receiveTimeout = null;
+    }, this.PACKET_TIMEOUT_MS);
   }
 }

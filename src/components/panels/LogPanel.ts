@@ -6,6 +6,7 @@ export class LogPanel {
   private container: HTMLElement | null = null;
   private onClearLogs?: () => void;
   private connectionType: 'RTU' | 'TCP_NATIVE' = 'RTU';
+  private isRepeatMode = false;
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -22,6 +23,10 @@ export class LogPanel {
 
   setConnectionType(type: 'RTU' | 'TCP_NATIVE'): void {
     this.connectionType = type;
+  }
+
+  setRepeatMode(isRepeatMode: boolean): void {
+    this.isRepeatMode = isRepeatMode;
   }
 
   private addCustomStyles(): void {
@@ -85,7 +90,7 @@ export class LogPanel {
     // Add tooltip positioning listeners
     document.addEventListener('mouseover', (e) => {
       const target = e.target as HTMLElement;
-      if (target.classList.contains('modbus-packet') && target.dataset.tooltip) {
+      if (target.classList.contains('modbus-packet') && target.dataset.tooltip && !this.isRepeatMode) {
         currentTooltip = this.showTooltip(target, target.dataset.tooltip);
       }
     });
