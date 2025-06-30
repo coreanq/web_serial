@@ -1,6 +1,7 @@
 // src/services/TcpNativeService.ts
 
 import { NativeMessagingService } from './NativeMessagingService';
+import { ModbusResponseCalculator } from '../utils/ModbusResponseCalculator';
 
 export interface TcpNativeConnection {
   host: string;
@@ -36,6 +37,7 @@ export class TcpNativeService {
   private receiveBuffer: string = '';
   private receiveTimeout: NodeJS.Timeout | null = null;
   private readonly PACKET_TIMEOUT_MS = 5;
+  private lastSentRequest: string | null = null; // Store last sent request for response length prediction
 
   constructor() {
     this.nativeService = new NativeMessagingService('com.my_company.stdio_proxy');
@@ -104,6 +106,9 @@ export class TcpNativeService {
       throw new Error('TCP connection is not established');
     }
 
+    // Store last request for response length prediction
+    this.lastSentRequest = hexData;
+    
     this.nativeService.sendMessage({
       type: 'send',
       data: hexData
@@ -210,21 +215,52 @@ export class TcpNativeService {
     });
   }
 
-  // Buffer received data and send complete packets after timeout
+  // Buffer received data and send complete packets after timeout or expected length
   private bufferReceivedData(data: string): void {
     // Append new data to buffer
     this.receiveBuffer += data;
+
+    // Try to predict expected response length if we have a recent request
+    let expectedLength = -1;
+    if (this.lastSentRequest && this.receiveBuffer.length >= 2) {
+      try {
+        expectedLength = ModbusResponseCalculator.calculateExpectedResponseLength(
+          this.lastSentRequest,
+          'TCP_NATIVE'
+        );
+      } catch (error) {
+        // Ignore prediction errors, fall back to timeout
+        expectedLength = -1;
+      }
+    }
+
+    // Check if we have received the expected complete response
+    // Convert hex string length to byte length for comparison
+    const currentByteLength = this.receiveBuffer.replace(/\s+/g, '').length / 2;
+    if (expectedLength > 0 && currentByteLength >= expectedLength) {
+      // We have received the expected amount of data - process immediately
+      if (this.receiveTimeout) {
+        clearTimeout(this.receiveTimeout);
+        this.receiveTimeout = null;
+      }
+      
+      this.dataCallbacks.forEach(cb => cb(this.receiveBuffer));
+      this.receiveBuffer = '';
+      this.lastSentRequest = null; // Clear after processing response
+      return;
+    }
 
     // Clear existing timeout
     if (this.receiveTimeout) {
       clearTimeout(this.receiveTimeout);
     }
 
-    // Set new timeout to send buffered data
+    // Set timeout as fallback for unpredictable responses or incomplete packets
     this.receiveTimeout = setTimeout(() => {
       if (this.receiveBuffer.length > 0) {
         this.dataCallbacks.forEach(cb => cb(this.receiveBuffer));
         this.receiveBuffer = '';
+        this.lastSentRequest = null; // Clear after timeout
       }
       this.receiveTimeout = null;
     }, this.PACKET_TIMEOUT_MS);

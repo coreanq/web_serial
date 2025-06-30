@@ -6,7 +6,6 @@ export class LogPanel {
   private logs: LogEntry[] = [];
   private filteredLogs: LogEntry[] = [];
   private isAutoScroll = true;
-  private container: HTMLElement | null = null;
   private onClearLogs?: () => void;
   private connectionType: 'RTU' | 'TCP_NATIVE' = 'RTU';
   private isRepeatMode = false;
@@ -14,7 +13,6 @@ export class LogPanel {
   private currentDateTimeFilter: DateTimeRange = {};
 
   mount(container: HTMLElement): void {
-    this.container = container;
     this.logService = new LogService();
     
     container.innerHTML = this.render();
@@ -1035,7 +1033,6 @@ export class LogPanel {
 
     // Handle scroll events
     logContainer.addEventListener('scroll', (e) => {
-      const target = e.target as HTMLElement;
       
       // Check if auto scroll is enabled - if so, prevent user scrolling
       const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;

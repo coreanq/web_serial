@@ -1,4 +1,5 @@
 import { SerialPort, SerialOptions } from '../types';
+import { ModbusResponseCalculator } from '../utils/ModbusResponseCalculator';
 
 export class SerialService {
   private currentPort: SerialPort | null = null;
@@ -231,6 +232,8 @@ export class SerialService {
     }
 
     try {
+      // Store last request for response length prediction
+      this.lastSentRequest = new Uint8Array(data);
       await this.writer.write(data);
     } catch (error) {
       throw new Error(`Failed to send data: ${error}`);
@@ -256,6 +259,7 @@ export class SerialService {
   private receiveBuffer: Uint8Array = new Uint8Array(0);
   private receiveTimeout: NodeJS.Timeout | null = null;
   private readonly PACKET_TIMEOUT_MS = 5;
+  private lastSentRequest: Uint8Array | null = null; // Store last sent request for response length prediction
 
   // Start reading data from the serial port with 10ms buffering
   async startReading(onDataReceived: (data: Uint8Array) => void, onError?: (error: Error) => void): Promise<void> {
@@ -291,7 +295,7 @@ export class SerialService {
     }
   }
 
-  // Buffer received data and send complete packets after timeout
+  // Buffer received data and send complete packets after timeout or expected length
   private bufferReceivedData(data: Uint8Array, onDataReceived: (data: Uint8Array) => void): void {
     // Append new data to buffer
     const newBuffer = new Uint8Array(this.receiveBuffer.length + data.length);
@@ -299,16 +303,45 @@ export class SerialService {
     newBuffer.set(data, this.receiveBuffer.length);
     this.receiveBuffer = newBuffer;
 
+    // Try to predict expected response length if we have a recent request
+    let expectedLength = -1;
+    if (this.lastSentRequest && this.receiveBuffer.length >= 2) {
+      try {
+        expectedLength = ModbusResponseCalculator.calculateExpectedResponseLength(
+          this.lastSentRequest,
+          'RTU'
+        );
+      } catch (error) {
+        // Ignore prediction errors, fall back to timeout
+        expectedLength = -1;
+      }
+    }
+
+    // Check if we have received the expected complete response
+    if (expectedLength > 0 && this.receiveBuffer.length >= expectedLength) {
+      // We have received the expected amount of data - process immediately
+      if (this.receiveTimeout) {
+        clearTimeout(this.receiveTimeout);
+        this.receiveTimeout = null;
+      }
+      
+      onDataReceived(this.receiveBuffer);
+      this.receiveBuffer = new Uint8Array(0);
+      this.lastSentRequest = null; // Clear after processing response
+      return;
+    }
+
     // Clear existing timeout
     if (this.receiveTimeout) {
       clearTimeout(this.receiveTimeout);
     }
 
-    // Set new timeout to send buffered data
+    // Set timeout as fallback for unpredictable responses or incomplete packets
     this.receiveTimeout = setTimeout(() => {
       if (this.receiveBuffer.length > 0) {
         onDataReceived(this.receiveBuffer);
         this.receiveBuffer = new Uint8Array(0);
+        this.lastSentRequest = null; // Clear after timeout
       }
       this.receiveTimeout = null;
     }, this.PACKET_TIMEOUT_MS);
