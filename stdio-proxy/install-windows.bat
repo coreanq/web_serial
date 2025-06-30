@@ -1,8 +1,11 @@
 @echo off
+chcp 65001 > nul
+setlocal enabledelayedexpansion
+
 REM Windows Installation script for stdio-proxy Native Host
 REM This script installs the native messaging host for Chrome extension
 
-echo 🪟 Installing stdio-proxy Native Host for Windows...
+echo [INFO] Installing stdio-proxy Native Host for Windows...
 
 REM Get the directory where this script is located
 set "DIR=%~dp0"
@@ -12,16 +15,21 @@ REM Get Chrome Extension ID
 set "EXTENSION_ID="
 if exist "%DIR%\extension-id.txt" (
     set /p EXTENSION_ID=<"%DIR%\extension-id.txt"
-    echo 📋 Using Extension ID from file: %EXTENSION_ID%
+    echo [INFO] Using Extension ID from file: !EXTENSION_ID!
 ) else (
-    echo ⚠️  Extension ID file not found. Please create 'extension-id.txt' with your Chrome extension ID.
+    echo [WARNING] Extension ID file not found. Please create 'extension-id.txt' with your Chrome extension ID.
     echo    You can find your extension ID at chrome://extensions
-    set /p EXTENSION_ID="   Enter your Extension ID: "
-    echo %EXTENSION_ID%>"%DIR%\extension-id.txt"
+    set /p "EXTENSION_ID=   Enter your Extension ID: "
+    if not defined EXTENSION_ID (
+        echo [ERROR] Extension ID cannot be empty. Installation aborted.
+        pause
+        exit /b 1
+    )
+    echo !EXTENSION_ID!>"%DIR%\extension-id.txt"
 )
 
-if "%EXTENSION_ID%"=="" (
-    echo ❌ Extension ID is required. Installation aborted.
+if not defined EXTENSION_ID (
+    echo [ERROR] Extension ID is required. Installation aborted.
     pause
     exit /b 1
 )
@@ -53,8 +61,8 @@ call :InstallForBrowser "%OPERA_DIR%" "Opera"
 call :InstallForBrowser "%VIVALDI_DIR%" "Vivaldi"
 call :InstallForBrowser "%CHROMIUM_DIR%" "Chromium"
 
-if %INSTALLED_COUNT%==0 (
-    echo ⚠️  No browsers found. Installing for Chrome ^(default^)...
+if !INSTALLED_COUNT! equ 0 (
+    echo [WARNING] No compatible browsers found. Installing for Chrome ^(default^)...
     mkdir "%CHROME_DIR%" 2>nul
     call :WriteManifest "%CHROME_DIR%\com.my_company.stdio_proxy.json"
     set /a INSTALLED_COUNT+=1
@@ -70,7 +78,7 @@ set "BROWSER_BASE_DIR=%TARGET_DIR:\NativeMessagingHosts=%"
 if exist "%BROWSER_BASE_DIR%" (
     mkdir "%TARGET_DIR%" 2>nul
     call :WriteManifest "%TARGET_DIR%\com.my_company.stdio_proxy.json"
-    echo 📁 Installed for: %BROWSER_NAME%
+    echo [OK] Installed for: %BROWSER_NAME%
     set /a INSTALLED_COUNT+=1
 )
 goto :eof
@@ -81,10 +89,10 @@ set "MANIFEST_FILE=%~1"
 echo {
 echo   "name": "com.my_company.stdio_proxy",
 echo   "description": "stdio-proxy Native Messaging Host",
-echo   "path": "%EXECUTABLE_PATH:\=\\%",
+echo   "path": "!EXECUTABLE_PATH:\=\\!",
 echo   "type": "stdio",
 echo   "allowed_origins": [
-echo     "chrome-extension://%EXTENSION_ID%/"
+echo     "chrome-extension://!EXTENSION_ID!/"
 echo   ]
 echo }
 ) > "%MANIFEST_FILE%"
@@ -92,13 +100,13 @@ goto :eof
 
 :SkipFunction
 
-echo ✅ Installation completed!
+echo [SUCCESS] Installation completed!
 echo.
-echo 📁 Files installed:
-echo    • Executable: %EXECUTABLE_PATH%
-echo    • Manifests installed for %INSTALLED_COUNT% browser^(s^)
+echo [INFO] Files installed:
+echo    • Executable: !EXECUTABLE_PATH!
+echo    • Manifests installed for !INSTALLED_COUNT! browser^(s^).
 echo.
-echo 🌐 Supported browsers:
+echo [INFO] Supported browsers:
 echo    • Chrome, Chrome Beta/Dev/Canary
 echo    • Microsoft Edge
 echo    • Brave Browser
@@ -106,13 +114,13 @@ echo    • Opera
 echo    • Vivaldi
 echo    • Chromium
 echo.
-echo 🔄 Next steps:
+echo [INFO] Next steps:
 echo    1. Restart your browser completely
 echo    2. Reload your extension
 echo    3. Try connecting via TCP Native tab
 echo.
-echo 🔍 Troubleshooting:
+echo [INFO] Troubleshooting:
 echo    • Check Windows Event Viewer for errors
-echo    • Verify Extension ID: %EXTENSION_ID%
+echo    • Verify Extension ID: !EXTENSION_ID!
 echo.
 pause
