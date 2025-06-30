@@ -228,20 +228,11 @@ export class LogPanel {
               <button class="btn-secondary text-sm py-1 px-3" id="time-filter-btn">
                 Time Filter
               </button>
-              <button class="btn-secondary text-sm py-1 px-3" id="clear-logs">
-                Clear
-              </button>
             </div>
           </div>
 
-          <div class="flex items-center gap-2 text-sm text-dark-text-secondary">
+          <div class="flex items-center justify-start gap-2 text-sm text-dark-text-secondary">
             <span id="log-count">${this.logs.length} entries</span>
-            <button class="btn-secondary text-sm py-1 px-3" id="log-settings">
-              Settings
-            </button>
-            <button class="btn-secondary text-sm py-1 px-3" id="export-logs">
-              Export
-            </button>
           </div>
         </div>
 

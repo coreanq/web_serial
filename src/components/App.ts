@@ -77,7 +77,7 @@ export class App {
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-4">
                 <h1 class="text-2xl font-bold text-dark-text-primary">
-                  🔧 Modbus Protocol Debugger
+                  🔧 Modbus Protocol Analyzer
                 </h1>
               </div>
               
@@ -273,8 +273,19 @@ export class App {
         <!-- Log Panel with fixed height -->
         <div class="lg:col-span-2">
           <div id="log-panel" class="panel panel-fixed">
-            <div class="panel-header flex-shrink-0">
-              Real-time Communication Log
+            <div class="panel-header flex-shrink-0 flex items-center justify-between">
+              <span>Real-time Communication Log</span>
+              <div class="flex items-center gap-2">
+                <button class="btn-secondary text-sm py-1 px-3" id="clear-logs">
+                  Clear
+                </button>
+                <button class="btn-secondary text-sm py-1 px-3" id="log-settings">
+                  Settings
+                </button>
+                <button class="btn-secondary text-sm py-1 px-3" id="export-logs">
+                  Export
+                </button>
+              </div>
             </div>
             <div class="panel-content flex-1 min-h-0 p-0" id="log-content">
               <!-- Log panel content will be mounted here -->
