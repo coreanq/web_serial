@@ -7,7 +7,7 @@
 - 프로젝트 초기시 javascript 기본 프로젝트 구조 생성 
 - TypeScript 사용 
 - Tailwind CSS 사용
-- eslint, webpack 사용 
+- eslint, vite 사용 
 - UI Element 들은 공통의 모듈에 선언하여 전역으로 import 해서 사용한다.
 - Dark Mode 를 고려해서 색상 설정이 되어야 한다.
 - 반응형 웹
@@ -61,7 +61,7 @@ web_serial/
 ├── stdio-proxy/           # Native Messaging Host 프로그램
 ├── tcp-loopback-server/   # TCP 테스트 서버
 ├── dist/                  # 빌드 결과물
-├── webpack.config.js      # Webpack 설정
+├── vite.config.ts         # Vite 설정
 ├── package.json          # Node.js 의존성
 └── CLAUDE.md            # 프로젝트 가이드 (이 파일)
 ```
@@ -148,21 +148,21 @@ Browser → Chrome Extension → Native Messaging → stdio-proxy → TCP Socket
 - Node.js 22+
 - Chrome 브라우저
 - TypeScript
-- Webpack
+- Vite
 
 ## 빌드 및 실행
 ```bash
 # 의존성 설치
 npm install
 
-# 개발 빌드
-npm run build:dev
+# 개발 서버 시작
+npm run dev
 
 # 프로덕션 빌드
 npm run build
 
-# 개발 서버 (watch 모드)
-npm run dev
+# 빌드 미리보기
+npm run preview
 ```
 
 ## Chrome Extension 로드
@@ -190,7 +190,7 @@ chmod +x install-linux.sh
 ## Frontend
 - **TypeScript**: 정적 타입 체크
 - **Tailwind CSS**: 유틸리티 CSS 프레임워크
-- **Webpack**: 모듈 번들러
+- **Vite**: 모듈 번들러 및 개발 서버
 - **ESLint**: 코드 품질 관리
 
 ## Browser APIs
