@@ -16,8 +16,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function adjustForChromeExtension(app: App) {
-  // Set compact layout for popup
-  app.setConnectionPanelPosition('top');
+  // Use default panel position (left) instead of forcing top
+  // app.setConnectionPanelPosition('top'); // Removed to use default 'left' position
   
   // Handle popup size constraints
   const body = document.body;

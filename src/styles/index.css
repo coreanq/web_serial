@@ -66,6 +66,19 @@
   
   .log-entry {
     @apply flex items-start gap-3 p-2 border-b border-dark-border last:border-b-0 hover:bg-dark-panel transition-colors duration-150;
+    min-height: 40px; /* Minimum height for consistent appearance */
+    /* Remove fixed height to allow dynamic height for long data */
+  }
+
+  /* Disable hover effects during scrolling */
+  .scrolling .log-entry {
+    @apply hover:bg-transparent;
+  }
+
+  /* Disable tooltip during scrolling */
+  .scrolling .modbus-packet:hover .tooltip-custom {
+    opacity: 0 !important;
+    visibility: hidden !important;
   }
   
   .log-timestamp {
@@ -176,20 +189,20 @@
   /* Fixed height panel styles for proper scrolling - ONLY for log panel */
   #log-panel.panel-fixed {
     @apply flex flex-col;
-    height: calc(100vh - var(--header-height) - var(--panel-padding));
-    min-height: 400px;
+    height: calc(100vh - var(--header-height) - 40px); /* More aggressive full height */
+    min-height: 600px; /* Increased minimum height */
   }
 
   /* Adjust log panel height when connection panel is visible at top */
   .space-y-4 #log-panel.panel-fixed {
-    height: calc(100vh - var(--header-height) - var(--connection-panel-height) - var(--panel-padding) - 32px);
-    min-height: 350px;
+    height: calc(100vh - var(--header-height) - var(--connection-panel-height) - 60px);
+    min-height: 500px;
   }
 
   /* When connection panel is on the side, log panel can use more height */
   .xl\\:grid-cols-5 #log-panel.panel-fixed {
-    height: calc(100vh - var(--header-height) - 24px);
-    min-height: 500px;
+    height: calc(100vh - var(--header-height) - 20px); /* Almost full height */
+    min-height: 700px; /* Increased minimum height */
   }
 
   #log-panel.panel-fixed .panel-header {

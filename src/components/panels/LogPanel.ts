@@ -1,25 +1,32 @@
 import { LogEntry, LogStorageConfig } from '../../types';
 import { LogService } from '../../services/LogService';
+import { DateTimeFilter, DateTimeRange } from '../../utils/DateTimeFilter';
 
 export class LogPanel {
   private logs: LogEntry[] = [];
+  private filteredLogs: LogEntry[] = [];
   private isAutoScroll = true;
   private container: HTMLElement | null = null;
   private onClearLogs?: () => void;
   private connectionType: 'RTU' | 'TCP_NATIVE' = 'RTU';
   private isRepeatMode = false;
-  private readonly MAX_LOG_COUNT = 1000;  // Maximum number of logs to keep in memory
-  private lastRenderedLogCount = 0;  // Track number of logs already rendered
   private logService!: LogService;
+  private currentDateTimeFilter: DateTimeRange = {};
 
   mount(container: HTMLElement): void {
     this.container = container;
     this.logService = new LogService();
+    
     container.innerHTML = this.render();
     this.attachEventListeners();
     this.addCustomStyles();
+    this.setupScrollContainer(); // Setup scroll container
     this.setupTooltipPositioning();
-    this.updateAutoScrollCheckbox();  // Ensure checkbox reflects initial state
+    this.updateAutoScrollCheckbox();
+    
+    // Initialize filtered logs with current time filter
+    this.applyCurrentTimeFilter();
+    
     this.generateSampleLogs();
   }
 
@@ -103,7 +110,13 @@ export class LogPanel {
     // Add tooltip positioning listeners
     document.addEventListener('mouseover', (e) => {
       const target = e.target as HTMLElement;
-      if (target.classList.contains('modbus-packet') && target.dataset.tooltip && !this.isRepeatMode) {
+      const logContainer = document.getElementById('log-container');
+      
+      // Check if tooltip should be shown (not during repeat mode or scrolling)
+      if (target.classList.contains('modbus-packet') && 
+          target.dataset.tooltip && 
+          !this.isRepeatMode &&
+          !logContainer?.classList.contains('scrolling')) {
         currentTooltip = this.showTooltip(target, target.dataset.tooltip);
       }
     });
@@ -214,6 +227,9 @@ export class LogPanel {
                 id="log-search"
                 class="input-field text-sm w-48"
               />
+              <button class="btn-secondary text-sm py-1 px-3" id="time-filter-btn">
+                Time Filter
+              </button>
               <button class="btn-secondary text-sm py-1 px-3" id="clear-logs">
                 Clear
               </button>
@@ -313,6 +329,73 @@ export class LogPanel {
           <div class="flex items-center justify-end gap-2 p-4 border-t border-dark-border">
             <button id="cancel-log-settings" class="btn-secondary text-sm py-2 px-4">Cancel</button>
             <button id="save-log-settings" class="btn-primary text-sm py-2 px-4">Save</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Time Filter Modal -->
+      ${this.renderTimeFilterModal()}
+    `;
+  }
+
+  private renderTimeFilterModal(): string {
+    return `
+      <div id="time-filter-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-dark-panel border border-dark-border rounded-lg shadow-lg w-full max-w-md mx-4">
+          <div class="flex items-center justify-between p-4 border-b border-dark-border">
+            <h3 class="text-lg font-medium text-dark-text-primary">Time Range Filter</h3>
+            <button id="close-time-filter" class="text-dark-text-muted hover:text-dark-text-primary">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="p-4 space-y-4">
+            <!-- Quick Presets -->
+            <div>
+              <label class="block text-sm font-medium text-dark-text-primary mb-2">Quick Filters</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button class="btn-secondary text-sm py-2 px-3 time-preset" data-preset="last-hour">Last Hour</button>
+                <button class="btn-secondary text-sm py-2 px-3 time-preset" data-preset="last-4-hours">Last 4 Hours</button>
+                <button class="btn-secondary text-sm py-2 px-3 time-preset" data-preset="today">Today</button>
+                <button class="btn-secondary text-sm py-2 px-3 time-preset" data-preset="yesterday">Yesterday</button>
+                <button class="btn-secondary text-sm py-2 px-3 time-preset" data-preset="last-7-days">Last 7 Days</button>
+                <button class="btn-secondary text-sm py-2 px-3" id="clear-filter">Clear Filter</button>
+              </div>
+            </div>
+            
+            <!-- Custom Range -->
+            <div class="border-t border-dark-border pt-4">
+              <label class="block text-sm font-medium text-dark-text-primary mb-2">Custom Range</label>
+              <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-xs text-dark-text-secondary mb-1">Start Date</label>
+                    <input type="date" id="start-date" class="input-field text-sm w-full">
+                  </div>
+                  <div>
+                    <label class="block text-xs text-dark-text-secondary mb-1">End Date</label>
+                    <input type="date" id="end-date" class="input-field text-sm w-full">
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-xs text-dark-text-secondary mb-1">Start Time</label>
+                    <input type="time" id="start-time" class="input-field text-sm w-full">
+                  </div>
+                  <div>
+                    <label class="block text-xs text-dark-text-secondary mb-1">End Time</label>
+                    <input type="time" id="end-time" class="input-field text-sm w-full">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-end gap-2 p-4 border-t border-dark-border">
+            <button id="cancel-time-filter" class="btn-secondary text-sm py-2 px-4">Cancel</button>
+            <button id="apply-time-filter" class="btn-primary text-sm py-2 px-4">Apply Filter</button>
           </div>
         </div>
       </div>
@@ -894,55 +977,102 @@ export class LogPanel {
       this.showLogSettingsModal();
     });
 
+    // Time filter button
+    const timeFilterButton = document.getElementById('time-filter-btn');
+    timeFilterButton?.addEventListener('click', () => {
+      this.showTimeFilterModal();
+    });
+
     // Log settings modal events
     this.setupLogSettingsModal();
+    
+    // Time filter modal events
+    this.setupTimeFilterModal();
   }
 
 
-  private refreshLogDisplay(wasTruncated: boolean = false): void {
-    const logContainer = document.getElementById('log-container');
-    if (logContainer) {
-      // Preserve scroll position if auto scroll is disabled
-      let scrollTop = this.isAutoScroll ? 0 : logContainer.scrollTop;
-      
-      logContainer.innerHTML = this.renderLogs();
-      
-      // Restore scroll position only if auto scroll is disabled
-      if (!this.isAutoScroll && scrollTop > 0) {
-        requestAnimationFrame(() => {
-          if (logContainer) {
-            if (wasTruncated) {
-              // When logs are truncated (1000 limit reached), preserve exact user scroll position
-              // Do NOT automatically scroll to bottom or apply complex position calculations
-              // Simply keep the user exactly where they were scrolling
-              const newScrollHeight = logContainer.scrollHeight;
-              const maxScrollTop = Math.max(0, newScrollHeight - logContainer.clientHeight);
-              
-              // Restore position but ensure it doesn't exceed new scroll bounds
-              logContainer.scrollTop = Math.min(scrollTop, maxScrollTop);
-            } else {
-              // Normal case - restore exact position
-              logContainer.scrollTop = scrollTop;
-            }
-          }
-        });
-      }
-    }
+  private refreshLogDisplay(): void {
+    // Use regular scrolling for dynamic height support
+    this.renderRegularScrollLogs();
   }
 
   private updateLogCount(): void {
     const logCountElement = document.getElementById('log-count');
     if (logCountElement) {
-      logCountElement.textContent = `${this.logs.length} entries`;
+      const totalLogs = this.logs.length;
+      const filteredLogs = this.filteredLogs.length;
+      
+      if (totalLogs === filteredLogs) {
+        logCountElement.textContent = `${totalLogs} entries`;
+      } else {
+        logCountElement.textContent = `${filteredLogs} / ${totalLogs} entries (filtered)`;
+      }
     }
   }
 
   private scrollToBottom(): void {
     const logContainer = document.getElementById('log-container');
     if (logContainer) {
-      logContainer.scrollTop = logContainer.scrollHeight;
+      // Use requestAnimationFrame to ensure scroll happens after DOM update
+      requestAnimationFrame(() => {
+        logContainer.scrollTop = logContainer.scrollHeight;
+      });
     }
   }
+
+  private setupScrollContainer(): void {
+    const logContainer = document.getElementById('log-container');
+    if (!logContainer) return;
+
+    // Set up regular scroll container for dynamic height support
+    logContainer.style.overflowY = 'auto';
+    logContainer.style.height = '100%'; // Use full available height
+    logContainer.style.position = 'relative';
+
+    // Track scrolling state for hover management
+    let scrollTimeout: NodeJS.Timeout;
+    let isScrolling = false;
+
+    // Handle scroll events
+    logContainer.addEventListener('scroll', (e) => {
+      const target = e.target as HTMLElement;
+      
+      // Check if auto scroll is enabled - if so, prevent user scrolling
+      const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
+      if (autoScrollCheckbox?.checked) {
+        // Auto scroll is enabled - prevent user interaction
+        e.preventDefault();
+        return;
+      }
+
+      // Disable hover during scroll
+      if (!isScrolling) {
+        isScrolling = true;
+        logContainer.classList.add('scrolling');
+      }
+
+      // Clear previous timeout
+      clearTimeout(scrollTimeout);
+
+      // Re-enable hover after scroll stops
+      scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        logContainer.classList.remove('scrolling');
+      }, 300); // 300ms delay after scroll stops
+    });
+
+    // Initial empty render
+    this.renderRegularScrollLogs();
+  }
+
+  private renderRegularScrollLogs(): void {
+    const logContainer = document.getElementById('log-container');
+    if (!logContainer) return;
+
+    // Render all filtered logs without virtual scrolling for dynamic height support
+    logContainer.innerHTML = this.filteredLogs.map(log => this.renderLogEntry(log)).join('');
+  }
+
 
   private filterLogs(searchTerm: string): void {
     const logEntries = document.querySelectorAll('.log-entry');
@@ -971,35 +1101,47 @@ export class LogPanel {
 
 
   private generateSampleLogs(): void {
-    // Generate some sample logs for demonstration
-    const sampleLogs: LogEntry[] = [
-      {
-        id: '1',
-        timestamp: new Date(Date.now() - 5000),
-        direction: 'send',
-        data: '01 03 00 00 00 0A C5 CD'
-      },
-      {
-        id: '2',
-        timestamp: new Date(Date.now() - 4900),
-        direction: 'recv',
-        data: '01 03 14 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 FA 6C',
-        responseTime: 100
-      },
-      {
-        id: '3',
-        timestamp: new Date(Date.now() - 3000),
-        direction: 'send',
-        data: '01 06 00 00 00 FF 88 3A'
-      },
-      {
-        id: '4',
-        timestamp: new Date(Date.now() - 2900),
-        direction: 'recv',
-        data: '01 06 00 00 00 FF 88 3A',
-        responseTime: 95
+    // Generate comprehensive sample logs for scroll testing
+    const sampleLogs: LogEntry[] = [];
+    
+    for (let i = 0; i < 150; i++) {
+      const baseTime = Date.now() - (150 - i) * 1000;
+      
+      // Create varied data lengths for dynamic height testing
+      let sendData: string;
+      let recvData: string;
+      
+      if (i % 10 === 0) {
+        // Long data entries every 10th entry
+        sendData = `01 03 00 ${i.toString(16).padStart(2, '0')} 00 0A C5 CD - This is a very long data entry that should span multiple lines to test dynamic height functionality in the log panel. The data continues here with more hex values: FF EE DD CC BB AA 99 88 77 66 55 44 33 22 11 00`;
+        recvData = `01 03 28 ${Array.from({length: 20}, (_, j) => (i + j).toString(16).padStart(2, '0')).join(' ')} FA 6C - Long response data with detailed packet information that spans multiple lines for better testing of the scroll functionality`;
+      } else if (i % 5 === 0) {
+        // Medium data entries every 5th entry
+        sendData = `01 03 00 ${i.toString(16).padStart(2, '0')} 00 0A C5 CD - Medium length data entry`;
+        recvData = `01 03 14 ${Array.from({length: 10}, (_, j) => (i + j).toString(16).padStart(2, '0')).join(' ')} FA 6C - Response`;
+      } else {
+        // Normal short data entries
+        sendData = `01 03 00 ${i.toString(16).padStart(2, '0')} 00 0A C5 CD`;
+        recvData = `01 03 14 ${Array.from({length: 6}, (_, j) => (i + j).toString(16).padStart(2, '0')).join(' ')} FA 6C`;
       }
-    ];
+      
+      // Send log
+      sampleLogs.push({
+        id: `${i * 2 + 1}`,
+        timestamp: new Date(baseTime),
+        direction: 'send',
+        data: sendData
+      });
+      
+      // Receive log
+      sampleLogs.push({
+        id: `${i * 2 + 2}`,
+        timestamp: new Date(baseTime + 100),
+        direction: 'recv',
+        data: recvData,
+        responseTime: 80 + Math.floor(Math.random() * 40)
+      });
+    }
 
     this.updateLogs(sampleLogs);
   }
@@ -1140,13 +1282,13 @@ export class LogPanel {
     // Add to LogService (this handles file storage)
     this.logService.addLog(log);
     
-    // Get display logs for UI (limited to MAX_LOG_COUNT)
-    this.logs = this.logService.getDisplayLogs(this.MAX_LOG_COUNT);
+    // Get all logs for virtual scrolling (no limit needed)
+    this.logs = this.logService.getAllLogs();
     
     this.updateLogs(this.logs);
   }
 
-  // Override updateLogs to handle LogService integration
+  // Override updateLogs to handle LogService integration and regular scrolling
   updateLogs(logs: LogEntry[]): void {
     // If logs are coming from external source, add them to LogService
     if (logs.length > this.logs.length) {
@@ -1154,26 +1296,48 @@ export class LogPanel {
       this.logService.addLogs(newLogs);
     }
 
-    const wasTruncated = logs.length > this.MAX_LOG_COUNT;
+    // Store all logs 
+    this.logs = logs;
     
-    // Limit log count to prevent performance issues
-    if (wasTruncated) {
-      this.logs = logs.slice(-this.MAX_LOG_COUNT);
-    } else {
-      this.logs = logs;
-    }
+    // Apply current date/time filter
+    this.applyCurrentTimeFilter();
     
-    this.refreshLogDisplay(wasTruncated);
+    // Render logs with regular scrolling for dynamic height support
+    this.renderRegularScrollLogs();
+    
     this.updateLogCount();
     
     // Re-setup tooltip positioning for new log entries
     this.setupTooltipPositioning();
     
-    if (this.isAutoScroll) {
+    // Handle auto scroll
+    this.handleAutoScroll();
+  }
+
+  private applyCurrentTimeFilter(): void {
+    if (Object.keys(this.currentDateTimeFilter).length === 0) {
+      // No filter applied, show all logs
+      this.filteredLogs = [...this.logs];
+    } else {
+      // Apply date/time filter
+      this.filteredLogs = DateTimeFilter.filterLogs(this.logs, this.currentDateTimeFilter);
+    }
+  }
+
+  private handleAutoScroll(): void {
+    // Double-check auto scroll state from actual DOM element to prevent race conditions
+    const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
+    const isAutoScrollEnabled = autoScrollCheckbox?.checked ?? this.isAutoScroll;
+    
+    if (isAutoScrollEnabled) {
       // Auto scroll to bottom when new logs are added
-      // Use setTimeout to ensure it happens after scroll position restoration
+      // Use setTimeout to ensure it happens after virtual scroll updates
       setTimeout(() => {
-        this.scrollToBottom();
+        // Triple check before scrolling to prevent unwanted scrolling
+        const currentAutoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
+        if (currentAutoScrollCheckbox?.checked) {
+          this.scrollToBottom();
+        }
       }, 10);
     }
   }
@@ -1206,12 +1370,12 @@ export class LogPanel {
 
       // Add event listeners
       document.getElementById('export-txt')?.addEventListener('click', () => {
-        this.logService.exportLogsAsText();
+        this.exportFilteredLogsAsText();
         exportMenu.remove();
       });
 
       document.getElementById('export-csv')?.addEventListener('click', () => {
-        this.logService.exportLogsAsCSV();
+        this.exportFilteredLogsAsCSV();
         exportMenu.remove();
       });
 
@@ -1227,5 +1391,200 @@ export class LogPanel {
         document.addEventListener('click', closeMenu);
       }, 10);
     }
+  }
+
+  // Time filter modal methods
+  private showTimeFilterModal(): void {
+    const modal = document.getElementById('time-filter-modal');
+    if (modal) {
+      modal.classList.remove('hidden');
+    }
+  }
+
+  private hideTimeFilterModal(): void {
+    const modal = document.getElementById('time-filter-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
+  }
+
+  private setupTimeFilterModal(): void {
+    // Close modal buttons
+    const closeButton = document.getElementById('close-time-filter');
+    const cancelButton = document.getElementById('cancel-time-filter');
+    
+    closeButton?.addEventListener('click', () => {
+      this.hideTimeFilterModal();
+    });
+    
+    cancelButton?.addEventListener('click', () => {
+      this.hideTimeFilterModal();
+    });
+
+    // Preset filter buttons
+    const presetButtons = document.querySelectorAll('.time-preset');
+    presetButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const presetId = (e.target as HTMLElement).dataset.preset;
+        if (presetId) {
+          this.applyPresetFilter(presetId);
+        }
+      });
+    });
+
+    // Clear filter button
+    const clearFilterButton = document.getElementById('clear-filter');
+    clearFilterButton?.addEventListener('click', () => {
+      this.clearTimeFilter();
+    });
+
+    // Apply custom filter button
+    const applyButton = document.getElementById('apply-time-filter');
+    applyButton?.addEventListener('click', () => {
+      this.applyCustomTimeFilter();
+    });
+
+    // Close modal when clicking outside
+    const modal = document.getElementById('time-filter-modal');
+    modal?.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        this.hideTimeFilterModal();
+      }
+    });
+  }
+
+  private applyPresetFilter(presetId: string): void {
+    const presets = DateTimeFilter.getPresets();
+    const preset = presets.find(p => p.id === presetId);
+    
+    if (preset) {
+      this.currentDateTimeFilter = preset.range;
+      this.applyTimeFilter();
+      this.hideTimeFilterModal();
+    }
+  }
+
+  private applyCustomTimeFilter(): void {
+    const startDateInput = document.getElementById('start-date') as HTMLInputElement;
+    const endDateInput = document.getElementById('end-date') as HTMLInputElement;
+    const startTimeInput = document.getElementById('start-time') as HTMLInputElement;
+    const endTimeInput = document.getElementById('end-time') as HTMLInputElement;
+
+    const startDate = startDateInput?.value ? new Date(startDateInput.value) : undefined;
+    const endDate = endDateInput?.value ? new Date(endDateInput.value) : undefined;
+    const startTime = startTimeInput?.value || undefined;
+    const endTime = endTimeInput?.value || undefined;
+
+    // Create custom range
+    const customRange = DateTimeFilter.createCustomRange(startDate, endDate, startTime, endTime);
+    
+    // Validate range
+    const validation = DateTimeFilter.validateRange(customRange);
+    if (!validation.valid) {
+      alert(`Invalid time range: ${validation.error}`);
+      return;
+    }
+
+    this.currentDateTimeFilter = customRange;
+    this.applyTimeFilter();
+    this.hideTimeFilterModal();
+  }
+
+  private clearTimeFilter(): void {
+    this.currentDateTimeFilter = {};
+    this.applyTimeFilter();
+    this.hideTimeFilterModal();
+  }
+
+  private applyTimeFilter(): void {
+    // Apply time filter to logs using the existing method
+    this.applyCurrentTimeFilter();
+    
+    // Update display
+    this.refreshLogDisplay();
+    this.updateLogCount();
+    
+    // Update time filter button text to show active filter
+    const timeFilterButton = document.getElementById('time-filter-btn');
+    if (timeFilterButton) {
+      if (Object.keys(this.currentDateTimeFilter).length === 0) {
+        timeFilterButton.textContent = 'Time Filter';
+        timeFilterButton.classList.remove('bg-blue-600', 'text-white');
+        timeFilterButton.classList.add('btn-secondary');
+      } else {
+        timeFilterButton.textContent = 'Time Filter ✓';
+        timeFilterButton.classList.remove('btn-secondary');
+        timeFilterButton.classList.add('bg-blue-600', 'text-white');
+      }
+    }
+  }
+
+  // Export filtered logs methods
+  private exportFilteredLogsAsText(): void {
+    const content = this.generateTextContent(this.filteredLogs);
+    const timestamp = this.formatExportTimestamp(new Date());
+    const filterSuffix = Object.keys(this.currentDateTimeFilter).length > 0 ? '_filtered' : '';
+    const filename = `modbus_export${filterSuffix}_${timestamp}.txt`;
+    
+    this.downloadFile(content, filename, 'text/plain');
+  }
+
+  private exportFilteredLogsAsCSV(): void {
+    const csvHeader = 'Timestamp,Direction,Data,Response Time (ms),Error\n';
+    const csvContent = this.filteredLogs.map(log => {
+      const timestamp = log.timestamp.toISOString();
+      const direction = log.direction;
+      const data = `"${log.data.replace(/"/g, '""')}"`;
+      const responseTime = log.responseTime || '';
+      const error = log.error ? `"${log.error.replace(/"/g, '""')}"` : '';
+      
+      return `${timestamp},${direction},${data},${responseTime},${error}`;
+    }).join('\n');
+    
+    const content = csvHeader + csvContent;
+    const timestamp = this.formatExportTimestamp(new Date());
+    const filterSuffix = Object.keys(this.currentDateTimeFilter).length > 0 ? '_filtered' : '';
+    const filename = `modbus_export${filterSuffix}_${timestamp}.csv`;
+    
+    this.downloadFile(content, filename, 'text/csv');
+  }
+
+  private generateTextContent(logs: LogEntry[]): string {
+    return logs.map(log => {
+      const timestamp = log.timestamp.toISOString();
+      const direction = log.direction.toUpperCase();
+      const data = log.data.replace(/\s+/g, ' ').trim();
+      const responseTime = log.responseTime ? ` (${log.responseTime}ms)` : '';
+      const error = log.error ? ` [ERROR: ${log.error}]` : '';
+      
+      return `[${timestamp}] ${direction}: ${data}${responseTime}${error}`;
+    }).join('\n');
+  }
+
+  private formatExportTimestamp(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+  }
+
+  private downloadFile(content: string, filename: string, mimeType: string): void {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
   }
 }

@@ -151,19 +151,19 @@ export class CommandPanel {
         <!-- Command History -->
         <div class="border-t border-dark-border pt-3">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm font-medium text-dark-text-secondary">Recent Commands (Max 10)</h3>
+            <h3 class="text-sm font-medium text-dark-text-secondary">Recent Commands & Repeat (Max 10)</h3>
             <div class="flex items-center gap-2">
               <input 
                 type="number" 
                 id="repeat-interval" 
                 class="input-field text-xs w-20" 
                 value="1000" 
-                min="30" 
+                min="50" 
                 max="999999"
                 step="1"
                 pattern="[0-9]*"
                 placeholder="1000"
-                title="Interval in milliseconds (min 30ms, integers only)">
+                title="Interval in milliseconds (min 50ms, integers only)">
               <span class="text-xs text-dark-text-muted">ms</span>
               <button class="btn-secondary text-xs py-1 px-2" id="toggle-repeat">
                 Start
@@ -269,20 +269,20 @@ export class CommandPanel {
       
       repeatIntervalInput.addEventListener('change', () => {
         const value = parseInt(repeatIntervalInput.value, 10);
-        if (value >= 30 && Number.isInteger(value)) {
+        if (value >= 50 && Number.isInteger(value)) {
           this.repeatInterval = value;
         } else {
-          repeatIntervalInput.value = '30';
-          this.repeatInterval = 30;
-          alert('Minimum interval is 30ms (integers only)');
+          repeatIntervalInput.value = '50';
+          this.repeatInterval = 50;
+          alert('Minimum interval is 50ms (integers only)');
         }
       });
       
       // Also handle input event for real-time validation
       repeatIntervalInput.addEventListener('input', () => {
         const value = parseInt(repeatIntervalInput.value, 10);
-        if (isNaN(value) || value < 30) {
-          repeatIntervalInput.setCustomValidity('Minimum interval is 30ms');
+        if (isNaN(value) || value < 50) {
+          repeatIntervalInput.setCustomValidity('Minimum interval is 50ms');
         } else {
           repeatIntervalInput.setCustomValidity('');
         }
@@ -1684,7 +1684,13 @@ export class CommandPanel {
   }
 
   // Public method to update connection status
-  updateConnectionStatus(type: 'RTU' | 'TCP' | 'TCP_NATIVE', _connected: boolean): void {
+  updateConnectionStatus(type: 'RTU' | 'TCP' | 'TCP_NATIVE', connected: boolean): void {
+    // Stop repeat mode if connection is lost
+    if (!connected && this.isRepeating) {
+      console.log('Connection lost - stopping repeat mode');
+      this.stopRepeatMode();
+    }
+    
     // Prevent duplicate execution - only update if connection type actually changed
     if (this.lastConnectionType === type) {
       return;
