@@ -716,10 +716,16 @@ export class CommandPanel {
   }
 
   private updateInputFieldsForHexBase(): void {
-    const hexBaseMode = (document.getElementById('hex-base-mode') as HTMLInputElement).checked;
+    const hexBaseModeElement = document.getElementById('hex-base-mode') as HTMLInputElement;
+    if (!hexBaseModeElement) return; // Exit early if element not found
+    
+    const hexBaseMode = hexBaseModeElement.checked;
     const slaveIdInput = document.getElementById('slave-id') as HTMLInputElement;
     const startAddressInput = document.getElementById('start-address') as HTMLInputElement;
     const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+    
+    // Check if required inputs exist
+    if (!slaveIdInput || !startAddressInput || !quantityInput) return;
 
     if (hexBaseMode) {
       // Hex mode - update placeholders and values
@@ -748,6 +754,9 @@ export class CommandPanel {
     const startAddressInput = document.getElementById('start-address') as HTMLInputElement;
     const quantityInput = document.getElementById('quantity') as HTMLInputElement;
 
+    // Check if inputs exist
+    if (!slaveIdInput || !startAddressInput || !quantityInput) return;
+
     // Convert only if values look like decimal numbers
     if (slaveIdInput.value && /^\d+$/.test(slaveIdInput.value)) {
       const decValue = parseInt(slaveIdInput.value, 10);
@@ -775,6 +784,9 @@ export class CommandPanel {
     const slaveIdInput = document.getElementById('slave-id') as HTMLInputElement;
     const startAddressInput = document.getElementById('start-address') as HTMLInputElement;
     const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+
+    // Check if inputs exist
+    if (!slaveIdInput || !startAddressInput || !quantityInput) return;
 
     // Convert only if values look like hex strings
     if (slaveIdInput.value && /^[0-9A-Fa-f]+$/.test(slaveIdInput.value)) {

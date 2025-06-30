@@ -8,7 +8,7 @@ export class App {
   private connectionPanel: ConnectionPanel;
   private logPanel: LogPanel;
   private commandPanel: CommandPanel;
-  private connectionPanelPosition: 'top' | 'left' | 'right' = 'top';
+  private connectionPanelPosition: 'top' | 'left' | 'right' = 'left';
   private connectionPanelVisible: boolean = true;
   private pendingRepeatLogs: any[] = [];
   private lastLogUpdateTime = 0;
@@ -47,12 +47,23 @@ export class App {
   }
 
   async mount(container: HTMLElement): Promise<void> {
+    // Debug log for initial position
+    console.log('Initial connectionPanelPosition:', this.connectionPanelPosition);
+    
     container.innerHTML = this.render();
     this.attachEventListeners();
     await this.mountChildComponents();
+    
+    // Apply initial layout based on default panel position
+    this.updateLayout();
+    
+    // Log after initial layout
+    console.log('Layout applied, current position:', this.connectionPanelPosition);
   }
 
   private render(): string {
+    console.log('render() called, connectionPanelPosition:', this.connectionPanelPosition);
+    
     return `
       <div class="min-h-screen bg-dark-bg p-4">
         <div class="max-w-7xl mx-auto">
@@ -216,11 +227,35 @@ export class App {
         `;
         
       case 'top':
-      default:
         return `
           <div class="space-y-4">
             ${connectionPanel}
             ${this.renderMainContent()}
+          </div>
+        `;
+        
+      default:
+        console.warn('Unknown panel position:', this.connectionPanelPosition, 'defaulting to left');
+        // Force left position for unknown values
+        this.connectionPanelPosition = 'left';
+        return `
+          <div class="grid ${this.connectionPanelVisible ? 'grid-cols-1 xl:grid-cols-5' : 'grid-cols-1'} gap-4 h-screen-adjusted">
+            ${this.connectionPanelVisible ? `
+              <!-- Left Connection Panel -->
+              <div class="xl:col-span-1 h-full">
+                ${connectionPanel}
+              </div>
+              
+              <!-- Main Content -->
+              <div class="xl:col-span-4 h-full">
+                ${this.renderMainContent()}
+              </div>
+            ` : `
+              <!-- Main Content Full Width -->
+              <div class="col-span-1 h-full">
+                ${this.renderMainContent()}
+              </div>
+            `}
           </div>
         `;
     }
@@ -263,16 +298,20 @@ export class App {
     
     switch (this.connectionPanelPosition) {
       case 'left':
-        return `${baseClasses} ${visibilityClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height`;
+        return `${baseClasses} ${visibilityClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height debug-layout-left`;
       case 'right':
-        return `${baseClasses} ${visibilityClass} panel-positioned-right panel-compact h-screen-adjusted panel-full-height`;
+        return `${baseClasses} ${visibilityClass} panel-positioned-right panel-compact h-screen-adjusted panel-full-height debug-layout-right`;
       case 'top':
+        return `${baseClasses} ${visibilityClass} panel-positioned-top debug-layout-top`;
       default:
-        return `${baseClasses} ${visibilityClass} panel-positioned-top`;
+        console.warn('getConnectionPanelClasses: Unknown position:', this.connectionPanelPosition);
+        return `${baseClasses} ${visibilityClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height debug-layout-left`;
     }
   }
 
   private updateLayout(): void {
+    console.log('updateLayout called, connectionPanelPosition:', this.connectionPanelPosition);
+    
     const layoutContainer = document.getElementById('layout-container');
     const toggleButton = document.getElementById('toggle-connection-panel');
     
@@ -281,6 +320,7 @@ export class App {
     this.connectionPanel.setCompactMode(isCompact);
     
     if (layoutContainer) {
+      console.log('Rendering layout for position:', this.connectionPanelPosition);
       layoutContainer.innerHTML = this.renderLayout();
       // Re-mount child components after layout change
       this.mountChildComponents();
@@ -360,9 +400,6 @@ export class App {
           const serialService = this.connectionPanel.getSerialService();
           if (serialService && serialService.getConnectionStatus()) {
             await serialService.sendHexString(command);
-            if (!isRepeating) {
-              console.log('RTU Command sent successfully:', command);
-            }
           }
         } else if (currentConnectionType === 'TCP_NATIVE') {
           // Get TCP Native service from connection panel

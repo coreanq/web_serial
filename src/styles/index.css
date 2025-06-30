@@ -111,14 +111,30 @@
   /* Panel positioning styles */
   .panel-positioned-left {
     @apply transition-all duration-300 ease-in-out;
+    border-left: 3px solid #3b82f6; /* Visual indicator for left position */
   }
   
   .panel-positioned-right {
     @apply transition-all duration-300 ease-in-out;
+    border-right: 3px solid #3b82f6; /* Visual indicator for right position */
   }
   
   .panel-positioned-top {
     @apply transition-all duration-300 ease-in-out;
+    border-top: 3px solid #3b82f6; /* Visual indicator for top position */
+  }
+  
+  /* Debug styles for layout verification */
+  .debug-layout-left {
+    background: rgba(59, 130, 246, 0.1) !important;
+  }
+  
+  .debug-layout-right {
+    background: rgba(34, 197, 94, 0.1) !important;
+  }
+  
+  .debug-layout-top {
+    background: rgba(239, 68, 68, 0.1) !important;
   }
   
   /* Panel visibility animation */

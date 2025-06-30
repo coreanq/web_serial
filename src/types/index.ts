@@ -85,6 +85,25 @@ export interface ModbusFrame {
   description?: string;
 }
 
+// Log storage configuration types
+export type LogStorageMode = 'continuous' | 'rotation';
+
+export interface LogStorageConfig {
+  mode: LogStorageMode;
+  // Continuous mode settings
+  continuous?: {
+    maxFileSize: number; // MB - when to create new file
+    fileNameFormat: string; // timestamp format for file names
+  };
+  // Rotation mode settings
+  rotation?: {
+    maxFileSize: number; // MB
+    maxFiles: number; // number of files to keep
+    maxAge: number; // days to keep files
+    compressionEnabled: boolean;
+  };
+}
+
 // Application state types
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 

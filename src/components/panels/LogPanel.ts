@@ -1,4 +1,5 @@
-import { LogEntry } from '../../types';
+import { LogEntry, LogStorageConfig } from '../../types';
+import { LogService } from '../../services/LogService';
 
 export class LogPanel {
   private logs: LogEntry[] = [];
@@ -7,13 +8,18 @@ export class LogPanel {
   private onClearLogs?: () => void;
   private connectionType: 'RTU' | 'TCP_NATIVE' = 'RTU';
   private isRepeatMode = false;
+  private readonly MAX_LOG_COUNT = 1000;  // Maximum number of logs to keep in memory
+  private lastRenderedLogCount = 0;  // Track number of logs already rendered
+  private logService!: LogService;
 
   mount(container: HTMLElement): void {
     this.container = container;
+    this.logService = new LogService();
     container.innerHTML = this.render();
     this.attachEventListeners();
     this.addCustomStyles();
     this.setupTooltipPositioning();
+    this.updateAutoScrollCheckbox();  // Ensure checkbox reflects initial state
     this.generateSampleLogs();
   }
 
@@ -27,6 +33,13 @@ export class LogPanel {
 
   setRepeatMode(isRepeatMode: boolean): void {
     this.isRepeatMode = isRepeatMode;
+  }
+
+  private updateAutoScrollCheckbox(): void {
+    const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
+    if (autoScrollCheckbox) {
+      autoScrollCheckbox.checked = this.isAutoScroll;
+    }
   }
 
   private addCustomStyles(): void {
@@ -209,6 +222,9 @@ export class LogPanel {
 
           <div class="flex items-center gap-2 text-sm text-dark-text-secondary">
             <span id="log-count">${this.logs.length} entries</span>
+            <button class="btn-secondary text-sm py-1 px-3" id="log-settings">
+              Settings
+            </button>
             <button class="btn-secondary text-sm py-1 px-3" id="export-logs">
               Export
             </button>
@@ -219,6 +235,84 @@ export class LogPanel {
         <div class="flex-1 min-h-0 overflow-hidden" style="flex: 1; min-height: 0;">
           <div class="h-full overflow-y-auto scrollbar-thin" id="log-container" style="height: 100%; overflow-y: auto;">
             ${this.renderLogs()}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Log Settings Modal -->
+      <div id="log-settings-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-dark-panel rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div class="flex items-center justify-between p-4 border-b border-dark-border">
+            <h3 class="text-lg font-semibold text-dark-text-primary">Log Storage Settings</h3>
+            <button id="close-log-settings" class="text-dark-text-secondary hover:text-dark-text-primary">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="p-4 space-y-4">
+            <!-- Storage Mode Selection -->
+            <div>
+              <label class="block text-sm font-medium text-dark-text-primary mb-2">Storage Mode</label>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2">
+                  <input type="radio" name="storage-mode" value="continuous" class="text-blue-500" checked>
+                  <div>
+                    <div class="text-sm text-dark-text-primary">Continuous Logging</div>
+                    <div class="text-xs text-dark-text-secondary">Save all logs in separate files (no deletion)</div>
+                  </div>
+                </label>
+                <label class="flex items-center gap-2">
+                  <input type="radio" name="storage-mode" value="rotation" class="text-blue-500">
+                  <div>
+                    <div class="text-sm text-dark-text-primary">Log Rotation</div>
+                    <div class="text-xs text-dark-text-secondary">Limit files by size/age (old files deleted)</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            
+            <!-- Continuous Mode Settings -->
+            <div id="continuous-settings" class="space-y-3">
+              <h4 class="text-sm font-medium text-dark-text-primary">Continuous Mode Settings</h4>
+              <div>
+                <label class="block text-xs text-dark-text-secondary mb-1">Max File Size (MB)</label>
+                <input type="number" id="continuous-max-size" value="10" min="1" max="100" 
+                       class="input-field text-sm w-full">
+              </div>
+            </div>
+            
+            <!-- Rotation Mode Settings -->
+            <div id="rotation-settings" class="space-y-3 hidden">
+              <h4 class="text-sm font-medium text-dark-text-primary">Rotation Mode Settings</h4>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs text-dark-text-secondary mb-1">Max File Size (MB)</label>
+                  <input type="number" id="rotation-max-size" value="5" min="1" max="50" 
+                         class="input-field text-sm w-full">
+                </div>
+                <div>
+                  <label class="block text-xs text-dark-text-secondary mb-1">Max Files</label>
+                  <input type="number" id="rotation-max-files" value="10" min="1" max="50" 
+                         class="input-field text-sm w-full">
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-dark-text-secondary mb-1">Max Age (days)</label>
+                <input type="number" id="rotation-max-age" value="30" min="1" max="365" 
+                       class="input-field text-sm w-full">
+              </div>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" id="rotation-compression" class="text-blue-500">
+                <span class="text-sm text-dark-text-primary">Enable compression for old files</span>
+              </label>
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-end gap-2 p-4 border-t border-dark-border">
+            <button id="cancel-log-settings" class="btn-secondary text-sm py-2 px-4">Cancel</button>
+            <button id="save-log-settings" class="btn-primary text-sm py-2 px-4">Save</button>
           </div>
         </div>
       </div>
@@ -774,20 +868,6 @@ export class LogPanel {
       }
     });
 
-    // Detect manual scrolling to temporarily disable auto-scroll
-    const logContainer = document.getElementById('log-container');
-    logContainer?.addEventListener('scroll', () => {
-      if (!logContainer) return;
-      
-      // Check if user scrolled up (not at bottom)
-      const isAtBottom = logContainer.scrollHeight - logContainer.scrollTop <= logContainer.clientHeight + 5; // 5px tolerance
-      
-      // If user scrolled up, temporarily disable auto-scroll
-      if (!isAtBottom && this.isAutoScroll) {
-        // Don't disable completely, just note that user is viewing history
-        // Auto-scroll will resume when new messages arrive and user is near bottom
-      }
-    });
 
     // Search functionality
     const searchInput = document.getElementById('log-search') as HTMLInputElement;
@@ -807,41 +887,46 @@ export class LogPanel {
     exportButton?.addEventListener('click', () => {
       this.exportLogs();
     });
+
+    // Log settings
+    const settingsButton = document.getElementById('log-settings');
+    settingsButton?.addEventListener('click', () => {
+      this.showLogSettingsModal();
+    });
+
+    // Log settings modal events
+    this.setupLogSettingsModal();
   }
 
-  updateLogs(logs: LogEntry[]): void {
-    this.logs = logs;
-    this.refreshLogDisplay();
-    this.updateLogCount();
-    
-    // Re-setup tooltip positioning for new log entries
-    this.setupTooltipPositioning();
-    
-    if (this.isAutoScroll) {
-      // Check if user is near bottom before auto-scrolling
-      const logContainer = document.getElementById('log-container');
-      if (logContainer) {
-        const isNearBottom = logContainer.scrollHeight - logContainer.scrollTop <= logContainer.clientHeight + 100; // 100px tolerance
-        
-        if (isNearBottom) {
-          // Use requestAnimationFrame to ensure DOM is updated before scrolling
-          requestAnimationFrame(() => {
-            this.scrollToBottom();
-          });
-        }
-      }
-    }
-  }
 
-  addLog(log: LogEntry): void {
-    this.logs.push(log);
-    this.updateLogs(this.logs);
-  }
-
-  private refreshLogDisplay(): void {
+  private refreshLogDisplay(wasTruncated: boolean = false): void {
     const logContainer = document.getElementById('log-container');
     if (logContainer) {
+      // Preserve scroll position if auto scroll is disabled
+      let scrollTop = this.isAutoScroll ? 0 : logContainer.scrollTop;
+      
       logContainer.innerHTML = this.renderLogs();
+      
+      // Restore scroll position only if auto scroll is disabled
+      if (!this.isAutoScroll && scrollTop > 0) {
+        requestAnimationFrame(() => {
+          if (logContainer) {
+            if (wasTruncated) {
+              // When logs are truncated (1000 limit reached), preserve exact user scroll position
+              // Do NOT automatically scroll to bottom or apply complex position calculations
+              // Simply keep the user exactly where they were scrolling
+              const newScrollHeight = logContainer.scrollHeight;
+              const maxScrollTop = Math.max(0, newScrollHeight - logContainer.clientHeight);
+              
+              // Restore position but ensure it doesn't exceed new scroll bounds
+              logContainer.scrollTop = Math.min(scrollTop, maxScrollTop);
+            } else {
+              // Normal case - restore exact position
+              logContainer.scrollTop = scrollTop;
+            }
+          }
+        });
+      }
     }
   }
 
@@ -855,15 +940,7 @@ export class LogPanel {
   private scrollToBottom(): void {
     const logContainer = document.getElementById('log-container');
     if (logContainer) {
-      // Force a more reliable scroll to bottom
       logContainer.scrollTop = logContainer.scrollHeight;
-      
-      // Double-check with a small delay for heavy DOM updates
-      setTimeout(() => {
-        if (this.isAutoScroll && logContainer.scrollHeight > logContainer.scrollTop + logContainer.clientHeight) {
-          logContainer.scrollTop = logContainer.scrollHeight;
-        }
-      }, 10);
     }
   }
 
@@ -892,22 +969,6 @@ export class LogPanel {
     }
   }
 
-  private exportLogs(): void {
-    const csvContent = this.logs.map(log => 
-      `${log.timestamp.toISOString()},${log.direction},${log.data},${log.error || ''}`
-    ).join('\n');
-    
-    const header = 'Timestamp,Direction,Data,Error\n';
-    const csv = header + csvContent;
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `modbus-logs-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  }
 
   private generateSampleLogs(): void {
     // Generate some sample logs for demonstration
@@ -941,5 +1002,230 @@ export class LogPanel {
     ];
 
     this.updateLogs(sampleLogs);
+  }
+
+  // Log settings modal methods
+  private showLogSettingsModal(): void {
+    const modal = document.getElementById('log-settings-modal');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      this.loadCurrentLogSettings();
+    }
+  }
+
+  private hideLogSettingsModal(): void {
+    const modal = document.getElementById('log-settings-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  private setupLogSettingsModal(): void {
+    // Close modal events
+    const closeButton = document.getElementById('close-log-settings');
+    const cancelButton = document.getElementById('cancel-log-settings');
+    
+    closeButton?.addEventListener('click', () => this.hideLogSettingsModal());
+    cancelButton?.addEventListener('click', () => this.hideLogSettingsModal());
+
+    // Save settings
+    const saveButton = document.getElementById('save-log-settings');
+    saveButton?.addEventListener('click', () => this.saveLogSettings());
+
+    // Storage mode toggle
+    const storageModeRadios = document.querySelectorAll('input[name="storage-mode"]');
+    storageModeRadios.forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const target = e.target as HTMLInputElement;
+        this.toggleSettingsSections(target.value as 'continuous' | 'rotation');
+      });
+    });
+
+    // Close modal when clicking outside
+    const modal = document.getElementById('log-settings-modal');
+    modal?.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        this.hideLogSettingsModal();
+      }
+    });
+  }
+
+  private toggleSettingsSections(mode: 'continuous' | 'rotation'): void {
+    const continuousSettings = document.getElementById('continuous-settings');
+    const rotationSettings = document.getElementById('rotation-settings');
+
+    if (mode === 'continuous') {
+      continuousSettings?.classList.remove('hidden');
+      rotationSettings?.classList.add('hidden');
+    } else {
+      continuousSettings?.classList.add('hidden');
+      rotationSettings?.classList.remove('hidden');
+    }
+  }
+
+  private loadCurrentLogSettings(): void {
+    const config = this.logService.getConfig();
+
+    // Set storage mode
+    const modeRadio = document.querySelector(`input[name="storage-mode"][value="${config.mode}"]`) as HTMLInputElement;
+    if (modeRadio) {
+      modeRadio.checked = true;
+      this.toggleSettingsSections(config.mode);
+    }
+
+    // Load continuous settings
+    if (config.continuous) {
+      const maxSizeInput = document.getElementById('continuous-max-size') as HTMLInputElement;
+      if (maxSizeInput) {
+        maxSizeInput.value = config.continuous.maxFileSize.toString();
+      }
+    }
+
+    // Load rotation settings
+    if (config.rotation) {
+      const rotationMaxSize = document.getElementById('rotation-max-size') as HTMLInputElement;
+      const rotationMaxFiles = document.getElementById('rotation-max-files') as HTMLInputElement;
+      const rotationMaxAge = document.getElementById('rotation-max-age') as HTMLInputElement;
+      const rotationCompression = document.getElementById('rotation-compression') as HTMLInputElement;
+
+      if (rotationMaxSize) rotationMaxSize.value = config.rotation.maxFileSize.toString();
+      if (rotationMaxFiles) rotationMaxFiles.value = config.rotation.maxFiles.toString();
+      if (rotationMaxAge) rotationMaxAge.value = config.rotation.maxAge.toString();
+      if (rotationCompression) rotationCompression.checked = config.rotation.compressionEnabled;
+    }
+  }
+
+  private saveLogSettings(): void {
+    const mode = (document.querySelector('input[name="storage-mode"]:checked') as HTMLInputElement)?.value as 'continuous' | 'rotation';
+    
+    const config: LogStorageConfig = {
+      mode,
+      continuous: {
+        maxFileSize: parseInt((document.getElementById('continuous-max-size') as HTMLInputElement)?.value || '10'),
+        fileNameFormat: 'YYYY-MM-DD_HH-mm-ss'
+      },
+      rotation: {
+        maxFileSize: parseInt((document.getElementById('rotation-max-size') as HTMLInputElement)?.value || '5'),
+        maxFiles: parseInt((document.getElementById('rotation-max-files') as HTMLInputElement)?.value || '10'),
+        maxAge: parseInt((document.getElementById('rotation-max-age') as HTMLInputElement)?.value || '30'),
+        compressionEnabled: (document.getElementById('rotation-compression') as HTMLInputElement)?.checked || false
+      }
+    };
+
+    this.logService.updateConfig(config);
+    this.hideLogSettingsModal();
+    
+    // Show confirmation
+    this.showNotification('Log settings saved successfully!');
+  }
+
+  private showNotification(message: string): void {
+    // Create temporary notification
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      document.body.removeChild(notification);
+    }, 3000);
+  }
+
+  // Override addLog to use LogService
+  addLog(log: LogEntry): void {
+    // Add to LogService (this handles file storage)
+    this.logService.addLog(log);
+    
+    // Get display logs for UI (limited to MAX_LOG_COUNT)
+    this.logs = this.logService.getDisplayLogs(this.MAX_LOG_COUNT);
+    
+    this.updateLogs(this.logs);
+  }
+
+  // Override updateLogs to handle LogService integration
+  updateLogs(logs: LogEntry[]): void {
+    // If logs are coming from external source, add them to LogService
+    if (logs.length > this.logs.length) {
+      const newLogs = logs.slice(this.logs.length);
+      this.logService.addLogs(newLogs);
+    }
+
+    const wasTruncated = logs.length > this.MAX_LOG_COUNT;
+    
+    // Limit log count to prevent performance issues
+    if (wasTruncated) {
+      this.logs = logs.slice(-this.MAX_LOG_COUNT);
+    } else {
+      this.logs = logs;
+    }
+    
+    this.refreshLogDisplay(wasTruncated);
+    this.updateLogCount();
+    
+    // Re-setup tooltip positioning for new log entries
+    this.setupTooltipPositioning();
+    
+    if (this.isAutoScroll) {
+      // Auto scroll to bottom when new logs are added
+      // Use setTimeout to ensure it happens after scroll position restoration
+      setTimeout(() => {
+        this.scrollToBottom();
+      }, 10);
+    }
+  }
+
+  private exportLogs(): void {
+    // Create export options modal or directly export
+    const exportMenu = document.createElement('div');
+    exportMenu.className = 'absolute right-0 mt-2 bg-dark-panel border border-dark-border rounded-lg shadow-lg z-10';
+    exportMenu.innerHTML = `
+      <div class="p-2 space-y-1">
+        <button class="block w-full text-left px-3 py-2 text-sm hover:bg-dark-surface rounded" id="export-txt">
+          Export as TXT
+        </button>
+        <button class="block w-full text-left px-3 py-2 text-sm hover:bg-dark-surface rounded" id="export-csv">
+          Export as CSV
+        </button>
+      </div>
+    `;
+
+    // Position menu near export button
+    const exportButton = document.getElementById('export-logs');
+    if (exportButton) {
+      exportButton.parentElement?.appendChild(exportMenu);
+      
+      // Position menu
+      const rect = exportButton.getBoundingClientRect();
+      exportMenu.style.position = 'fixed';
+      exportMenu.style.top = `${rect.bottom + 5}px`;
+      exportMenu.style.right = `${window.innerWidth - rect.right}px`;
+
+      // Add event listeners
+      document.getElementById('export-txt')?.addEventListener('click', () => {
+        this.logService.exportLogsAsText();
+        exportMenu.remove();
+      });
+
+      document.getElementById('export-csv')?.addEventListener('click', () => {
+        this.logService.exportLogsAsCSV();
+        exportMenu.remove();
+      });
+
+      // Close menu when clicking outside
+      const closeMenu = (e: Event) => {
+        if (!exportMenu.contains(e.target as Node)) {
+          exportMenu.remove();
+          document.removeEventListener('click', closeMenu);
+        }
+      };
+      
+      setTimeout(() => {
+        document.addEventListener('click', closeMenu);
+      }, 10);
+    }
   }
 }

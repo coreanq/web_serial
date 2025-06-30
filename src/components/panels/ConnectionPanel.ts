@@ -871,7 +871,6 @@ export class ConnectionPanel {
       (data: Uint8Array) => {
         // Handle received data
         const hexString = SerialService.uint8ArrayToHex(data);
-        console.log('Received data:', hexString);
         
         // Send to parent component via callback
         if (this.onDataReceived) {
