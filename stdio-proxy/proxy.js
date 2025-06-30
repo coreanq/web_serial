@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-const net = require('net');
-const fs = require('fs');
+import net from 'net';
+import fs from 'fs';
 
 // --- Logging Setup --- //
 const LOG_FILE = '/tmp/native-host-log.txt';

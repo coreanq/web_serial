@@ -8,6 +8,8 @@
 - TypeScript 사용 
 - Tailwind CSS 사용
 - eslint, vite 사용 
+- ES Modules (ESM) 사용
+- TypeScript 엄격 모드 사용 
 - UI Element 들은 공통의 모듈에 선언하여 전역으로 import 해서 사용한다.
 - Dark Mode 를 고려해서 색상 설정이 되어야 한다.
 - 반응형 웹
@@ -106,19 +108,26 @@ src/
 TCP 소켓 통신을 위한 네이티브 프로그램:
 
 ### 설치 스크립트
-- **install-windows.bat**: Windows용 설치
+- **install-windows.bat**: Windows용 설치 (레지스트리 등록 포함)
 - **install-linux.sh**: Linux용 설치
-- **install-mac.sh**: macOS용 설치
+- **install-macos.sh**: macOS용 설치
 
 ### 주요 기능
 - Chrome Extension ↔ TCP Socket 브릿지 역할
 - JSON 메시지 프로토콜로 통신
 - com.my_company.stdio_proxy로 등록
+- ES Modules 및 TypeScript 사용
 
 ### 설치 과정
 1. Native Host 바이너리를 시스템에 복사
-2. Chrome Native Messaging Registry에 등록
-3. 확장에서 `chrome.runtime.connectNative()` 호출 가능
+2. Chrome Native Messaging Host 매니페스트 파일 생성
+3. Windows: 레지스트리 등록 (모든 Chromium 기반 브라우저 지원)
+4. 확장에서 `chrome.runtime.connectNative()` 호출 가능
+
+### 빌드 시스템
+- **Vite**: 모던 빌드 도구 사용
+- **@yao-pkg/pkg**: Node.js 22 지원하는 바이너리 패키징
+- **TypeScript**: 타입 체크 및 ES Modules
 
 ## 3. TCP Loopback Server (tcp-loopback-server/)
 개발 및 테스트용 TCP 서버:

@@ -2,17 +2,20 @@
   "name": "stdio-proxy",
   "version": "1.0.0",
   "description": "Chrome Native Messaging Host for TCP proxy connections - enables direct TCP connectivity for ModbusTCP debugging",
+  "type": "module",
   "main": "proxy.js",
   "bin": "proxy.js",
   "scripts": {
     "start": "node proxy.js",
-    "build": "./build.sh",
-    "package": "./build.sh",
-    "release": "./build.sh",
-    "build:all": "./build.sh",
-    "build:macos": "pkg . --targets node18-macos-x64 --output ./dist/stdio-proxy-macos-x64",
-    "build:windows": "pkg . --targets node18-win-x64 --output ./dist/stdio-proxy-windows-x64.exe", 
-    "build:linux": "pkg . --targets node18-linux-x64 --output ./dist/stdio-proxy-linux-x64"
+    "dev": "vite build --watch",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc --noEmit",
+    "compile:all": "npm run compile:macos && npm run compile:windows && npm run compile:linux",
+    "compile:macos": "npx pkg dist/proxy.js --targets node22-macos-x64 --output ./dist/stdio-proxy-macos-x64",
+    "compile:windows": "npx pkg dist/proxy.js --targets node22-win-x64 --output ./dist/stdio-proxy-windows-x64.exe",
+    "compile:linux": "npx pkg dist/proxy.js --targets node22-linux-x64 --output ./dist/stdio-proxy-linux-x64",
+    "package": "npm run build && npm run compile:all && npm run create-packages",
+    "create-packages": "node scripts/create-packages.js"
   },
   "pkg": {
     "assets": [
@@ -29,9 +32,12 @@
     "chrome-extension"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "devDependencies": {
-    "pkg": "^5.8.1"
+    "@types/node": "^22.0.0",
+    "@yao-pkg/pkg": "^6.5.1",
+    "typescript": "^5.5.2",
+    "vite": "^7.0.0"
   }
 }
