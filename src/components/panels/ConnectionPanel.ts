@@ -54,6 +54,7 @@ export class ConnectionPanel {
         this.onConnectionChange(error ? 'error' : 'disconnected');
         this.updateButtonStates(false);
         this.updateStatusDisplayOnly();
+        this.updatePanelBackground();
       }
     });
 
@@ -285,10 +286,12 @@ export class ConnectionPanel {
               ${this.isNativeProxyFailed() ? '💡 설치하기' : 'ℹ️ 가이드'}
             </div>
           </div>
-          <p class="text-xs text-dark-text-muted mt-1 flex items-center justify-between">
-            <span>Native Host: com.my_company.stdio_proxy</span>
-            ${this.isNativeProxyFailed() ? '<span class="text-yellow-400 animate-pulse">← 클릭하여 설치하세요!</span>' : '<span class="text-gray-400">← 재설치/문제해결</span>'}
-          </p>
+          <div class="text-xs text-dark-text-muted mt-1">
+            <div class="flex items-center justify-between">
+              <span class="${this.isCompactMode ? 'truncate' : ''}">Native Host: com.my_company.stdio_proxy</span>
+            </div>
+            ${this.isNativeProxyFailed() ? '<div class="text-yellow-400 animate-pulse text-center mt-1">↑ 클릭하여 설치하세요!</div>' : '<div class="text-gray-400 text-center mt-1">↑ 재설치/문제해결</div>'}
+          </div>
         </div>
 
         <!-- TCP Native Connection Status -->
@@ -423,6 +426,9 @@ export class ConnectionPanel {
     });
     document.querySelector(`[data-tab="${tabType}"]`)?.classList.add('active');
 
+    // Update panel background color when tab changes
+    this.updatePanelBackground();
+
     // Auto-connect to Native Proxy when switching to TCP_NATIVE tab (only if not manually disconnected)
     if (tabType === 'TCP_NATIVE' && !this.tcpNativeService.isProxyReady() && !this.manualDisconnect) {
       console.log('TCP Native tab selected, connecting to native proxy...');
@@ -437,111 +443,8 @@ export class ConnectionPanel {
         console.error('Native proxy connection failed:', error);
         this.nativeProxyStatus = 'error';
         this.updateTcpNativeStatusDisplay();
-        this.showNativeProxyGuide(error.message);
       });
     }
-  }
-
-
-  // Show native proxy setup guide
-  private showNativeProxyGuide(errorMessage: string): void {
-    const guideHtml = `
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="native-guide-modal">
-        <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-lg mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-dark-text-primary">🔌 Native Proxy 설치 필요</h3>
-            <button class="modal-close text-dark-text-muted hover:text-dark-text-primary text-xl" data-modal="native-guide-modal">
-              ✕
-            </button>
-          </div>
-          
-          <div class="mb-4">
-            <div class="bg-red-900/20 border border-red-600/30 rounded p-3 mb-3">
-              <p class="text-sm text-red-300 mb-1">⚠️ ${errorMessage}</p>
-            </div>
-            <p class="text-sm text-dark-text-secondary">TCP Native 연결을 위해서는 Chrome Native Messaging Host 설치가 필요합니다.</p>
-            <p class="text-xs text-dark-text-muted mt-1">Native Messaging을 통해 직접 TCP 소켓 연결이 가능합니다.</p>
-          </div>
-          
-          <div class="space-y-3">
-            <div class="bg-dark-panel rounded p-3">
-              <h4 class="text-sm font-medium text-dark-text-primary mb-2">🛠️ 설치 방법</h4>
-              <div class="space-y-2">
-                <div class="border border-dark-border rounded p-2">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-medium text-green-400">1단계: Extension ID 확인</span>
-                  </div>
-                  <p class="text-xs text-dark-text-muted mb-2">Chrome에서 확장 프로그램 ID를 확인하세요</p>
-                  <div class="bg-dark-surface rounded p-2 text-xs font-mono">
-                    <div>chrome://extensions</div>
-                    <div>개발자 모드 활성화 → ID 복사</div>
-                  </div>
-                </div>
-                
-                <div class="border border-dark-border rounded p-2">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-medium text-blue-400">2단계: Native Host 설치</span>
-                  </div>
-                  <p class="text-xs text-dark-text-muted mb-2">stdio-proxy 설치 스크립트 실행</p>
-                  <div class="bg-dark-surface rounded p-2 text-xs font-mono">
-                    <div>cd stdio-proxy</div>
-                    <div># install.sh의 EXTENSION_ID 수정</div>
-                    <div>chmod +x install.sh</div>
-                    <div>./install.sh</div>
-                  </div>
-                </div>
-                
-                <div class="border border-dark-border rounded p-2">
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-medium text-purple-400">3단계: 확장 프로그램 재로드</span>
-                  </div>
-                  <p class="text-xs text-dark-text-muted mb-2">Chrome에서 확장 프로그램을 다시 로드하세요</p>
-                </div>
-              </div>
-            </div>
-            
-            <div class="bg-dark-panel rounded p-3">
-              <h4 class="text-sm font-medium text-dark-text-primary mb-2">📋 확인 사항</h4>
-              <div class="space-y-1 text-xs text-dark-text-muted">
-                <div>✅ Node.js 설치됨</div>
-                <div>✅ Extension ID가 install.sh에 정확히 설정됨</div>
-                <div>✅ install.sh 실행 완료</div>
-                <div>✅ 확장 프로그램 재로드</div>
-                <div>✅ TCP Native 탭 다시 클릭</div>
-              </div>
-            </div>
-            
-            <div class="bg-orange-900/20 border border-orange-600/30 rounded p-3">
-              <h4 class="text-sm font-medium text-orange-300 mb-2">🔍 문제 해결</h4>
-              <p class="text-xs text-orange-200 mb-2">설치 후에도 연결되지 않는다면:</p>
-              <div class="space-y-1 text-xs text-orange-200">
-                <div>• /tmp/native-host-log.txt 로그 확인</div>
-                <div>• Extension ID 재확인</div>
-                <div>• Chrome 재시작</div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="flex gap-2 mt-4">
-            <button class="open-folder bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm flex-1" data-path="stdio-proxy/">
-              📁 stdio-proxy 폴더
-            </button>
-            <button class="modal-close btn-secondary text-sm px-3 py-2 flex-1" data-modal="native-guide-modal">
-              닫기
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Remove existing modal if any
-    document.getElementById('native-guide-modal')?.remove();
-    
-    // Add new modal
-    document.body.insertAdjacentHTML('beforeend', guideHtml);
-    
-    // 모달 생성 후 이벤트 리스너 연결
-    this.attachModalEventListeners();
   }
 
   // Load previously granted serial ports
@@ -571,6 +474,7 @@ export class ConnectionPanel {
         await this.serialService.disconnect();
         this.onConnectionChange('disconnected');
         this.updateButtonStates(false);
+        this.updatePanelBackground();
       }
 
       const port = await this.serialService.requestPort();
@@ -705,6 +609,7 @@ export class ConnectionPanel {
       this.onConnectionChange('connected', config);
       this.updateButtonStates(true, false);
       this.updateSelectedPortInfo();
+      this.updatePanelBackground();
       
       // Start reading data
       this.startDataReading();
@@ -718,11 +623,13 @@ export class ConnectionPanel {
       // Immediately reset button state
       this.updateButtonStates(false, false);
       this.onConnectionChange('error');
+      this.updatePanelBackground();
       
       // Reset to disconnected state after showing error briefly
       setTimeout(() => {
         this.onConnectionChange('disconnected');
         this.updateSelectedPortInfo();
+        this.updatePanelBackground();
       }, 2000);
       
       if (error instanceof Error) {
@@ -816,12 +723,14 @@ export class ConnectionPanel {
       this.updateButtonStates(false, false);
       this.updateSelectedPortInfo();
       this.updateTcpNativeStatusDisplay();
+      this.updatePanelBackground();
       
     } catch (error) {
       console.error('Disconnect failed:', error);
       // Force update UI even if disconnect fails
       this.onConnectionChange('disconnected');
       this.updateButtonStates(false, false);
+      this.updatePanelBackground();
     }
   }
 
@@ -852,6 +761,7 @@ export class ConnectionPanel {
       this.onConnectionChange('disconnected');
       this.updateButtonStates(false, false);
       this.updateSelectedPortInfo();
+      this.updatePanelBackground();
       
       alert('✅ Port force closed successfully. You can now try to reconnect.');
       
@@ -1347,6 +1257,25 @@ export class ConnectionPanel {
     return 'No connection attempted';
   }
 
+  // Get panel background color based on connection status
+  getPanelBackgroundClass(): string {
+    if (this.activeTab === 'TCP_NATIVE') {
+      // TCP Tab: Green only when both Native Proxy and TCP Native are connected
+      const isFullyConnected = this.nativeProxyStatus === 'connected' && this.tcpNativeStatus === 'connected';
+      const bgClass = isFullyConnected ? 'bg-green-900/10' : 'bg-red-900/10';
+      console.log(`TCP_NATIVE tab background: ${bgClass} (proxy: ${this.nativeProxyStatus}, tcp: ${this.tcpNativeStatus})`);
+      return bgClass;
+    } else if (this.activeTab === 'RTU') {
+      // RTU Tab: Green when Serial is connected
+      const isSerialConnected = this.serialService.getConnectionStatus();
+      const bgClass = isSerialConnected ? 'bg-green-900/10' : 'bg-red-900/10';
+      console.log(`RTU tab background: ${bgClass} (serial connected: ${isSerialConnected})`);
+      return bgClass;
+    }
+    console.log('Default background: bg-gray-900/10');
+    return 'bg-gray-900/10'; // Default background
+  }
+
   private updateTcpNativeStatusDisplay(): void {
     if (this.activeTab === 'TCP_NATIVE') {
       // Only update status displays without full re-render to prevent event listener issues
@@ -1376,6 +1305,15 @@ export class ConnectionPanel {
       if (text) text.textContent = this.getTcpNativeStatusText();
       if (detail) detail.textContent = this.getTcpNativeStatusDetail();
     }
+
+    // Update panel background color
+    this.updatePanelBackground();
+  }
+
+  private updatePanelBackground(): void {
+    // Trigger panel background update in App
+    const event = new CustomEvent('panelBackgroundChange');
+    document.dispatchEvent(event);
   }
 
 

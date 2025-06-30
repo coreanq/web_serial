@@ -44,6 +44,11 @@ export class App {
     // Set initial compact mode based on default position
     const isCompact = this.connectionPanelPosition === 'left' || this.connectionPanelPosition === 'right';
     this.connectionPanel.setCompactMode(isCompact);
+
+    // Listen for panel background color changes
+    document.addEventListener('panelBackgroundChange', () => {
+      this.updatePanelBackground();
+    });
   }
 
   async mount(container: HTMLElement): Promise<void> {
@@ -295,17 +300,18 @@ export class App {
   private getConnectionPanelClasses(): string {
     const baseClasses = 'layout-transition';
     const visibilityClass = this.connectionPanelVisible ? 'panel-visible' : 'panel-hidden';
+    const backgroundClass = this.connectionPanel ? this.connectionPanel.getPanelBackgroundClass() : 'bg-gray-900/10';
     
     switch (this.connectionPanelPosition) {
       case 'left':
-        return `${baseClasses} ${visibilityClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height debug-layout-left`;
+        return `${baseClasses} ${visibilityClass} ${backgroundClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height debug-layout-left`;
       case 'right':
-        return `${baseClasses} ${visibilityClass} panel-positioned-right panel-compact h-screen-adjusted panel-full-height debug-layout-right`;
+        return `${baseClasses} ${visibilityClass} ${backgroundClass} panel-positioned-right panel-compact h-screen-adjusted panel-full-height debug-layout-right`;
       case 'top':
-        return `${baseClasses} ${visibilityClass} panel-positioned-top debug-layout-top`;
+        return `${baseClasses} ${visibilityClass} ${backgroundClass} panel-positioned-top debug-layout-top`;
       default:
         console.warn('getConnectionPanelClasses: Unknown position:', this.connectionPanelPosition);
-        return `${baseClasses} ${visibilityClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height debug-layout-left`;
+        return `${baseClasses} ${visibilityClass} ${backgroundClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height debug-layout-left`;
     }
   }
 
@@ -330,6 +336,17 @@ export class App {
     
     if (toggleButton) {
       toggleButton.innerHTML = `${this.connectionPanelVisible ? '🔼 Hide' : '🔽 Show'} Connection`;
+    }
+  }
+
+  private updatePanelBackground(): void {
+    const connectionPanelElement = document.getElementById('connection-panel');
+    if (connectionPanelElement) {
+      const newClasses = `panel ${this.getConnectionPanelClasses()}`;
+      connectionPanelElement.className = newClasses;
+      console.log('Panel background updated:', newClasses);
+    } else {
+      console.warn('Connection panel element not found');
     }
   }
 
