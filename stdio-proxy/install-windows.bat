@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 > nul
-setlocal enabledelayedexpansion
+setlocal
 
 REM Windows Installation script for stdio-proxy Native Host
 REM This script installs the native messaging host for Chrome extension
@@ -15,7 +15,7 @@ REM Get Chrome Extension ID
 set "EXTENSION_ID="
 if exist "%DIR%\extension-id.txt" (
     set /p EXTENSION_ID=<"%DIR%\extension-id.txt"
-    echo [INFO] Using Extension ID from file: !EXTENSION_ID!
+    echo [INFO] Using Extension ID from file: %EXTENSION_ID%
 ) else (
     echo [WARNING] Extension ID file not found. Please create 'extension-id.txt' with your Chrome extension ID.
     echo    You can find your extension ID at chrome://extensions
@@ -25,7 +25,7 @@ if exist "%DIR%\extension-id.txt" (
         pause
         exit /b 1
     )
-    echo !EXTENSION_ID!>"%DIR%\extension-id.txt"
+    echo %EXTENSION_ID%>"%DIR%\extension-id.txt"
 )
 
 if not defined EXTENSION_ID (
@@ -61,7 +61,7 @@ call :InstallForBrowser "%OPERA_DIR%" "Opera"
 call :InstallForBrowser "%VIVALDI_DIR%" "Vivaldi"
 call :InstallForBrowser "%CHROMIUM_DIR%" "Chromium"
 
-if !INSTALLED_COUNT! equ 0 (
+if %INSTALLED_COUNT% equ 0 (
     echo [WARNING] No compatible browsers found. Installing for Chrome ^(default^)...
     mkdir "%CHROME_DIR%" 2>nul
     call :WriteManifest "%CHROME_DIR%\com.my_company.stdio_proxy.json"
@@ -90,12 +90,17 @@ call :RegisterBrowserInRegistry "Opera Software\Opera Stable" "Opera"
 call :RegisterBrowserInRegistry "Vivaldi" "Vivaldi"
 call :RegisterBrowserInRegistry "Chromium" "Chromium"
 
-if !REG_SUCCESS_COUNT! equ 0 (
+REM Also try per-user Chrome variants
+call :RegisterBrowserInRegistry "Google\Chrome Beta" "Chrome Beta"
+call :RegisterBrowserInRegistry "Google\Chrome Dev" "Chrome Dev" 
+call :RegisterBrowserInRegistry "Google\Chrome SxS" "Chrome Canary"
+
+if %REG_SUCCESS_COUNT% equ 0 (
     echo [WARNING] No registry entries were created successfully
     echo [INFO] Attempting system-wide registration...
     call :RegisterSystemWide
 ) else (
-    echo [OK] Successfully registered for !REG_SUCCESS_COUNT! browser^(s^) in registry
+    echo [OK] Successfully registered for %REG_SUCCESS_COUNT% browser^(s^) in registry
 )
 
 goto :eof
@@ -106,7 +111,7 @@ set "BROWSER_NAME=%~2"
 set "REG_PATH=HKEY_CURRENT_USER\Software\%BROWSER_PATH%\NativeMessagingHosts\com.my_company.stdio_proxy"
 
 reg add "%REG_PATH%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul 2>&1
-if !errorlevel! equ 0 (
+if %errorlevel% equ 0 (
     echo [OK] Registered in %BROWSER_NAME% registry
     set /a REG_SUCCESS_COUNT+=1
 ) else (
@@ -118,20 +123,33 @@ goto :eof
 REM Try system-wide registration for main browsers
 set "CHROME_SYSTEM_REG=HKEY_LOCAL_MACHINE\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.my_company.stdio_proxy"
 reg add "%CHROME_SYSTEM_REG%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul 2>&1
-if !errorlevel! equ 0 (
+if %errorlevel% equ 0 (
     echo [OK] Registered in Chrome system registry
 )
 
 set "EDGE_SYSTEM_REG=HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.my_company.stdio_proxy"
 reg add "%EDGE_SYSTEM_REG%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul 2>&1
-if !errorlevel! equ 0 (
+if %errorlevel% equ 0 (
     echo [OK] Registered in Edge system registry
 )
 
 set "BRAVE_SYSTEM_REG=HKEY_LOCAL_MACHINE\SOFTWARE\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.my_company.stdio_proxy"
 reg add "%BRAVE_SYSTEM_REG%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul 2>&1
-if !errorlevel! equ 0 (
+if %errorlevel% equ 0 (
     echo [OK] Registered in Brave system registry
+)
+
+REM Try other Chromium browsers in system registry
+set "OPERA_SYSTEM_REG=HKEY_LOCAL_MACHINE\SOFTWARE\Opera Software\Opera Stable\NativeMessagingHosts\com.my_company.stdio_proxy"
+reg add "%OPERA_SYSTEM_REG%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [OK] Registered in Opera system registry
+)
+
+set "VIVALDI_SYSTEM_REG=HKEY_LOCAL_MACHINE\SOFTWARE\Vivaldi\NativeMessagingHosts\com.my_company.stdio_proxy"
+reg add "%VIVALDI_SYSTEM_REG%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [OK] Registered in Vivaldi system registry
 )
 
 goto :eof
@@ -155,10 +173,10 @@ set "MANIFEST_FILE=%~1"
 echo {
 echo   "name": "com.my_company.stdio_proxy",
 echo   "description": "stdio-proxy Native Messaging Host",
-echo   "path": "!EXECUTABLE_PATH:\=\\!",
+echo   "path": "%EXECUTABLE_PATH:\=\\%",
 echo   "type": "stdio",
 echo   "allowed_origins": [
-echo     "chrome-extension://!EXTENSION_ID!/"
+echo     "chrome-extension://%EXTENSION_ID%/"
 echo   ]
 echo }
 ) > "%MANIFEST_FILE%"
@@ -169,22 +187,22 @@ goto :eof
 echo [SUCCESS] Installation completed!
 echo.
 echo [INFO] Files installed:
-echo    • Executable: !EXECUTABLE_PATH!
-echo    • Manifests installed for !INSTALLED_COUNT! browser^(s^)
-echo    • Registry entries created for all supported browsers
-echo    • Main manifest: !MANIFEST_PATH!
+echo    * Executable: %EXECUTABLE_PATH%
+echo    * Manifests installed for %INSTALLED_COUNT% browser^(s^)
+echo    * Registry entries created for all supported browsers
+echo    * Main manifest: %MANIFEST_PATH%
 echo.
 echo [INFO] Supported browsers:
-echo    • Chrome, Chrome Beta/Dev/Canary
-echo    • Microsoft Edge
-echo    • Brave Browser
-echo    • Opera
-echo    • Vivaldi
-echo    • Chromium
+echo    * Chrome, Chrome Beta/Dev/Canary
+echo    * Microsoft Edge
+echo    * Brave Browser
+echo    * Opera
+echo    * Vivaldi
+echo    * Chromium
 echo.
 echo [INFO] Installation methods used:
-echo    • Native Messaging Host manifest files
-echo    • Windows Registry entries ^(recommended^)
+echo    * Native Messaging Host manifest files
+echo    * Windows Registry entries ^(recommended^)
 echo.
 echo [INFO] Next steps:
 echo    1. Restart your browser completely
@@ -192,9 +210,9 @@ echo    2. Reload your extension
 echo    3. Try connecting via TCP Native tab
 echo.
 echo [INFO] Troubleshooting:
-echo    • Check Windows Event Viewer for errors
-echo    • Verify Extension ID: !EXTENSION_ID!
-echo    • Registry entries: HKCU\Software\Google\Chrome\NativeMessagingHosts\
-echo    • If issues persist, run as Administrator
+echo    * Check Windows Event Viewer for errors
+echo    * Verify Extension ID: %EXTENSION_ID%
+echo    * Registry entries: HKCU\Software\Google\Chrome\NativeMessagingHosts\
+echo    * If issues persist, run as Administrator
 echo.
 pause
