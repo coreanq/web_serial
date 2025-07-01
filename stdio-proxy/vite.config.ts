@@ -47,15 +47,6 @@ export default defineConfig({
     {
       name: 'copy-assets',
       generateBundle() {
-        // Copy manifest.json
-        if (fs.existsSync(resolve(__dirname, 'manifest.json'))) {
-          this.emitFile({
-            type: 'asset',
-            fileName: 'manifest.json',
-            source: fs.readFileSync(resolve(__dirname, 'manifest.json'), 'utf-8'),
-          });
-        }
-
         // Copy install scripts
         const installScripts = [
           'install-windows.bat',
