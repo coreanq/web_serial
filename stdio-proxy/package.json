@@ -15,7 +15,9 @@
     "compile:windows": "npx pkg dist/proxy.js --targets node22-win-x64 --output ./dist/stdio-proxy-windows-x64.exe",
     "compile:linux": "npx pkg dist/proxy.js --targets node22-linux-x64 --output ./dist/stdio-proxy-linux-x64",
     "package": "npm run build && npm run compile:all && npm run create-packages",
-    "create-packages": "node scripts/create-packages.js"
+    "create-packages": "node scripts/create-packages.js",
+    "postinstall": "node scripts/install-native-host.js",
+    "preuninstall": "node scripts/uninstall-native-host.js"
   },
   "pkg": {
     "assets": [
