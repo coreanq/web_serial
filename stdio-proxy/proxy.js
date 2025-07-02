@@ -74,34 +74,10 @@ function log(message) {
         // Fallback if stderr fails
     }
     
-    // Additional Windows-specific output methods
-    if (process.platform === 'win32') {
-        try {
-            // Try multiple output methods for Windows cmd.exe
-            console.error(logLine);
-            console.warn(logLine);
-            
-            // Force flush if available
-            if (process.stderr.cork) {
-                process.stderr.cork();
-                process.stderr.write(logLine + '\n');
-                process.stderr.uncork();
-            }
-            
-            // Windows Event Log (for debugging)
-            try {
-                const { execSync } = require('child_process');
-                const eventCmd = `eventcreate /T INFORMATION /ID 1000 /L APPLICATION /SO "Native-Host" /D "${message.replace(/"/g, '\\"')}"`;
-                execSync(eventCmd, { stdio: 'ignore' });
-            } catch (eventError) {
-                // Ignore event log errors
-            }
-            
-        } catch (e) {
-            // Ignore errors
-        }
-    } else {
-        console.error(logLine);
+    // Only use stderr for debugging (don't interfere with stdout)
+    if (!isTestMode) {
+        // In production mode, minimize console output to avoid stdout interference
+        return;
     }
     
     // Log to file with multiple attempts - FORCE CREATE
@@ -158,38 +134,27 @@ function log(message) {
         }
     }
     
-    if (!written) {
-        console.error(`❌ Failed to write to any log file location`);
-    } else if (usedPath && usedPath !== LOG_FILE) {
-        console.error(`📝 Logging to: ${usedPath}`);
+    // Remove console output to avoid stdout pollution
+    if (!written && isTestMode) {
+        process.stderr.write(`❌ Failed to write to any log file location\n`);
+    } else if (usedPath && usedPath !== LOG_FILE && isTestMode) {
+        process.stderr.write(`📝 Logging to: ${usedPath}\n`);
     }
 }
 
-// Force immediate output with Windows-specific handling
+// Force immediate output - only in test mode to avoid stdout pollution
 const forceOutput = (message) => {
+    if (!isTestMode) {
+        return; // Don't output anything in production mode
+    }
+    
     const line = `${new Date().toISOString()} - ${message}\n`;
     
-    // Primary stderr output
+    // Only stderr output to avoid interfering with Native Messaging stdout
     try {
         process.stderr.write(line);
     } catch (e) {
-        // Ignore stderr errors in packaged executable
-    }
-    
-    // Windows-specific console output attempts
-    if (process.platform === 'win32') {
-        try {
-            console.error(message);
-            console.warn(message);
-            console.log(message); // Try all console methods
-            
-            // Force output if running from console
-            if (process.stdout.isTTY || process.stderr.isTTY) {
-                process.stdout.write(line);
-            }
-        } catch (e) {
-            // Ignore console errors in packaged executable
-        }
+        // Ignore stderr errors
     }
 };
 
