@@ -1,6 +1,7 @@
 import { ConnectionPanel } from './panels/ConnectionPanel';
 import { LogPanel } from './panels/LogPanel';
 import { CommandPanel } from './panels/CommandPanel';
+import { LogSettingsPanel } from './LogSettingsPanel';
 import { AppState, ConnectionStatus } from '../types';
 
 export class App {
@@ -8,6 +9,7 @@ export class App {
   private connectionPanel: ConnectionPanel;
   private logPanel: LogPanel;
   private commandPanel: CommandPanel;
+  private logSettingsPanel: LogSettingsPanel | null = null;
   private connectionPanelPosition: 'top' | 'left' | 'right' = 'left';
   private connectionPanelVisible: boolean = true;
   private pendingRepeatLogs: any[] = [];
@@ -94,6 +96,9 @@ export class App {
                 <button id="toggle-connection-panel" class="btn-secondary btn-sm">
                   ${this.connectionPanelVisible ? '🔼 Hide' : '🔽 Show'} Connection
                 </button>
+                <button id="global-settings" class="btn-secondary btn-sm" title="Global Settings">
+                  ⚙️ Settings
+                </button>
               </div>
             </div>
             
@@ -128,6 +133,12 @@ export class App {
       this.connectionPanelVisible = !this.connectionPanelVisible;
       this.updateLayout();
     });
+
+    // Global settings button
+    const globalSettingsButton = document.getElementById('global-settings') as HTMLButtonElement;
+    globalSettingsButton?.addEventListener('click', () => {
+      this.showGlobalSettings();
+    });
     
     // Add event listener for minimize button (will be added after layout update)
     this.attachMinimizeListener();
@@ -156,18 +167,10 @@ export class App {
         this.onLogsClear();
       });
 
-      // Export logs button
-      const exportButton = document.getElementById('export-logs');
-      exportButton?.addEventListener('click', () => {
-        // Delegate to log panel export functionality
-        this.logPanel.exportLogs();
-      });
-
-      // Log settings button  
-      const settingsButton = document.getElementById('log-settings');
-      settingsButton?.addEventListener('click', () => {
-        // Delegate to log panel settings functionality
-        this.logPanel.showLogSettingsModal();
+      // Log settings button (moved from LogPanel to App header)
+      const logSettingsButton = document.getElementById('log-settings-btn');
+      logSettingsButton?.addEventListener('click', () => {
+        this.showGlobalSettings();
       });
     }, 0);
   }
@@ -307,11 +310,12 @@ export class App {
                 <button class="btn-secondary text-sm py-1 px-3" id="clear-logs">
                   Clear
                 </button>
-                <button class="btn-secondary text-sm py-1 px-3" id="log-settings">
-                  Settings
-                </button>
-                <button class="btn-secondary text-sm py-1 px-3" id="export-logs">
-                  Export
+                <button id="log-settings-btn" class="btn-secondary text-sm py-1 px-3 flex items-center gap-1" title="로그 버퍼 설정">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 616 0z"></path>
+                  </svg>
+                  설정
                 </button>
               </div>
             </div>
@@ -630,6 +634,15 @@ export class App {
     if (statusText) {
       statusText.textContent = this.getStatusText();
     }
+  }
+
+  private showGlobalSettings(): void {
+    // Initialize LogSettingsPanel if not already created
+    if (!this.logSettingsPanel) {
+      this.logSettingsPanel = new LogSettingsPanel(this.logPanel.getOptimizedLogService());
+    }
+    
+    this.logSettingsPanel.show();
   }
 
   // Public methods for panel control

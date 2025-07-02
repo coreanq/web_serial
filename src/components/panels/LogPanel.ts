@@ -243,16 +243,6 @@ export class LogPanel {
 
           <div class="flex items-center justify-start gap-2 text-sm text-dark-text-secondary">
             <span id="log-count">0 entries</span>
-            <button id="log-settings-btn" 
-                    class="btn-secondary text-sm py-1 px-3 flex items-center gap-1"
-                    title="로그 버퍼 설정">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-              </svg>
-              설정
-            </button>
           </div>
         </div>
 
@@ -265,82 +255,6 @@ export class LogPanel {
       </div>
       
       <!-- Log Settings Modal -->
-      <div id="log-settings-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="bg-dark-panel rounded-lg shadow-xl max-w-md w-full mx-4">
-          <div class="flex items-center justify-between p-4 border-b border-dark-border">
-            <h3 class="text-lg font-semibold text-dark-text-primary">Log Storage Settings</h3>
-            <button id="close-log-settings" class="text-dark-text-secondary hover:text-dark-text-primary">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </button>
-          </div>
-          
-          <div class="p-4 space-y-4">
-            <!-- Storage Mode Selection -->
-            <div>
-              <label class="block text-sm font-medium text-dark-text-primary mb-2">Storage Mode</label>
-              <div class="space-y-2">
-                <label class="flex items-center gap-2">
-                  <input type="radio" name="storage-mode" value="continuous" class="text-blue-500" checked>
-                  <div>
-                    <div class="text-sm text-dark-text-primary">Continuous Logging</div>
-                    <div class="text-xs text-dark-text-secondary">Save all logs in separate files (no deletion)</div>
-                  </div>
-                </label>
-                <label class="flex items-center gap-2">
-                  <input type="radio" name="storage-mode" value="rotation" class="text-blue-500">
-                  <div>
-                    <div class="text-sm text-dark-text-primary">Log Rotation</div>
-                    <div class="text-xs text-dark-text-secondary">Limit files by size/age (old files deleted)</div>
-                  </div>
-                </label>
-              </div>
-            </div>
-            
-            <!-- Continuous Mode Settings -->
-            <div id="continuous-settings" class="space-y-3">
-              <h4 class="text-sm font-medium text-dark-text-primary">Continuous Mode Settings</h4>
-              <div>
-                <label class="block text-xs text-dark-text-secondary mb-1">Max File Size (MB)</label>
-                <input type="number" id="continuous-max-size" value="10" min="1" max="100" 
-                       class="input-field text-sm w-full">
-              </div>
-            </div>
-            
-            <!-- Rotation Mode Settings -->
-            <div id="rotation-settings" class="space-y-3 hidden">
-              <h4 class="text-sm font-medium text-dark-text-primary">Rotation Mode Settings</h4>
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-xs text-dark-text-secondary mb-1">Max File Size (MB)</label>
-                  <input type="number" id="rotation-max-size" value="5" min="1" max="50" 
-                         class="input-field text-sm w-full">
-                </div>
-                <div>
-                  <label class="block text-xs text-dark-text-secondary mb-1">Max Files</label>
-                  <input type="number" id="rotation-max-files" value="10" min="1" max="50" 
-                         class="input-field text-sm w-full">
-                </div>
-              </div>
-              <div>
-                <label class="block text-xs text-dark-text-secondary mb-1">Max Age (days)</label>
-                <input type="number" id="rotation-max-age" value="30" min="1" max="365" 
-                       class="input-field text-sm w-full">
-              </div>
-              <label class="flex items-center gap-2">
-                <input type="checkbox" id="rotation-compression" class="text-blue-500">
-                <span class="text-sm text-dark-text-primary">Enable compression for old files</span>
-              </label>
-            </div>
-          </div>
-          
-          <div class="flex items-center justify-end gap-2 p-4 border-t border-dark-border">
-            <button id="cancel-log-settings" class="btn-secondary text-sm py-2 px-4">Cancel</button>
-            <button id="save-log-settings" class="btn-primary text-sm py-2 px-4">Save</button>
-          </div>
-        </div>
-      </div>
       
       <!-- Time Filter Modal -->
       ${this.renderTimeFilterModal()}
@@ -977,15 +891,6 @@ export class LogPanel {
       this.showTimeFilterModal();
     });
 
-    // Log buffer settings button
-    const logSettingsBtn = document.getElementById('log-settings-btn');
-    logSettingsBtn?.addEventListener('click', () => {
-      this.logSettingsPanel.show();
-    });
-
-    // Log settings modal events
-    this.setupLogSettingsModal();
-    
     // Time filter modal events
     this.setupTimeFilterModal();
   }
@@ -1176,136 +1081,8 @@ export class LogPanel {
     }, 3000); // Add new logs every 3 seconds
   }
 
-  // Log settings modal methods
-  public showLogSettingsModal(): void {
-    const modal = document.getElementById('log-settings-modal');
-    if (modal) {
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-      this.loadCurrentLogSettings();
-    }
-  }
 
-  private hideLogSettingsModal(): void {
-    const modal = document.getElementById('log-settings-modal');
-    if (modal) {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-  }
 
-  private setupLogSettingsModal(): void {
-    // Close modal events
-    const closeButton = document.getElementById('close-log-settings');
-    const cancelButton = document.getElementById('cancel-log-settings');
-    
-    closeButton?.addEventListener('click', () => this.hideLogSettingsModal());
-    cancelButton?.addEventListener('click', () => this.hideLogSettingsModal());
-
-    // Save settings
-    const saveButton = document.getElementById('save-log-settings');
-    saveButton?.addEventListener('click', () => this.saveLogSettings());
-
-    // Storage mode toggle
-    const storageModeRadios = document.querySelectorAll('input[name="storage-mode"]');
-    storageModeRadios.forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        const target = e.target as HTMLInputElement;
-        this.toggleSettingsSections(target.value as 'continuous' | 'rotation');
-      });
-    });
-
-    // Close modal when clicking outside
-    const modal = document.getElementById('log-settings-modal');
-    modal?.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        this.hideLogSettingsModal();
-      }
-    });
-  }
-
-  private toggleSettingsSections(mode: 'continuous' | 'rotation'): void {
-    const continuousSettings = document.getElementById('continuous-settings');
-    const rotationSettings = document.getElementById('rotation-settings');
-
-    if (mode === 'continuous') {
-      continuousSettings?.classList.remove('hidden');
-      rotationSettings?.classList.add('hidden');
-    } else {
-      continuousSettings?.classList.add('hidden');
-      rotationSettings?.classList.remove('hidden');
-    }
-  }
-
-  private loadCurrentLogSettings(): void {
-    const config = this.logService.getConfig();
-
-    // Set storage mode
-    const modeRadio = document.querySelector(`input[name="storage-mode"][value="${config.mode}"]`) as HTMLInputElement;
-    if (modeRadio) {
-      modeRadio.checked = true;
-      this.toggleSettingsSections(config.mode);
-    }
-
-    // Load continuous settings
-    if (config.continuous) {
-      const maxSizeInput = document.getElementById('continuous-max-size') as HTMLInputElement;
-      if (maxSizeInput) {
-        maxSizeInput.value = config.continuous.maxFileSize.toString();
-      }
-    }
-
-    // Load rotation settings
-    if (config.rotation) {
-      const rotationMaxSize = document.getElementById('rotation-max-size') as HTMLInputElement;
-      const rotationMaxFiles = document.getElementById('rotation-max-files') as HTMLInputElement;
-      const rotationMaxAge = document.getElementById('rotation-max-age') as HTMLInputElement;
-      const rotationCompression = document.getElementById('rotation-compression') as HTMLInputElement;
-
-      if (rotationMaxSize) rotationMaxSize.value = config.rotation.maxFileSize.toString();
-      if (rotationMaxFiles) rotationMaxFiles.value = config.rotation.maxFiles.toString();
-      if (rotationMaxAge) rotationMaxAge.value = config.rotation.maxAge.toString();
-      if (rotationCompression) rotationCompression.checked = config.rotation.compressionEnabled;
-    }
-  }
-
-  private saveLogSettings(): void {
-    const mode = (document.querySelector('input[name="storage-mode"]:checked') as HTMLInputElement)?.value as 'continuous' | 'rotation';
-    
-    const config: LogStorageConfig = {
-      mode,
-      continuous: {
-        maxFileSize: parseInt((document.getElementById('continuous-max-size') as HTMLInputElement)?.value || '10'),
-        fileNameFormat: 'YYYY-MM-DD_HH-mm-ss'
-      },
-      rotation: {
-        maxFileSize: parseInt((document.getElementById('rotation-max-size') as HTMLInputElement)?.value || '5'),
-        maxFiles: parseInt((document.getElementById('rotation-max-files') as HTMLInputElement)?.value || '10'),
-        maxAge: parseInt((document.getElementById('rotation-max-age') as HTMLInputElement)?.value || '30'),
-        compressionEnabled: (document.getElementById('rotation-compression') as HTMLInputElement)?.checked || false
-      }
-    };
-
-    this.logService.updateConfig(config);
-    this.hideLogSettingsModal();
-    
-    // Show confirmation
-    this.showNotification('Log settings saved successfully!');
-  }
-
-  private showNotification(message: string): void {
-    // Create temporary notification
-    const notification = document.createElement('div');
-    notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-      document.body.removeChild(notification);
-    }, 3000);
-  }
 
   // Override addLog to use LogService
   async addLog(log: LogEntry): Promise<void> {
@@ -1337,25 +1114,21 @@ export class LogPanel {
 
   // Override updateLogs to handle LogService integration and regular scrolling
   updateLogs(logs: LogEntry[]): void {
-    // If logs are coming from external source, add them to LogService
-    if (logs.length > this.logs.length) {
-      const newLogs = logs.slice(this.logs.length);
-      
-      if (this.useOptimizedService) {
-        // Add new logs to optimized service
-        newLogs.forEach(async (log) => {
-          await this.optimizedLogService.addLog(log);
-        });
-      } else {
-        // Fallback to original service (if addLogs method exists)
-        if (this.logService.addLogs) {
-          this.logService.addLogs(newLogs);
-        }
+    // Simply replace with new logs and let addLog handle service integration
+    this.logs = logs;
+    
+    // Rebuild optimized service from scratch to ensure consistency
+    if (this.useOptimizedService) {
+      this.optimizedLogService.clearLogs();
+      for (const log of logs) {
+        this.optimizedLogService.addLog(log);
+      }
+    } else {
+      this.logService.clearLogs();
+      if (this.logService.addLogs) {
+        this.logService.addLogs(logs);
       }
     }
-
-    // Store all logs 
-    this.logs = logs;
     
     // Apply current date/time filter
     this.applyCurrentTimeFilter();
@@ -1400,56 +1173,6 @@ export class LogPanel {
     }
   }
 
-  public exportLogs(): void {
-    // Create export options modal or directly export
-    const exportMenu = document.createElement('div');
-    exportMenu.className = 'absolute right-0 mt-2 bg-dark-panel border border-dark-border rounded-lg shadow-lg z-10';
-    exportMenu.innerHTML = `
-      <div class="p-2 space-y-1">
-        <button class="block w-full text-left px-3 py-2 text-sm hover:bg-dark-surface rounded" id="export-txt">
-          Export as TXT
-        </button>
-        <button class="block w-full text-left px-3 py-2 text-sm hover:bg-dark-surface rounded" id="export-csv">
-          Export as CSV
-        </button>
-      </div>
-    `;
-
-    // Position menu near export button
-    const exportButton = document.getElementById('export-logs');
-    if (exportButton) {
-      exportButton.parentElement?.appendChild(exportMenu);
-      
-      // Position menu
-      const rect = exportButton.getBoundingClientRect();
-      exportMenu.style.position = 'fixed';
-      exportMenu.style.top = `${rect.bottom + 5}px`;
-      exportMenu.style.right = `${window.innerWidth - rect.right}px`;
-
-      // Add event listeners
-      document.getElementById('export-txt')?.addEventListener('click', () => {
-        this.exportFilteredLogsAsText();
-        exportMenu.remove();
-      });
-
-      document.getElementById('export-csv')?.addEventListener('click', () => {
-        this.exportFilteredLogsAsCSV();
-        exportMenu.remove();
-      });
-
-      // Close menu when clicking outside
-      const closeMenu = (e: Event) => {
-        if (!exportMenu.contains(e.target as Node)) {
-          exportMenu.remove();
-          document.removeEventListener('click', closeMenu);
-        }
-      };
-      
-      setTimeout(() => {
-        document.addEventListener('click', closeMenu);
-      }, 10);
-    }
-  }
 
   // Time filter modal methods
   private showTimeFilterModal(): void {
@@ -1577,72 +1300,9 @@ export class LogPanel {
     }
   }
 
-  // Export filtered logs methods
-  private exportFilteredLogsAsText(): void {
-    const content = this.generateTextContent(this.filteredLogs);
-    const timestamp = this.formatExportTimestamp(new Date());
-    const filterSuffix = Object.keys(this.currentDateTimeFilter).length > 0 ? '_filtered' : '';
-    const filename = `modbus_export${filterSuffix}_${timestamp}.txt`;
-    
-    this.downloadFile(content, filename, 'text/plain');
+  // Public method to access optimized log service
+  public getOptimizedLogService(): OptimizedLogService {
+    return this.optimizedLogService;
   }
 
-  private exportFilteredLogsAsCSV(): void {
-    const csvHeader = 'Timestamp,Direction,Data,Response Time (ms),Error\n';
-    const csvContent = this.filteredLogs.map(log => {
-      const timestamp = log.timestamp.toISOString();
-      const direction = log.direction;
-      const data = `"${log.data.replace(/"/g, '""')}"`;
-      const responseTime = log.responseTime || '';
-      const error = log.error ? `"${log.error.replace(/"/g, '""')}"` : '';
-      
-      return `${timestamp},${direction},${data},${responseTime},${error}`;
-    }).join('\n');
-    
-    const content = csvHeader + csvContent;
-    const timestamp = this.formatExportTimestamp(new Date());
-    const filterSuffix = Object.keys(this.currentDateTimeFilter).length > 0 ? '_filtered' : '';
-    const filename = `modbus_export${filterSuffix}_${timestamp}.csv`;
-    
-    this.downloadFile(content, filename, 'text/csv');
-  }
-
-  private generateTextContent(logs: LogEntry[]): string {
-    return logs.map(log => {
-      const timestamp = log.timestamp.toISOString();
-      const direction = log.direction.toUpperCase();
-      const data = log.data.replace(/\s+/g, ' ').trim();
-      const responseTime = log.responseTime ? ` (${log.responseTime}ms)` : '';
-      const error = log.error ? ` [ERROR: ${log.error}]` : '';
-      
-      return `[${timestamp}] ${direction}: ${data}${responseTime}${error}`;
-    }).join('\n');
-  }
-
-  private formatExportTimestamp(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
-  }
-
-  private downloadFile(content: string, filename: string, mimeType: string): void {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.style.display = 'none';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    URL.revokeObjectURL(url);
-  }
 }

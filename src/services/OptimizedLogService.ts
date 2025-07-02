@@ -1,11 +1,11 @@
 import { LogEntry } from '../types';
-import { LazyCircularBuffer } from './LazyCircularBuffer';
+import { SimpleCircularBuffer } from './SimpleCircularBuffer';
 
 export interface LogBufferConfig {
   // CircularBuffer 설정
   bufferSize: number;           // 메모리 버퍼 크기 (기본: 1000)
-  segmentSize: number;          // 세그먼트 크기 (기본: 100)
-  autoExportSize: number;       // 자동 파일 저장 임계값 (기본: 500)
+  pendingQueueSize: number;     // 대기 중인 export 큐 크기 (기본: 200)
+  autoExportThreshold: number;  // 자동 파일 저장 임계값 (기본: 100)
   
   // 파일 저장 설정
   exportFormat: 'json' | 'csv' | 'txt';  // 파일 형식
@@ -16,39 +16,37 @@ export interface LogBufferConfig {
   batchSize: number;           // 일괄 처리 크기 (기본: 100)
   compressionEnabled: boolean;  // 압축 저장
   
-  // 메모리 최적화 설정
-  autoDefragmentEnabled: boolean;  // 자동 메모리 정리
-  defragmentInterval: number;      // 정리 주기 (ms)
+  // 비동기 처리 설정
+  maxConcurrentExports: number; // 동시 export 작업 수 (기본: 2)
+  exportRetryAttempts: number;  // export 실패 시 재시도 횟수 (기본: 3)
 }
 
 export class OptimizedLogService {
-  private buffer: LazyCircularBuffer;
+  private buffer: SimpleCircularBuffer;
   private config: LogBufferConfig;
   private exportedFileCount: number = 0;
-  private isExporting: boolean = false;
-  private defragmentTimer?: NodeJS.Timeout;
+  private pendingExportQueue: LogEntry[] = [];
+  private activeExports: Set<Promise<void>> = new Set();
 
   constructor(config?: Partial<LogBufferConfig>) {
     this.config = {
-      bufferSize: 1000,
-      segmentSize: 100,
-      autoExportSize: 500,
+      bufferSize: 10000,
+      pendingQueueSize: 10000, // Always same as bufferSize
+      autoExportThreshold: 2000,
       exportFormat: 'json',
       autoExportEnabled: true,
       batchSize: 100,
       compressionEnabled: false,
-      autoDefragmentEnabled: true,
-      defragmentInterval: 30000, // 30초
+      maxConcurrentExports: 2,
+      exportRetryAttempts: 3,
       ...config
     };
 
-    this.buffer = new LazyCircularBuffer(
-      this.config.bufferSize,
-      this.config.segmentSize
-    );
+    // Always keep pendingQueueSize same as bufferSize
+    this.config.pendingQueueSize = this.config.bufferSize;
 
+    this.buffer = new SimpleCircularBuffer(this.config.bufferSize);
     this.loadSettings();
-    this.startDefragmentTimer();
   }
 
   // 설정 로드/저장
@@ -61,7 +59,6 @@ export class OptimizedLogService {
         
         // 버퍼 크기가 변경된 경우 재할당
         this.buffer.resize(this.config.bufferSize);
-        this.buffer.setSegmentSize(this.config.segmentSize);
       }
     } catch (error) {
       console.warn('Failed to load log settings:', error);
@@ -79,29 +76,15 @@ export class OptimizedLogService {
   // 설정 업데이트
   public updateConfig(newConfig: Partial<LogBufferConfig>): void {
     const oldBufferSize = this.config.bufferSize;
-    const oldSegmentSize = this.config.segmentSize;
-    const oldDefragmentEnabled = this.config.autoDefragmentEnabled;
     
     this.config = { ...this.config, ...newConfig };
     
-    // 버퍼 크기 변경 - 지연 할당으로 즉시 적용
+    // Always keep pendingQueueSize same as bufferSize
+    this.config.pendingQueueSize = this.config.bufferSize;
+    
+    // 버퍼 크기 변경 시 적용
     if (newConfig.bufferSize && newConfig.bufferSize !== oldBufferSize) {
       this.buffer.resize(newConfig.bufferSize);
-    }
-    
-    // 세그먼트 크기 변경
-    if (newConfig.segmentSize && newConfig.segmentSize !== oldSegmentSize) {
-      this.buffer.setSegmentSize(newConfig.segmentSize);
-    }
-    
-    // 자동 정리 설정 변경
-    if (newConfig.autoDefragmentEnabled !== undefined && 
-        newConfig.autoDefragmentEnabled !== oldDefragmentEnabled) {
-      if (newConfig.autoDefragmentEnabled) {
-        this.startDefragmentTimer();
-      } else {
-        this.stopDefragmentTimer();
-      }
     }
     
     this.saveSettings();
@@ -111,74 +94,69 @@ export class OptimizedLogService {
     return { ...this.config };
   }
 
-  // 자동 메모리 정리 타이머 시작
-  private startDefragmentTimer(): void {
-    if (!this.config.autoDefragmentEnabled) return;
-    
-    this.stopDefragmentTimer();
-    this.defragmentTimer = setInterval(() => {
-      this.buffer.defragment();
-    }, this.config.defragmentInterval);
-  }
-
-  // 자동 메모리 정리 타이머 중지
-  private stopDefragmentTimer(): void {
-    if (this.defragmentTimer) {
-      clearInterval(this.defragmentTimer);
-      this.defragmentTimer = undefined;
-    }
-  }
-
-  // 수동 메모리 정리
-  public defragment(): void {
-    this.buffer.defragment();
-  }
-
   // 로그 추가
   public async addLog(log: LogEntry): Promise<void> {
-    // LazyCircularBuffer에 로그 추가
+    // SimpleCircularBuffer에 로그 추가
     const evictedLog = this.buffer.add(log);
     
-    // 제거된 로그가 있고 자동 저장이 활성화된 경우 저장
-    if (evictedLog && this.config.autoExportEnabled && !this.isExporting) {
-      // 제거된 로그들을 일괄 저장을 위해 임시 저장
-      this.queueForExport(evictedLog);
-    }
-
-    // 자동 저장 임계값 체크
-    const stats = this.buffer.getMemoryStats();
-    if (this.config.autoExportEnabled && 
-        stats.allocatedMemory >= this.config.autoExportSize && 
-        !this.isExporting) {
-      setTimeout(() => this.exportOldLogs(), 0); // 비동기 실행
+    // 제거된 로그가 있고 자동 저장이 활성화된 경우 pending queue에 추가
+    if (evictedLog && this.config.autoExportEnabled) {
+      this.pendingExportQueue.push(evictedLog);
+      
+      // Pending queue가 임계값에 도달하면 비동기 export 시작
+      if (this.pendingExportQueue.length >= this.config.autoExportThreshold) {
+        this.triggerAsyncExport();
+      }
     }
   }
 
-  // 제거된 로그들을 일괄 저장을 위해 큐에 추가
-  private exportQueue: LogEntry[] = [];
-  
-  private queueForExport(log: LogEntry): void {
-    this.exportQueue.push(log);
-    
-    // 배치 크기에 도달하면 저장
-    if (this.exportQueue.length >= this.config.batchSize) {
-      setTimeout(() => this.flushExportQueue(), 0);
+  // 비동기 export 트리거
+  private triggerAsyncExport(): void {
+    // 동시 export 작업 수 제한
+    if (this.activeExports.size >= this.config.maxConcurrentExports) {
+      return;
     }
+    
+    // Export할 로그들 분리 (배치 크기만큼)
+    const logsToExport = this.pendingExportQueue.splice(0, this.config.batchSize);
+    if (logsToExport.length === 0) return;
+    
+    // 비동기 export 실행
+    const exportPromise = this.performAsyncExport(logsToExport);
+    this.activeExports.add(exportPromise);
+    
+    // Export 완료 후 정리
+    exportPromise.finally(() => {
+      this.activeExports.delete(exportPromise);
+      
+      // 더 export할 것이 있다면 재귀 호출
+      if (this.pendingExportQueue.length >= this.config.autoExportThreshold && 
+          this.activeExports.size < this.config.maxConcurrentExports) {
+        this.triggerAsyncExport();
+      }
+    });
   }
 
-  private async flushExportQueue(): Promise<void> {
-    if (this.exportQueue.length === 0 || this.isExporting) return;
-    
-    const logsToExport = [...this.exportQueue];
-    this.exportQueue = [];
-    
+  // 실제 비동기 export 수행 (재시도 로직 포함)
+  private async performAsyncExport(logs: LogEntry[], retryCount: number = 0): Promise<void> {
     try {
-      await this.exportToFile(logsToExport, `evicted_logs_${Date.now()}`);
+      const filename = `auto_export_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      await this.exportToFile(logs, filename);
       this.exportedFileCount++;
     } catch (error) {
-      console.error('Failed to export evicted logs:', error);
-      // 실패한 로그들을 다시 큐에 추가
-      this.exportQueue.unshift(...logsToExport);
+      console.error(`Export failed (attempt ${retryCount + 1}):`, error);
+      
+      // 재시도 로직
+      if (retryCount < this.config.exportRetryAttempts) {
+        // 지수 백오프로 재시도 (1초, 2초, 4초...)
+        const delay = Math.pow(2, retryCount) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.performAsyncExport(logs, retryCount + 1);
+      } else {
+        // 최종 실패 시 pending queue 맨 앞에 다시 추가 (데이터 손실 방지)
+        this.pendingExportQueue.unshift(...logs);
+        throw error;
+      }
     }
   }
 
@@ -197,40 +175,28 @@ export class OptimizedLogService {
 
   // 전체 로그 수 반환 (메모리 + 파일로 저장된 것)
   public getTotalCount(): number {
-    const memoryStats = this.buffer.getMemoryStats();
-    return memoryStats.totalCount + (this.exportedFileCount * this.config.autoExportSize);
+    const bufferStats = this.buffer.getStats();
+    return bufferStats.totalCount + (this.exportedFileCount * this.config.batchSize);
   }
 
   // 현재 메모리 로그 수 반환
   public getMemoryCount(): number {
-    return this.buffer.getMemoryStats().totalSize;
+    return this.buffer.getStats().size;
   }
 
-  // 오래된 로그들을 파일로 저장
-  private async exportOldLogs(): Promise<void> {
-    const memoryStats = this.buffer.getMemoryStats();
-    if (this.isExporting || memoryStats.totalSize < this.config.autoExportSize) {
-      return;
-    }
-
-    this.isExporting = true;
+  // 강제로 pending queue를 비우기 (수동 호출용)
+  public async flushPendingExports(): Promise<void> {
+    if (this.pendingExportQueue.length === 0) return;
+    
+    // 모든 pending 로그를 한 번에 export
+    const logsToExport = [...this.pendingExportQueue];
+    this.pendingExportQueue = [];
     
     try {
-      // 저장할 로그들 선택 (오래된 것부터)
-      const allLogs = this.buffer.getAllLogs();
-      const logsToExport = allLogs.slice(0, this.config.autoExportSize);
-      
-      if (logsToExport.length > 0) {
-        await this.exportToFile(logsToExport, `auto_export_${this.exportedFileCount + 1}`);
-        this.exportedFileCount++;
-        
-        // LazyCircularBuffer는 자동으로 오래된 로그를 제거하므로 
-        // 별도 제거 로직 불필요
-      }
+      await this.performAsyncExport(logsToExport);
     } catch (error) {
-      console.error('Failed to export old logs:', error);
-    } finally {
-      this.isExporting = false;
+      console.error('Failed to flush pending exports:', error);
+      throw error;
     }
   }
 
@@ -347,43 +313,43 @@ export class OptimizedLogService {
     totalLogs: number;
     exportedFiles: number;
     memoryUsage: string;
-    allocatedSegments: number;
-    totalSegments: number;
-    memoryEfficiency: string;
-    queuedForExport: number;
+    bufferUtilization: string;
+    pendingExports: number;
+    activeExports: number;
   } {
-    const memoryStats = this.buffer.getMemoryStats();
+    const bufferStats = this.buffer.getStats();
     const allLogs = this.buffer.getAllLogs();
     const memoryUsage = (JSON.stringify(allLogs).length / 1024 / 1024).toFixed(2);
     
     return {
-      memoryLogs: memoryStats.totalSize || 0,
-      totalLogs: (memoryStats.totalCount || 0) + (this.exportedFileCount * this.config.autoExportSize),
+      memoryLogs: bufferStats.size || 0,
+      totalLogs: (bufferStats.totalCount || 0) + (this.exportedFileCount * this.config.batchSize),
       exportedFiles: this.exportedFileCount || 0,
       memoryUsage: `${memoryUsage} MB`,
-      allocatedSegments: memoryStats.allocatedSegments || 0,
-      totalSegments: memoryStats.totalSegments || 0,
-      memoryEfficiency: `${((memoryStats.memoryEfficiency || 0) * 100).toFixed(1)}%`,
-      queuedForExport: this.exportQueue?.length || 0
+      bufferUtilization: `${(bufferStats.size / bufferStats.capacity * 100).toFixed(1)}%`,
+      pendingExports: this.pendingExportQueue?.length || 0,
+      activeExports: this.activeExports?.size || 0
     };
   }
 
   // 상세 메모리 통계
   public getDetailedMemoryStats() {
     return {
-      buffer: this.buffer.getMemoryStats(),
+      buffer: this.buffer.getStats(),
       config: this.config,
-      exportQueue: this.exportQueue.length,
-      isExporting: this.isExporting,
-      defragmentTimer: !!this.defragmentTimer
+      pendingExportQueue: this.pendingExportQueue.length,
+      activeExports: this.activeExports.size,
+      exportedFileCount: this.exportedFileCount
     };
   }
 
   // 로그 지우기
   public clearLogs(): void {
     this.buffer.clear();
-    this.exportQueue = [];
+    this.pendingExportQueue = [];
     this.exportedFileCount = 0;
+    
+    // 활성 export 작업들을 취소하지는 않음 (진행 중인 작업 보호)
   }
 
   // 검색 기능
@@ -412,8 +378,15 @@ export class OptimizedLogService {
   }
 
   // 리소스 정리
-  public destroy(): void {
-    this.stopDefragmentTimer();
-    this.flushExportQueue();
+  public async destroy(): Promise<void> {
+    // 모든 pending exports를 완료
+    await this.flushPendingExports();
+    
+    // 활성 export 작업들이 완료될 때까지 대기
+    await Promise.allSettled(Array.from(this.activeExports));
+    
+    // 리소스 정리
+    this.activeExports.clear();
+    this.pendingExportQueue = [];
   }
 }
