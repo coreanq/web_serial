@@ -32,8 +32,6 @@ export class LogPanel {
     // Initialize filtered logs with current time filter
     this.applyCurrentTimeFilter();
     
-    this.generateSampleLogs();
-    
     // Initialize log count display after DOM is ready
     setTimeout(() => {
       this.updateLogCount();
@@ -970,23 +968,8 @@ export class LogPanel {
       this.filterLogs(searchTerm);
     });
 
-    // Clear logs
-    const clearButton = document.getElementById('clear-logs');
-    clearButton?.addEventListener('click', () => {
-      this.clearLogs();
-    });
-
-    // Export logs
-    const exportButton = document.getElementById('export-logs');
-    exportButton?.addEventListener('click', () => {
-      this.exportLogs();
-    });
-
-    // Log settings
-    const settingsButton = document.getElementById('log-settings');
-    settingsButton?.addEventListener('click', () => {
-      this.showLogSettingsModal();
-    });
+    // Note: Clear, Export, and Settings buttons are handled by App.ts
+    // since these buttons are rendered in App.ts renderMainContent() method
 
     // Time filter button
     const timeFilterButton = document.getElementById('time-filter-btn');
@@ -1015,14 +998,21 @@ export class LogPanel {
 
   private updateLogCount(): void {
     const logCountElement = document.getElementById('log-count');
+    
     if (logCountElement) {
-      const totalLogs = this.logs.length;
-      const filteredLogs = this.filteredLogs.length;
-      
-      if (totalLogs === filteredLogs) {
-        logCountElement.textContent = `${totalLogs} entries`;
+      if (this.useOptimizedService) {
+        const stats = this.optimizedLogService.getStats();
+        const totalLogs = stats.totalLogs || 0;
+        logCountElement.textContent = `${totalLogs.toLocaleString()} entries`;
       } else {
-        logCountElement.textContent = `${filteredLogs} / ${totalLogs} entries (filtered)`;
+        const totalLogs = this.logs.length;
+        const filteredLogs = this.filteredLogs.length;
+        
+        if (totalLogs === filteredLogs) {
+          logCountElement.textContent = `${totalLogs} entries`;
+        } else {
+          logCountElement.textContent = `${filteredLogs} / ${totalLogs} entries (filtered)`;
+        }
       }
     }
   }
@@ -1101,7 +1091,7 @@ export class LogPanel {
     });
   }
 
-  private clearLogs(): void {
+  public clearLogs(): void {
     if (confirm('Are you sure you want to clear all logs?')) {
       // Notify App to clear all logs (including pending repeat logs)
       if (this.onClearLogs) {
@@ -1187,7 +1177,7 @@ export class LogPanel {
   }
 
   // Log settings modal methods
-  private showLogSettingsModal(): void {
+  public showLogSettingsModal(): void {
     const modal = document.getElementById('log-settings-modal');
     if (modal) {
       modal.classList.remove('hidden');
@@ -1344,19 +1334,6 @@ export class LogPanel {
     this.handleAutoScroll();
   }
 
-  private updateLogCount(): void {
-    const logCountElement = document.getElementById('log-count');
-    if (logCountElement) {
-      if (this.useOptimizedService) {
-        const stats = this.optimizedLogService.getStats();
-        const memoryLogs = stats.memoryLogs || 0;
-        const totalLogs = stats.totalLogs || 0;
-        logCountElement.textContent = `${memoryLogs.toLocaleString()}/${totalLogs.toLocaleString()} entries`;
-      } else {
-        logCountElement.textContent = `${this.logs.length} entries`;
-      }
-    }
-  }
 
   // Override updateLogs to handle LogService integration and regular scrolling
   updateLogs(logs: LogEntry[]): void {
@@ -1423,7 +1400,7 @@ export class LogPanel {
     }
   }
 
-  private exportLogs(): void {
+  public exportLogs(): void {
     // Create export options modal or directly export
     const exportMenu = document.createElement('div');
     exportMenu.className = 'absolute right-0 mt-2 bg-dark-panel border border-dark-border rounded-lg shadow-lg z-10';

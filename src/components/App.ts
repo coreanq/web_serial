@@ -131,6 +131,9 @@ export class App {
     
     // Add event listener for minimize button (will be added after layout update)
     this.attachMinimizeListener();
+    
+    // Add log panel control event listeners (will be added after layout update)
+    this.attachLogPanelListeners();
   }
   
   private attachMinimizeListener(): void {
@@ -140,6 +143,31 @@ export class App {
       minimizeButton?.addEventListener('click', () => {
         this.connectionPanelVisible = false;
         this.updateLayout();
+      });
+    }, 0);
+  }
+
+  private attachLogPanelListeners(): void {
+    // Use setTimeout to ensure the log panel buttons exist after layout update
+    setTimeout(() => {
+      // Clear logs button
+      const clearButton = document.getElementById('clear-logs');
+      clearButton?.addEventListener('click', () => {
+        this.onLogsClear();
+      });
+
+      // Export logs button
+      const exportButton = document.getElementById('export-logs');
+      exportButton?.addEventListener('click', () => {
+        // Delegate to log panel export functionality
+        this.logPanel.exportLogs();
+      });
+
+      // Log settings button  
+      const settingsButton = document.getElementById('log-settings');
+      settingsButton?.addEventListener('click', () => {
+        // Delegate to log panel settings functionality
+        this.logPanel.showLogSettingsModal();
       });
     }, 0);
   }
@@ -343,6 +371,8 @@ export class App {
       this.mountChildComponents();
       // Re-attach minimize listener after layout change
       this.attachMinimizeListener();
+      // Re-attach log panel listeners after layout change
+      this.attachLogPanelListeners();
     }
     
     if (toggleButton) {
