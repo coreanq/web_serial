@@ -2,10 +2,9 @@
   "name": "tcp-loopback-server",
   "version": "1.0.0",
   "description": "TCP Loopback Server for Modbus Protocol Testing",
-  "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "bun server.js",
+    "dev": "bun --watch server.js"
   },
   "keywords": [
     "tcp",
@@ -18,8 +17,5 @@
   "license": "MIT",
   "dependencies": {
     "colors": "^1.4.0"
-  },
-  "engines": {
-    "node": ">=22.0.0"
   }
 }
