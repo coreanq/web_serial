@@ -1,5 +1,7 @@
 import { LogEntry, LogStorageConfig } from '../../types';
 import { LogService } from '../../services/LogService';
+import { OptimizedLogService } from '../../services/OptimizedLogService';
+import { LogSettingsPanel } from '../LogSettingsPanel';
 import { DateTimeFilter, DateTimeRange } from '../../utils/DateTimeFilter';
 
 export class LogPanel {
@@ -10,10 +12,15 @@ export class LogPanel {
   private connectionType: 'RTU' | 'TCP_NATIVE' = 'RTU';
   private isRepeatMode = false;
   private logService!: LogService;
+  private optimizedLogService!: OptimizedLogService;
+  private logSettingsPanel!: LogSettingsPanel;
   private currentDateTimeFilter: DateTimeRange = {};
+  private useOptimizedService = true; // 최적화된 서비스 사용 여부
 
   mount(container: HTMLElement): void {
     this.logService = new LogService();
+    this.optimizedLogService = new OptimizedLogService();
+    this.logSettingsPanel = new LogSettingsPanel(this.optimizedLogService);
     
     container.innerHTML = this.render();
     this.attachEventListeners();
@@ -26,6 +33,11 @@ export class LogPanel {
     this.applyCurrentTimeFilter();
     
     this.generateSampleLogs();
+    
+    // Initialize log count display after DOM is ready
+    setTimeout(() => {
+      this.updateLogCount();
+    }, 0);
   }
 
   setClearLogsCallback(callback: () => void): void {
@@ -232,7 +244,17 @@ export class LogPanel {
           </div>
 
           <div class="flex items-center justify-start gap-2 text-sm text-dark-text-secondary">
-            <span id="log-count">${this.logs.length} entries</span>
+            <span id="log-count">0 entries</span>
+            <button id="log-settings-btn" 
+                    class="btn-secondary text-sm py-1 px-3 flex items-center gap-1"
+                    title="로그 버퍼 설정">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              설정
+            </button>
           </div>
         </div>
 
@@ -972,6 +994,12 @@ export class LogPanel {
       this.showTimeFilterModal();
     });
 
+    // Log buffer settings button
+    const logSettingsBtn = document.getElementById('log-settings-btn');
+    logSettingsBtn?.addEventListener('click', () => {
+      this.logSettingsPanel.show();
+    });
+
     // Log settings modal events
     this.setupLogSettingsModal();
     
@@ -1089,33 +1117,18 @@ export class LogPanel {
 
 
   private generateSampleLogs(): void {
-    // Generate comprehensive sample logs for scroll testing
+    // Generate initial sample logs
     const sampleLogs: LogEntry[] = [];
     
-    for (let i = 0; i < 150; i++) {
-      const baseTime = Date.now() - (150 - i) * 1000;
+    for (let i = 0; i < 5; i++) {
+      const baseTime = Date.now() - (5 - i) * 1000;
       
-      // Create varied data lengths for dynamic height testing
-      let sendData: string;
-      let recvData: string;
-      
-      if (i % 10 === 0) {
-        // Long data entries every 10th entry
-        sendData = `01 03 00 ${i.toString(16).padStart(2, '0')} 00 0A C5 CD - This is a very long data entry that should span multiple lines to test dynamic height functionality in the log panel. The data continues here with more hex values: FF EE DD CC BB AA 99 88 77 66 55 44 33 22 11 00`;
-        recvData = `01 03 28 ${Array.from({length: 20}, (_, j) => (i + j).toString(16).padStart(2, '0')).join(' ')} FA 6C - Long response data with detailed packet information that spans multiple lines for better testing of the scroll functionality`;
-      } else if (i % 5 === 0) {
-        // Medium data entries every 5th entry
-        sendData = `01 03 00 ${i.toString(16).padStart(2, '0')} 00 0A C5 CD - Medium length data entry`;
-        recvData = `01 03 14 ${Array.from({length: 10}, (_, j) => (i + j).toString(16).padStart(2, '0')).join(' ')} FA 6C - Response`;
-      } else {
-        // Normal short data entries
-        sendData = `01 03 00 ${i.toString(16).padStart(2, '0')} 00 0A C5 CD`;
-        recvData = `01 03 14 ${Array.from({length: 6}, (_, j) => (i + j).toString(16).padStart(2, '0')).join(' ')} FA 6C`;
-      }
+      const sendData = `01 03 00 ${i.toString(16).padStart(2, '0')} 00 0A C5 CD`;
+      const recvData = `01 03 14 ${Array.from({length: 6}, (_, j) => (i + j).toString(16).padStart(2, '0')).join(' ')} FA 6C`;
       
       // Send log
       sampleLogs.push({
-        id: `${i * 2 + 1}`,
+        id: `initial-${i * 2 + 1}`,
         timestamp: new Date(baseTime),
         direction: 'send',
         data: sendData
@@ -1123,7 +1136,7 @@ export class LogPanel {
       
       // Receive log
       sampleLogs.push({
-        id: `${i * 2 + 2}`,
+        id: `initial-${i * 2 + 2}`,
         timestamp: new Date(baseTime + 100),
         direction: 'recv',
         data: recvData,
@@ -1132,6 +1145,45 @@ export class LogPanel {
     }
 
     this.updateLogs(sampleLogs);
+    
+    // Start adding logs gradually to test real-time updates
+    this.startGradualLogGeneration();
+  }
+
+  private startGradualLogGeneration(): void {
+    let counter = 0;
+    const interval = setInterval(async () => {
+      if (counter >= 20) {
+        clearInterval(interval);
+        return;
+      }
+
+      const baseTime = Date.now();
+      const sendData = `01 03 00 ${counter.toString(16).padStart(2, '0')} 00 0A C5 CD`;
+      const recvData = `01 03 14 ${Array.from({length: 6}, (_, j) => (counter + j).toString(16).padStart(2, '0')).join(' ')} FA 6C`;
+
+
+      // Add send log
+      await this.addLog({
+        id: `gradual-send-${counter}`,
+        timestamp: new Date(baseTime),
+        direction: 'send',
+        data: sendData
+      });
+
+      // Add receive log after 200ms
+      setTimeout(async () => {
+        await this.addLog({
+          id: `gradual-recv-${counter}`,
+          timestamp: new Date(baseTime + 200),
+          direction: 'recv',
+          data: recvData,
+          responseTime: 80 + Math.floor(Math.random() * 40)
+        });
+      }, 200);
+
+      counter++;
+    }, 3000); // Add new logs every 3 seconds
   }
 
   // Log settings modal methods
@@ -1266,14 +1318,44 @@ export class LogPanel {
   }
 
   // Override addLog to use LogService
-  addLog(log: LogEntry): void {
-    // Add to LogService (this handles file storage)
-    this.logService.addLog(log);
+  async addLog(log: LogEntry): Promise<void> {
+    if (this.useOptimizedService) {
+      // Use optimized service with circular buffer
+      await this.optimizedLogService.addLog(log);
+      
+      // Get recent logs for display (limit to prevent UI lag)
+      this.logs = this.optimizedLogService.getRecentLogs(1000);
+    } else {
+      // Fallback to original service
+      this.logService.addLog(log);
+      this.logs = this.logService.getAllLogs();
+    }
     
-    // Get all logs for virtual scrolling (no limit needed)
-    this.logs = this.logService.getAllLogs();
+    // Apply current filters
+    this.applyCurrentTimeFilter();
     
-    this.updateLogs(this.logs);
+    // Render updated logs
+    this.renderRegularScrollLogs();
+    
+    // Update log count
+    this.updateLogCount();
+    
+    // Handle auto scroll
+    this.handleAutoScroll();
+  }
+
+  private updateLogCount(): void {
+    const logCountElement = document.getElementById('log-count');
+    if (logCountElement) {
+      if (this.useOptimizedService) {
+        const stats = this.optimizedLogService.getStats();
+        const memoryLogs = stats.memoryLogs || 0;
+        const totalLogs = stats.totalLogs || 0;
+        logCountElement.textContent = `${memoryLogs.toLocaleString()}/${totalLogs.toLocaleString()} entries`;
+      } else {
+        logCountElement.textContent = `${this.logs.length} entries`;
+      }
+    }
   }
 
   // Override updateLogs to handle LogService integration and regular scrolling
@@ -1281,7 +1363,18 @@ export class LogPanel {
     // If logs are coming from external source, add them to LogService
     if (logs.length > this.logs.length) {
       const newLogs = logs.slice(this.logs.length);
-      this.logService.addLogs(newLogs);
+      
+      if (this.useOptimizedService) {
+        // Add new logs to optimized service
+        newLogs.forEach(async (log) => {
+          await this.optimizedLogService.addLog(log);
+        });
+      } else {
+        // Fallback to original service (if addLogs method exists)
+        if (this.logService.addLogs) {
+          this.logService.addLogs(newLogs);
+        }
+      }
     }
 
     // Store all logs 

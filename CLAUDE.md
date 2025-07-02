@@ -50,6 +50,8 @@
 - **실시간 로그 분석**: 패킷 해석 및 시각화
 - **명령 전송**: 수동 Modbus 명령 테스트
 - **반복 모드**: 자동 명령 반복 실행
+- **최적화된 로그 관리**: 순환 버퍼 + 지연 할당으로 메모리 효율성 극대화
+- **자동 파일 저장**: 메모리 버퍼 초과 시 오래된 로그 자동 내보내기
 
 ---
 
@@ -73,16 +75,20 @@ web_serial/
 src/
 ├── components/           # UI 컴포넌트
 │   ├── App.ts           # 메인 애플리케이션
+│   ├── LogSettingsPanel.ts  # 로그 설정 패널
 │   └── panels/          # 패널 컴포넌트들
 │       ├── ConnectionPanel.ts  # 연결 설정 패널
-│       ├── LogPanel.ts         # 로그 표시 패널
+│       ├── LogPanel.ts         # 로그 표시 패널 (Virtual Scrolling + 최적화)
 │       └── CommandPanel.ts     # 명령 전송 패널
 ├── services/            # 비즈니스 로직
 │   ├── SerialService.ts      # Web Serial API 관리
 │   ├── TcpNativeService.ts   # Native Messaging 관리
 │   ├── ModbusParser.ts       # Modbus 프로토콜 파싱
-│   └── LogService.ts         # 로그 관리
+│   ├── LogService.ts         # 기본 로그 관리
+│   ├── OptimizedLogService.ts # 최적화된 로그 서비스 (CircularBuffer)
+│   └── LazyCircularBuffer.ts  # 지연 할당 순환 버퍼
 ├── utils/               # 유틸리티 함수들
+│   └── DateTimeFilter.ts    # 날짜/시간 필터
 ├── types/               # TypeScript 타입 정의
 ├── styles/              # CSS 스타일 파일
 └── index.ts            # 진입점
@@ -126,7 +132,6 @@ TCP 소켓 통신을 위한 네이티브 프로그램:
 
 ### 빌드 시스템
 - **Vite**: 모던 빌드 도구 사용
-- **@yao-pkg/pkg**: Node.js 22 지원하는 바이너리 패키징
 - **TypeScript**: 타입 체크 및 ES Modules
 
 ## 3. TCP Loopback Server (tcp-loopback-server/)
@@ -158,20 +163,21 @@ Browser → Chrome Extension → Native Messaging → stdio-proxy → TCP Socket
 - Chrome 브라우저
 - TypeScript
 - Vite
+- Bun
 
 ## 빌드 및 실행
 ```bash
 # 의존성 설치
-npm install
+bun install
 
 # 개발 서버 시작
-npm run dev
+bun run dev
 
 # 프로덕션 빌드
-npm run build
+bun run build
 
 # 빌드 미리보기
-npm run preview
+bun run preview
 ```
 
 ## Chrome Extension 로드
@@ -200,6 +206,7 @@ chmod +x install-linux.sh
 - **TypeScript**: 정적 타입 체크
 - **Tailwind CSS**: 유틸리티 CSS 프레임워크
 - **Vite**: 모듈 번들러 및 개발 서버
+- **Bun**: 고성능 JavaScript 런타임 및 패키지 매니저
 - **ESLint**: 코드 품질 관리
 
 ## Browser APIs
@@ -251,5 +258,50 @@ chmod +x install-linux.sh
 1. `components/panels/`에 새 패널 추가
 2. `App.ts`의 레이아웃에 통합
 3. CSS 스타일 추가
+
+# 고급 기능
+
+## 최적화된 로그 관리 시스템
+
+### LazyCircularBuffer
+- **지연 할당 기법**: 메모리 세그먼트를 필요할 때만 할당하여 메모리 효율성 극대화
+- **순환 버퍼**: 설정된 크기를 초과하면 오래된 로그를 자동 제거
+- **세그먼트 기반**: 큰 버퍼를 작은 세그먼트로 나누어 관리
+
+### OptimizedLogService
+- **자동 파일 저장**: 버퍼 용량 초과 시 오래된 로그를 자동으로 파일 저장
+- **사용자 설정 가능**: 버퍼 크기, 세그먼트 크기, 자동 저장 임계값 등 사용자 정의
+- **다양한 파일 형식**: JSON, CSV, TXT 형식으로 로그 내보내기 지원
+- **메모리 자동 정리**: 주기적으로 사용하지 않는 메모리 세그먼트 해제
+
+### 반복 모드 최적화
+- **Throttled Logging**: 반복 모드에서 UI 응답성을 위한 로그 배치 처리
+- **정확한 카운팅**: 반복 모드에서도 모든 로그가 정확히 카운트되도록 보장
+- **순서 보장**: 송수신 로그의 시간 순서를 정확히 유지
+
+### 설정 UI
+- **실시간 통계**: 메모리 사용량, 할당된 세그먼트, 메모리 효율성 등 8가지 통계 표시
+- **버퍼 설정**: 버퍼 크기, 세그먼트 크기, 자동 저장 설정 등
+- **자동 메모리 정리**: 주기적 메모리 정리 설정 및 수동 정리 기능
+
+### 메모리 최적화 특징
+1. **지연 할당**: 실제 필요할 때만 메모리 할당
+2. **세그먼트 기반**: 메모리 재할당 없이 버퍼 크기 변경 가능
+3. **자동 해제**: 사용하지 않는 세그먼트 자동 해제
+4. **효율성 모니터링**: 실시간 메모리 효율성 추적
+
+## 패키지 매니저 마이그레이션
+
+### Bun 도입
+- **고성능**: npm/yarn 대비 훨씬 빠른 패키지 설치 및 빌드 성능
+- **TypeScript 네이티브 지원**: 별도 트랜스파일 과정 없이 TypeScript 직접 실행
+- **전체 프로젝트 통합**: 루트, chrome-extension, stdio-proxy, tcp-loopback-server 모두 bun 사용
+
+### 변경된 스크립트
+- `npm install` → `bun install`
+- `npm run dev` → `bun run dev`
+- `npm run build` → `bun run build`
+
+---
 
 이 문서는 프로젝트의 전반적인 이해를 돕기 위한 가이드입니다. 코드 수정 시 이 구조를 참고하여 일관성을 유지해주세요.

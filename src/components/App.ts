@@ -477,20 +477,20 @@ export class App {
     }
   }
 
-  private addToThrottledLogs(logEntry: any): void {
+  private async addToThrottledLogs(logEntry: any): Promise<void> {
     this.pendingRepeatLogs.push(logEntry);
     
     const now = Date.now();
     if (now - this.lastLogUpdateTime >= this.logUpdateThrottleMs) {
-      this.flushThrottledLogs();
+      await this.flushThrottledLogs();
     }
   }
 
-  private flushThrottledLogs(): void {
+  private async flushThrottledLogs(): Promise<void> {
     if (this.pendingRepeatLogs.length === 0) return;
     
-    // Insert pending logs in chronological order to maintain sequence
-    this.pendingRepeatLogs.forEach(pendingLog => {
+    // Process each pending log individually to ensure proper counting
+    for (const pendingLog of this.pendingRepeatLogs) {
       // Find the correct position to insert based on timestamp
       const insertIndex = this.state.logs.findIndex(existingLog => 
         existingLog.timestamp > pendingLog.timestamp
@@ -503,29 +503,29 @@ export class App {
         // Insert at the correct chronological position
         this.state.logs.splice(insertIndex, 0, pendingLog);
       }
-    });
-    
-    this.logPanel.updateLogs(this.state.logs);
+      
+      // Also add to LogPanel's optimized service for proper counting
+      await this.logPanel.addLog(pendingLog);
+    }
     
     // Clear pending logs and update timestamp
     this.pendingRepeatLogs = [];
     this.lastLogUpdateTime = Date.now();
-    
   }
 
-  private flushPendingLogs(): void {
+  private async flushPendingLogs(): Promise<void> {
     if (this.pendingRepeatLogs.length > 0) {
-      this.flushThrottledLogs();
+      await this.flushThrottledLogs();
     }
   }
 
-  private onRepeatModeChanged(isRepeating: boolean): void {
+  private async onRepeatModeChanged(isRepeating: boolean): Promise<void> {
     // Update LogPanel repeat mode status to control tooltip display
     this.logPanel.setRepeatMode(isRepeating);
     
     if (!isRepeating) {
       // Repeat mode stopped, flush any remaining pending logs
-      this.flushPendingLogs();
+      await this.flushPendingLogs();
     }
   }
 
@@ -571,10 +571,10 @@ export class App {
     return fullPacket.replace(/(.{2})/g, '$1 ').trim();
   }
 
-  private onDataReceived(data: string): void {
+  private async onDataReceived(data: string): Promise<void> {
     // Flush any pending repeat logs first to maintain chronological order
     if (this.pendingRepeatLogs.length > 0) {
-      this.flushThrottledLogs();
+      await this.flushThrottledLogs();
     }
     
     // Add received data to log immediately
