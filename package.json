@@ -2,15 +2,14 @@
   "name": "modbus-debugger-dashboard",
   "version": "1.0.0",
   "description": "Modbus Protocol Debugger with real-time monitoring and analysis",
-  "main": "dist/index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "lint": "eslint src --ext .ts,.tsx",
-    "lint:fix": "eslint src --ext .ts,.tsx --fix",
-    "typecheck": "tsc --noEmit",
-    "start": "npm run dev"
+    "dev": "bun run vite",
+    "build": "bun run vite build",
+    "preview": "bun run vite preview",
+    "lint": "bun run eslint src --ext .ts,.tsx",
+    "lint:fix": "bun run eslint src --ext .ts,.tsx --fix",
+    "typecheck": "bun run tsc --noEmit",
+    "start": "bun run dev"
   },
   "keywords": [
     "modbus",
@@ -31,12 +30,9 @@
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.2",
-    "vite": "^5.3.1"
+    "vite": "^7.0.0"
   },
   "dependencies": {
     "ws": "^8.17.1"
-  },
-  "engines": {
-    "node": ">=22.0.0"
   }
 }

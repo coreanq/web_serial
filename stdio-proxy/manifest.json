@@ -1,9 +1,0 @@
-{
-  "name": "com.my_company.stdio_proxy",
-  "description": "TCP Proxy for Modbus Debugger",
-  "path": "/Volumes/ex_backup/1git/web_serial/stdio-proxy/proxy.js",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://YOUR_CHROME_EXTENSION_ID_HERE/"
-  ]
-}

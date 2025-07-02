@@ -4,14 +4,19 @@
   "description": "Chrome extension for Modbus Protocol Debugging with Web Serial API and Native Messaging",
   "main": "dist/background.js",
   "scripts": {
-    "build": "NODE_ENV=production vite build",
-    "dev": "NODE_ENV=development vite build --watch",
+    "build": "NODE_ENV=production bun run vite build",
+    "dev": "NODE_ENV=development bun run vite build --watch",
     "clean": "rm -rf dist",
-    "lint": "eslint ../src --ext .ts,.tsx",
-    "lint:fix": "eslint ../src --ext .ts,.tsx --fix",
-    "typecheck": "tsc --noEmit"
+    "lint": "bun run eslint ../src --ext .ts,.tsx",
+    "lint:fix": "bun run eslint ../src --ext .ts,.tsx --fix",
+    "typecheck": "bun run tsc --noEmit"
   },
-  "keywords": ["chrome-extension", "modbus", "serial", "debugging"],
+  "keywords": [
+    "chrome-extension",
+    "modbus",
+    "serial",
+    "debugging"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -19,18 +24,15 @@
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "@vitejs/plugin-legacy": "^7.0.0",
     "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.2",
-    "vite": "^5.3.1",
-    "@vitejs/plugin-legacy": "^5.4.1"
+    "vite": "^7.0.0"
   },
   "dependencies": {
     "ws": "^8.17.1"
-  },
-  "engines": {
-    "node": ">=22.0.0"
   }
 }

@@ -7,7 +7,7 @@
 - 프로젝트 초기시 javascript 기본 프로젝트 구조 생성 
 - TypeScript 사용 
 - Tailwind CSS 사용
-- eslint, vite 사용 
+- eslint, vite, bun 사용 
 - ES Modules (ESM) 사용
 - TypeScript 엄격 모드 사용 
 - UI Element 들은 공통의 모듈에 선언하여 전역으로 import 해서 사용한다.

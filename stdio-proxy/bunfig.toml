@@ -1,0 +1,25 @@
+[install]
+# Configure package manager
+auto = "fallback"
+production = false
+optional = true
+dev = true
+peer = false
+exact = false
+
+[run]
+# Bun runtime configuration
+bun = true
+silent = false
+
+[build]
+# Build configuration
+target = "bun"
+outdir = "./dist"
+splitting = false
+sourcemap = "none"
+minify = false
+
+[test]
+# Test configuration (if needed later)
+preload = []

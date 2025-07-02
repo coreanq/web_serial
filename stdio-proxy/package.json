@@ -6,21 +6,14 @@
   "main": "proxy.js",
   "bin": "proxy.js",
   "scripts": {
-    "start": "node proxy.js",
-    "dev": "vite build --watch",
-    "build": "npm run typecheck && vite build",
-    "typecheck": "tsc --noEmit",
-    "compile:all": "npm run compile:macos && npm run compile:windows && npm run compile:linux",
-    "compile:macos": "npx pkg dist/proxy.js --targets node22-macos-x64 --output ./dist/stdio-proxy-macos-x64",
-    "compile:windows": "npx pkg dist/proxy.js --targets node22-win-x64 --output ./dist/stdio-proxy-windows-x64.exe",
-    "compile:linux": "npx pkg dist/proxy.js --targets node22-linux-x64 --output ./dist/stdio-proxy-linux-x64",
-    "package": "npm run build && npm run compile:all && node scripts/create-packages.js"
-  },
-  "pkg": {
-    "assets": [
-      "manifest.json"
-    ],
-    "outputPath": "dist"
+    "start": "bun proxy.js",
+    "dev": "bun --watch proxy.js",
+    "build": "bun build proxy.js --outdir dist --target node",
+    "compile:all": "bun run compile:macos && bun run compile:windows && bun run compile:linux",
+    "compile:macos": "bun build proxy.js --compile --target=bun-darwin-x64 --outfile ./dist/stdio-proxy-macos-x64",
+    "compile:windows": "bun build proxy.js --compile --target=bun-windows-x64 --outfile ./dist/stdio-proxy-windows-x64.exe",
+    "compile:linux": "bun build proxy.js --compile --target=bun-linux-x64 --outfile ./dist/stdio-proxy-linux-x64",
+    "package": "bun run build && bun run compile:all && bun scripts/create-packages.js"
   },
   "author": "Modbus Protocol Debugger",
   "license": "MIT",
@@ -30,13 +23,9 @@
     "modbus",
     "chrome-extension"
   ],
-  "engines": {
-    "node": ">=22.0.0"
-  },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@yao-pkg/pkg": "^6.5.1",
-    "typescript": "^5.5.2",
-    "vite": "^7.0.0"
+    "bun-types": "latest",
+    "typescript": "^5.5.2"
   }
 }
