@@ -1,3 +1,5 @@
+import { i18n } from '../../locales';
+
 export class CommandPanel {
   private onCommandSend: (command: string, isRepeating?: boolean) => void;
   private onRepeatModeChanged?: (isRepeating: boolean) => void;
@@ -47,23 +49,23 @@ export class CommandPanel {
 
         <!-- Manual Command Input -->
         <div class="flex-1 flex flex-col">
-          <h3 class="text-sm font-medium text-dark-text-secondary mb-3">Manual Command</h3>
+          <h3 class="text-sm font-medium text-dark-text-secondary mb-3">${i18n.t('command.manual.title')}</h3>
           
           <div class="flex-1 flex flex-col space-y-3">
             <!-- Manual HEX Input -->
             <div>
               <div class="flex items-center justify-between mb-2">
                 <label class="block text-xs text-dark-text-muted">
-                  Manual Input
+                  ${i18n.t('command.manual.input')}
                 </label>
                 <div class="flex items-center gap-3">
                   <label class="flex items-center gap-1 text-xs">
                     <input type="checkbox" id="ascii-mode" class="rounded border-dark-border bg-dark-surface">
-                    <span class="text-dark-text-muted">ASCII Mode</span>
+                    <span class="text-dark-text-muted">${i18n.t('command.manual.asciiMode')}</span>
                   </label>
                   <label class="flex items-center gap-1 text-xs">
                     <input type="checkbox" id="auto-crc" checked class="rounded border-dark-border bg-dark-surface">
-                    <span class="text-dark-text-muted">Auto CRC (RTU)</span>
+                    <span class="text-dark-text-muted">${i18n.t('command.manual.autoCrc')}</span>
                   </label>
                 </div>
               </div>
@@ -80,13 +82,13 @@ export class CommandPanel {
 
             <!-- Command Builder -->
             <div class="border-t border-dark-border pt-3">
-              <h4 class="text-xs font-medium text-dark-text-muted mb-2">Command Builder</h4>
+              <h4 class="text-xs font-medium text-dark-text-muted mb-2">${i18n.t('command.generator.title')}</h4>
               
               <!-- Hex Base Mode Checkbox -->
               <div class="mb-3">
                 <label class="flex items-center gap-2 text-sm">
                   <input type="checkbox" id="hex-base-mode" checked class="rounded border-dark-border bg-dark-surface">
-                  <span class="text-dark-text-secondary">Hex Base?</span>
+                  <span class="text-dark-text-secondary">${i18n.t('command.generator.hexBaseMode')}</span>
                   <span class="text-xs text-dark-text-muted">(Input values as hex strings)</span>
                 </label>
               </div>
@@ -94,57 +96,57 @@ export class CommandPanel {
               <div class="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <label class="block text-xs text-dark-text-muted mb-1">
-                    ${this.connectionType.startsWith('TCP') ? 'Unit ID (for MBAP header)' : 'Slave ID'}
+                    ${this.connectionType.startsWith('TCP') ? 'Unit ID (for MBAP header)' : i18n.t('command.generator.slaveId')}
                   </label>
                   <input id="slave-id" class="input-field w-full text-sm" value="01" 
                          placeholder="${this.connectionType.startsWith('TCP') ? '01 (Unit ID for MBAP)' : '01 (hex) or 1 (dec)'}">
                 </div>
                 <div>
-                  <label class="block text-xs text-dark-text-muted mb-1">Function Code</label>
+                  <label class="block text-xs text-dark-text-muted mb-1">${i18n.t('command.generator.functionCode')}</label>
                   <select id="function-code" class="input-field w-full text-sm">
-                    <option value="01">01 - Read Coils</option>
-                    <option value="02">02 - Read Discrete Inputs</option>
-                    <option value="03" selected>03 - Read Holding Registers</option>
-                    <option value="04">04 - Read Input Registers</option>
-                    <option value="05">05 - Write Single Coil</option>
-                    <option value="06">06 - Write Single Register</option>
-                    <option value="0F">0F - Write Multiple Coils</option>
-                    <option value="10">10 - Write Multiple Registers</option>
+                    <option value="01">${i18n.t('command.functionCodes.01')}</option>
+                    <option value="02">${i18n.t('command.functionCodes.02')}</option>
+                    <option value="03" selected>${i18n.t('command.functionCodes.03')}</option>
+                    <option value="04">${i18n.t('command.functionCodes.04')}</option>
+                    <option value="05">${i18n.t('command.functionCodes.05')}</option>
+                    <option value="06">${i18n.t('command.functionCodes.06')}</option>
+                    <option value="0F">${i18n.t('command.functionCodes.0F')}</option>
+                    <option value="10">${i18n.t('command.functionCodes.10')}</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-xs text-dark-text-muted mb-1">Start Address</label>
+                  <label class="block text-xs text-dark-text-muted mb-1">${i18n.t('command.generator.startAddress')}</label>
                   <input id="start-address" class="input-field w-full text-sm" value="0000" placeholder="0000 (hex) or 0 (dec)">
                 </div>
                 <div>
-                  <label class="block text-xs text-dark-text-muted mb-1">Quantity/Value</label>
+                  <label class="block text-xs text-dark-text-muted mb-1">${i18n.t('command.generator.quantity')}</label>
                   <input id="quantity" class="input-field w-full text-sm" value="000A" placeholder="000A (hex) or 10 (dec)">
                 </div>
               </div>
               
               <!-- Data Values for Function Code 0F/10 -->
               <div id="data-values-section" class="mt-3 hidden">
-                <label class="block text-xs text-dark-text-muted mb-2" id="data-values-label">Data Values</label>
+                <label class="block text-xs text-dark-text-muted mb-2" id="data-values-label">${i18n.t('command.dataValues.title')}</label>
                 <div class="space-y-2" id="data-values-container">
                   <!-- Data value inputs will be dynamically added here -->
                 </div>
                 <button type="button" class="btn-secondary text-xs mt-2" id="add-data-value">
-                  + Add Value
+                  + ${i18n.t('command.dataValues.add')}
                 </button>
               </div>
               
               <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition-colors duration-200 font-medium w-full mt-2 text-sm" id="build-command">
-                Build Command
+                ${i18n.t('command.generator.generateCommand')}
               </button>
             </div>
 
             <!-- Send Controls -->
             <div class="flex gap-2 pt-3 border-t border-dark-border mt-auto">
               <button class="btn-primary flex-1" id="send-command">
-                Send Command
+                ${i18n.t('common.send')}
               </button>
               <button class="btn-secondary" id="clear-command">
-                Clear
+                ${i18n.t('common.clear')}
               </button>
             </div>
           </div>
@@ -153,7 +155,7 @@ export class CommandPanel {
         <!-- Command History -->
         <div class="border-t border-dark-border pt-3">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm font-medium text-dark-text-secondary">Recent Commands & Repeat (Max 10)</h3>
+            <h3 class="text-sm font-medium text-dark-text-secondary">${i18n.t('command.history.title')} & ${i18n.t('command.repeat.title')} (Max 10)</h3>
             <div class="flex items-center gap-2">
               <input 
                 type="number" 
@@ -165,10 +167,10 @@ export class CommandPanel {
                 step="1"
                 pattern="[0-9]*"
                 placeholder="1000"
-                title="Interval in milliseconds (min 10ms, integers only)">
+                title="${i18n.t('command.repeat.interval')} (${i18n.t('command.repeat.minInterval')}, integers only)">
               <span class="text-xs text-dark-text-muted">ms</span>
               <button class="btn-secondary text-xs py-1 px-2" id="toggle-repeat">
-                Start
+                ${i18n.t('common.start')}
               </button>
             </div>
           </div>
@@ -182,7 +184,7 @@ export class CommandPanel {
 
   private renderCommandHistory(): string {
     if (this.recentCommands.length === 0) {
-      return '<p class="text-xs text-dark-text-muted text-center py-2">No recent commands yet</p>';
+      return `<p class="text-xs text-dark-text-muted text-center py-2">${i18n.t('command.history.empty')}</p>`;
     }
 
     return this.recentCommands.map((cmd, index) => `
@@ -192,7 +194,7 @@ export class CommandPanel {
           id="repeat-${index}" 
           class="rounded border-dark-border bg-dark-surface flex-shrink-0"
           data-repeat-command="${cmd}"
-          title="Enable for periodic repeat sending"
+          title="${i18n.t('command.repeat.selectCommands')}"
           ${this.checkedCommands.has(cmd) ? 'checked' : ''}
         >
         <button 
@@ -206,7 +208,7 @@ export class CommandPanel {
         <button 
           class="text-xs text-red-400 hover:text-red-300 px-1 flex-shrink-0"
           data-remove-history="${index}"
-          title="Remove from recent commands"
+          title="${i18n.t('command.history.remove')}"
         >
           ✕
         </button>
@@ -1885,5 +1887,22 @@ export class CommandPanel {
       // Trigger change event to update preview
       autoCrcCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
     }
+  }
+
+  /**
+   * Handle language change - re-render the panel
+   */
+  onLanguageChange(): void {
+    const container = document.querySelector('[id*="command-content"]') as HTMLElement;
+    if (!container) return;
+
+    // Re-render the panel content
+    container.innerHTML = this.render();
+    
+    // Re-attach event listeners
+    this.attachEventListeners();
+    
+    // Restore current state
+    this.updateConnectionStatus(this.connectionType, this.connectionType !== 'RTU');
   }
 }

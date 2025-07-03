@@ -1,4 +1,5 @@
 import { LogBufferConfig, OptimizedLogService } from '../services/OptimizedLogService';
+import { i18n } from '../locales';
 
 export class LogSettingsPanel {
   private logService: OptimizedLogService;
@@ -20,7 +21,7 @@ export class LogSettingsPanel {
         <!-- Header -->
         <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
-            📊 로그 버퍼 설정
+            📊 ${i18n.t('log.settings.title')}
           </h2>
           <button id="close-settings" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -34,34 +35,34 @@ export class LogSettingsPanel {
           
           <!-- Buffer Settings -->
           <div class="space-y-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">🔄 로그 버퍼 설정</h3>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">🔄 ${i18n.t('log.settings.memoryManagement')}</h3>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  버퍼 크기 (로그 개수)
+                  ${i18n.t('log.settings.bufferSize')}
                 </label>
                 <input type="number" id="buffer-size" min="100" max="50000" step="100"
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
                               focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  메모리에 보관할 최대 로그 수 (초과시 파일로 저장)
+                  ${i18n.t('log.settings.bufferSizeDesc')}
                 </p>
               </div>
               
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  파일 형식
+                  ${i18n.t('log.export.format')}
                 </label>
                 <select id="export-format" 
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
                                focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                  <option value="json">JSON - 구조화된 데이터</option>
-                  <option value="csv">CSV - 스프레드시트용</option>
-                  <option value="txt">TXT - 간단한 텍스트</option>
+                  <option value="json">${i18n.t('log.export.json')}</option>
+                  <option value="csv">${i18n.t('log.export.csv')}</option>
+                  <option value="txt">${i18n.t('log.export.txt')}</option>
                 </select>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  오버플로우 시 저장될 파일 형식
+                  ${i18n.t('log.settings.exportFormatDesc')}
                 </p>
               </div>
             </div>
@@ -75,10 +76,10 @@ export class LogSettingsPanel {
                 </div>
                 <div class="ml-3">
                   <h4 class="text-sm font-medium text-blue-800 dark:text-blue-200">
-                    순환 버퍼 + IndexedDB 저장
+                    ${i18n.t('log.settings.circularBufferInfo')}
                   </h4>
                   <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                    설정한 버퍼 크기만큼 메모리에 보관하고, 초과된 로그는 즉시 IndexedDB에 저장됩니다.
+                    ${i18n.t('log.settings.circularBufferDesc')}
                   </p>
                 </div>
               </div>
@@ -87,27 +88,27 @@ export class LogSettingsPanel {
 
           <!-- Current Stats -->
           <div class="space-y-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">📈 현재 상태</h3>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">📈 ${i18n.t('log.settings.statistics')}</h3>
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                 <div class="text-xl font-bold text-blue-600 dark:text-blue-400" id="stat-memory-logs">-</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">메모리 로그</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">${i18n.t('log.settings.memoryLogs')}</div>
               </div>
               
               <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                 <div class="text-xl font-bold text-green-600 dark:text-green-400" id="stat-total-logs">-</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">전체 로그</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">${i18n.t('log.settings.totalLogs')}</div>
               </div>
 
               <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                 <div class="text-xl font-bold text-purple-600 dark:text-purple-400" id="stat-indexeddb-logs">-</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">IndexedDB 로그</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">${i18n.t('log.settings.indexedDBLogs')}</div>
               </div>
               
               <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                 <div class="text-xl font-bold text-orange-600 dark:text-orange-400" id="stat-indexeddb-size">-</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">IndexedDB 크기</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">${i18n.t('log.settings.indexedDBSize')}</div>
               </div>
             </div>
 
@@ -120,10 +121,10 @@ export class LogSettingsPanel {
                 </div>
                 <div class="ml-3">
                   <h4 class="text-sm font-medium text-purple-800 dark:text-purple-200">
-                    IndexedDB 오버플로우 저장
+                    ${i18n.t('log.settings.indexedDBInfo')}
                   </h4>
                   <p class="text-sm text-purple-700 dark:text-purple-300 mt-1">
-                    메모리 버퍼를 초과한 로그는 자동으로 IndexedDB에 저장됩니다. 전체 로그 저장 시 IndexedDB가 초기화됩니다.
+                    ${i18n.t('log.settings.indexedDBDesc')}
                   </p>
                 </div>
               </div>
@@ -132,31 +133,31 @@ export class LogSettingsPanel {
 
           <!-- Actions -->
           <div class="space-y-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">🔧 작업</h3>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-white">🔧 ${i18n.t('log.settings.actions')}</h3>
             
             <div class="flex flex-wrap gap-3">
               <button id="export-memory-logs" 
                       class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 
                              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
-                📁 메모리 로그만 저장
+                📁 ${i18n.t('log.settings.memoryLogs')} ${i18n.t('common.save')}
               </button>
 
               <button id="export-all-logs" 
                       class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 
                              focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors">
-                💾 전체 로그 저장 (DB 초기화)
+                💾 ${i18n.t('log.settings.totalLogs')} ${i18n.t('common.save')}
               </button>
               
               <button id="clear-logs" 
                       class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 
                              focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors">
-                🗑️ 메모리 로그 지우기
+                🗑️ ${i18n.t('log.clearLogs')}
               </button>
 
               <button id="clear-all-logs" 
                       class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 
                              focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
-                🗂️ 전체 로그 지우기 (DB 포함)
+                🗂️ ${i18n.t('log.settings.clearAllLogsWithDB')}
               </button>
             </div>
           </div>
@@ -167,12 +168,12 @@ export class LogSettingsPanel {
           <button id="cancel-settings" 
                   class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 
                          focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
-            취소
+            ${i18n.t('common.cancel')}
           </button>
           <button id="save-settings" 
                   class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 
                          focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
-            저장
+            ${i18n.t('common.save')}
           </button>
         </div>
       </div>
@@ -255,10 +256,10 @@ export class LogSettingsPanel {
       };
 
       this.logService.updateConfig(newConfig);
-      this.showNotification('설정이 저장되었습니다!', 'success');
+      this.showNotification(i18n.t('log.settings.settingsSaved'), 'success');
       this.hide();
     } catch (error) {
-      this.showNotification('설정 저장 중 오류가 발생했습니다.', 'error');
+      this.showNotification(i18n.t('log.settings.settingsSaveError'), 'error');
       console.error('Failed to save settings:', error);
     }
   }
@@ -293,10 +294,10 @@ export class LogSettingsPanel {
   private async exportMemoryLogs(): Promise<void> {
     try {
       await this.logService.exportAllLogs();
-      this.showNotification('메모리 로그가 성공적으로 저장되었습니다!', 'success');
+      this.showNotification(i18n.t('log.settings.memoryLogsSaved'), 'success');
       this.updateStats();
     } catch (error) {
-      this.showNotification('메모리 로그 저장 중 오류가 발생했습니다.', 'error');
+      this.showNotification(i18n.t('log.settings.memoryLogsSaveError'), 'error');
       console.error('Failed to export memory logs:', error);
     }
   }
@@ -304,36 +305,36 @@ export class LogSettingsPanel {
   private async exportAllLogsWithDBClear(): Promise<void> {
     try {
       await this.logService.exportAllLogsIncludingIndexedDB();
-      this.showNotification('전체 로그가 성공적으로 저장되고 IndexedDB가 초기화되었습니다!', 'success');
+      this.showNotification(i18n.t('log.settings.allLogsSaved'), 'success');
       this.updateStats();
     } catch (error) {
-      this.showNotification('전체 로그 저장 중 오류가 발생했습니다.', 'error');
+      this.showNotification(i18n.t('log.settings.allLogsSaveError'), 'error');
       console.error('Failed to export all logs:', error);
     }
   }
 
 
   private async clearLogs(): Promise<void> {
-    if (confirm('메모리 로그를 삭제하시겠습니까? IndexedDB 로그는 유지됩니다.')) {
+    if (confirm(i18n.t('log.settings.confirmClearMemory'))) {
       try {
         this.logService.clearLogs(); // 동기 메서드
         this.updateStats();
-        this.showNotification('메모리 로그가 삭제되었습니다.', 'success');
+        this.showNotification(i18n.t('log.settings.memoryLogsCleared'), 'success');
       } catch (error) {
-        this.showNotification('메모리 로그 삭제 중 오류가 발생했습니다.', 'error');
+        this.showNotification(i18n.t('log.settings.memoryClearError'), 'error');
         console.error('Failed to clear memory logs:', error);
       }
     }
   }
 
   private async clearAllLogs(): Promise<void> {
-    if (confirm('모든 로그를 삭제하시겠습니까? (메모리 + IndexedDB) 이 작업은 되돌릴 수 없습니다.')) {
+    if (confirm(i18n.t('log.settings.confirmClearAll'))) {
       try {
         await this.logService.clearAllLogs();
         this.updateStats();
-        this.showNotification('모든 로그가 삭제되었습니다.', 'success');
+        this.showNotification(i18n.t('log.settings.allLogsCleared'), 'success');
       } catch (error) {
-        this.showNotification('로그 삭제 중 오류가 발생했습니다.', 'error');
+        this.showNotification(i18n.t('log.settings.allClearError'), 'error');
         console.error('Failed to clear all logs:', error);
       }
     }
@@ -374,6 +375,23 @@ export class LogSettingsPanel {
       console.log('[LogSettingsPanel] Destroyed successfully');
     } catch (error) {
       console.error('[LogSettingsPanel] Error during destroy:', error);
+    }
+  }
+
+  /**
+   * Handle language change - re-create the panel
+   */
+  onLanguageChange(): void {
+    if (this.isVisible) {
+      // Re-create the panel with new language
+      this.container.remove();
+      this.container = this.createSettingsPanel();
+      document.body.appendChild(this.container);
+      this.container.classList.remove('hidden');
+      
+      // Reload current settings and stats
+      this.loadCurrentSettings();
+      this.updateStats();
     }
   }
 }

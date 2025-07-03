@@ -1,4 +1,4 @@
-import { LogEntry, LogStorageConfig } from '../../types';
+import { LogEntry } from '../../types';
 import { LogService } from '../../services/LogService';
 import { OptimizedLogService } from '../../services/OptimizedLogService';
 import { LogSettingsPanel } from '../LogSettingsPanel';
@@ -923,9 +923,10 @@ export class LogPanel {
     
     if (logCountElement) {
       if (this.useOptimizedService) {
-        const stats = this.optimizedLogService.getStats();
-        const totalLogs = stats.totalLogs || 0;
-        logCountElement.textContent = `${totalLogs.toLocaleString()} entries`;
+        this.optimizedLogService.getStats().then(stats => {
+          const totalLogs = stats.totalLogs || 0;
+          logCountElement.textContent = `${totalLogs.toLocaleString()} entries`;
+        });
       } else {
         const totalLogs = this.logs.length;
         const filteredLogs = this.filteredLogs.length;
@@ -1283,6 +1284,8 @@ export class LogPanel {
   }
 
 
+  // Development helper method for generating sample logs
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private generateSampleLogs(): void {
     // Generate initial sample logs
     const sampleLogs: LogEntry[] = [];

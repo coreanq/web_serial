@@ -1,5 +1,6 @@
 import './styles/index.css';
 import { App } from './components/App';
+import './locales'; // Initialize i18n
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async () => {

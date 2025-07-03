@@ -4,6 +4,7 @@ import { CommandPanel } from './panels/CommandPanel';
 import { LogSettingsPanel } from './LogSettingsPanel';
 import { AppState, ConnectionStatus } from '../types';
 import { OptimizedLogService } from '../services/OptimizedLogService';
+import { i18n } from '../locales';
 
 export class App {
   private state: AppState;
@@ -62,6 +63,11 @@ export class App {
     
     // Initialize memory management
     this.initializeMemoryManagement();
+    
+    // Listen for language changes
+    i18n.onLanguageChange(() => {
+      this.onLanguageChange();
+    });
   }
 
   async mount(container: HTMLElement): Promise<void> {
@@ -90,25 +96,32 @@ export class App {
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-4">
                 <h1 class="text-2xl font-bold text-dark-text-primary">
-                  🔧 Modbus Protocol Analyzer
+                  🔧 ${i18n.t('app.title')}
                 </h1>
               </div>
               
               <!-- Panel Controls -->
               <div class="flex items-center gap-3">
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-dark-text-muted">Panel:</span>
+                  <span class="text-xs text-dark-text-muted">${i18n.t('panel.position')}:</span>
                   <select id="panel-position" class="input-field btn-sm">
-                    <option value="top" ${this.connectionPanelPosition === 'top' ? 'selected' : ''}>📍 Top</option>
-                    <option value="left" ${this.connectionPanelPosition === 'left' ? 'selected' : ''}>⬅️ Left</option>
-                    <option value="right" ${this.connectionPanelPosition === 'right' ? 'selected' : ''}>➡️ Right</option>
+                    <option value="top" ${this.connectionPanelPosition === 'top' ? 'selected' : ''}>📍 ${i18n.t('panel.top')}</option>
+                    <option value="left" ${this.connectionPanelPosition === 'left' ? 'selected' : ''}>⬅️ ${i18n.t('panel.left')}</option>
+                    <option value="right" ${this.connectionPanelPosition === 'right' ? 'selected' : ''}>➡️ ${i18n.t('panel.right')}</option>
                   </select>
                 </div>
                 <button id="toggle-connection-panel" class="btn-secondary btn-sm">
-                  ${this.connectionPanelVisible ? '🔼 Hide' : '🔽 Show'} Connection
+                  ${this.connectionPanelVisible ? '🔼 ' + i18n.t('panel.hide') : '🔽 ' + i18n.t('panel.show')}
                 </button>
-                <button id="global-settings" class="btn-secondary btn-sm" title="Global Settings">
-                  ⚙️ Settings
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-dark-text-muted">${i18n.t('common.language')}:</span>
+                  <select id="language-selector" class="input-field btn-sm">
+                    <option value="en" ${i18n.getCurrentLanguage() === 'en' ? 'selected' : ''}>🇺🇸 English</option>
+                    <option value="ko" ${i18n.getCurrentLanguage() === 'ko' ? 'selected' : ''}>🇰🇷 한국어</option>
+                  </select>
+                </div>
+                <button id="global-settings" class="btn-secondary btn-sm" title="${i18n.t('common.settings')}">
+                  ⚙️ ${i18n.t('common.settings')}
                 </button>
               </div>
             </div>
@@ -145,6 +158,14 @@ export class App {
       this.updateLayout();
     });
 
+    // Language selector
+    const languageSelector = document.getElementById('language-selector') as HTMLSelectElement;
+    languageSelector?.addEventListener('change', (e) => {
+      const selectedLanguage = (e.target as HTMLSelectElement).value as 'en' | 'ko';
+      i18n.setLanguage(selectedLanguage);
+      this.onLanguageChange();
+    });
+
     // Global settings button
     const globalSettingsButton = document.getElementById('global-settings') as HTMLButtonElement;
     globalSettingsButton?.addEventListener('click', () => {
@@ -178,11 +199,7 @@ export class App {
         this.onLogsClear();
       });
 
-      // Log settings button (moved from LogPanel to App header)
-      const logSettingsButton = document.getElementById('log-settings-btn');
-      logSettingsButton?.addEventListener('click', () => {
-        this.showGlobalSettings();
-      });
+      // Log settings button removed
     }, 0);
   }
 
@@ -217,7 +234,7 @@ export class App {
     const connectionPanel = this.connectionPanelVisible ? `
       <div id="connection-panel" class="panel ${this.getConnectionPanelClasses()}">
         <div class="panel-header flex items-center justify-between">
-          <span>Connection Settings</span>
+          <span>${i18n.t('connection.title')}</span>
           <button id="minimize-connection" class="text-xs text-dark-text-muted hover:text-dark-text-primary">
             ${this.connectionPanelPosition === 'top' ? '−' : '×'}
           </button>
@@ -316,17 +333,10 @@ export class App {
         <div class="lg:col-span-2">
           <div id="log-panel" class="panel panel-fixed">
             <div class="panel-header flex-shrink-0 flex items-center justify-between">
-              <span>Real-time Communication Log</span>
+              <span>${i18n.t('log.title')}</span>
               <div class="flex items-center gap-2">
                 <button class="btn-secondary text-sm py-1 px-3" id="clear-logs">
-                  Clear
-                </button>
-                <button id="log-settings-btn" class="btn-secondary text-sm py-1 px-3 flex items-center gap-1" title="로그 버퍼 설정">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 616 0z"></path>
-                  </svg>
-                  설정
+                  ${i18n.t('log.clearLogs')}
                 </button>
               </div>
             </div>
@@ -340,7 +350,7 @@ export class App {
         <div class="lg:col-span-1">
           <div id="command-panel" class="panel">
             <div class="panel-header">
-              Manual Command
+              ${i18n.t('command.manual.title')}
             </div>
             <div class="panel-content" id="command-content">
               <!-- Command panel content will be mounted here -->
@@ -805,5 +815,51 @@ export class App {
       position: this.connectionPanelPosition,
       visible: this.connectionPanelVisible
     };
+  }
+
+  /**
+   * Handle language change - re-render all UI components
+   */
+  private onLanguageChange(): void {
+    // Get current container
+    const container = document.querySelector('.min-h-screen') as HTMLElement;
+    if (!container) return;
+
+    // Store current state before re-rendering
+    const currentState = {
+      connectionStatus: this.state.connectionStatus,
+      connectionConfig: this.state.connectionConfig,
+      isAutoScroll: this.state.isAutoScroll,
+      filter: this.state.filter
+    };
+
+    // Re-render the entire app with new language
+    container.innerHTML = this.render();
+    
+    // Re-attach event listeners
+    this.attachEventListeners();
+    
+    // Re-mount child components
+    this.mountChildComponents().then(() => {
+      // Restore state
+      this.state = currentState;
+      
+      // Update status display
+      this.updateStatus();
+      
+      // Apply current layout
+      this.updateLayout();
+      
+      // Notify panels of language change
+      this.connectionPanel?.onLanguageChange?.();
+      this.logPanel?.onLanguageChange?.();
+      this.commandPanel?.onLanguageChange?.();
+      
+      // Reset LogSettingsPanel to ensure it's recreated with new language
+      if (this.logSettingsPanel) {
+        this.logSettingsPanel.destroy();
+        this.logSettingsPanel = null;
+      }
+    });
   }
 }

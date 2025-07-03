@@ -1,6 +1,7 @@
 import { ConnectionType, ConnectionStatus, SerialPort } from '../../types';
 import { SerialService } from '../../services/SerialService';
 import { TcpNativeService, TcpNativeConnection } from '../../services/TcpNativeService';
+import { i18n } from '../../locales';
 
 export class ConnectionPanel {
   private activeTab: ConnectionType = 'RTU';
@@ -101,10 +102,10 @@ export class ConnectionPanel {
         <!-- Tab Navigation -->
         <div class="flex border-b border-dark-border">
           <button class="tab-button ${this.activeTab === 'RTU' ? 'active' : ''}" data-tab="RTU">
-            RTU (Serial)
+            ${i18n.t('connection.rtu.title')}
           </button>
           <button class="tab-button ${this.activeTab === 'TCP_NATIVE' ? 'active' : ''}" data-tab="TCP_NATIVE">
-            TCP Native
+            ${i18n.t('connection.tcp.title')}
           </button>
         </div>
 
@@ -116,14 +117,14 @@ export class ConnectionPanel {
         <!-- Connection Controls -->
         <div class="flex items-center gap-3 pt-4 border-t border-dark-border">
           <button class="btn-primary flex items-center gap-2" id="connect-btn">
-            <span id="connect-btn-text">Connect</span>
+            <span id="connect-btn-text">${i18n.t('common.connect')}</span>
             <div id="connect-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
           </button>
           <button class="btn-secondary" id="disconnect-btn" disabled>
-            Disconnect
+            ${i18n.t('common.disconnect')}
           </button>
           ${SerialService.isSupported() && this.selectedPort ? `
-            <button class="btn-secondary text-xs px-2 py-1" id="force-close-btn" title="Force close port if stuck">
+            <button class="btn-secondary text-xs px-2 py-1" id="force-close-btn" title="${i18n.t('connection.messages.portNotAvailable')}">
               🔧 Force Close
             </button>
           ` : ''}
@@ -171,13 +172,13 @@ export class ConnectionPanel {
           <!-- Serial Port Selection -->
           <div class="${this.isCompactMode ? '' : 'lg:col-span-2'}">
             <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-              Serial Port
+              ${i18n.t('connection.rtu.port')}
             </label>
             <div class="space-y-2">
               ${isWebSerialSupported ? `
                 <div class="flex gap-2">
                   <button class="btn-primary flex-1 ${this.isCompactMode ? 'text-sm py-1' : ''}" id="select-port-btn">
-                    📍 ${this.isCompactMode ? 'Port' : 'Select Serial Port'}
+                    📍 ${this.isCompactMode ? i18n.t('connection.rtu.port') : i18n.t('connection.rtu.selectPort')}
                   </button>
                   <button class="btn-secondary ${this.isCompactMode ? 'text-sm py-1 px-2' : ''}" id="refresh-ports-btn" title="Refresh granted ports">
                     🔄
@@ -204,13 +205,13 @@ export class ConnectionPanel {
                 <div class="text-xs" id="selected-port-info">
                   <div class="flex items-center gap-2">
                     <span class="${this.selectedPort ? 'text-dark-text-secondary' : 'text-dark-text-muted'}">
-                      ${this.selectedPort ? this.getPortDisplayName(this.selectedPort) : 'No port selected'}
+                      ${this.selectedPort ? this.getPortDisplayName(this.selectedPort) : i18n.t('connection.rtu.noPortSelected')}
                     </span>
                     ${this.selectedPort ? `
                       <div class="flex items-center gap-1">
                         <div class="w-2 h-2 rounded-full ${this.serialService.getConnectionStatus() ? 'bg-green-500' : 'bg-gray-400'}"></div>
                         <span class="text-xs ${this.serialService.getConnectionStatus() ? 'text-green-400' : 'text-gray-400'}">
-                          ${this.serialService.getConnectionStatus() ? 'Connected' : 'Available'}
+                          ${this.serialService.getConnectionStatus() ? i18n.t('connection.connected') : 'Available'}
                         </span>
                       </div>
                     ` : ''}
@@ -274,7 +275,7 @@ export class ConnectionPanel {
       <div class="space-y-4">
         <!-- Native Proxy Status -->
         <div class="p-3 rounded-md ${this.getNativeProxyStatusClass()} tcp-native-proxy-status cursor-pointer hover:bg-opacity-80 transition-colors" 
-             title="${this.isNativeProxyFailed() ? '클릭하여 설치 가이드 보기' : '클릭하여 설치/설정 가이드 보기'}">
+             title="${this.isNativeProxyFailed() ? i18n.t('connection.nativeGuide.clickToInstall') : i18n.t('connection.nativeGuide.clickToGuide')}">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full ${this.getNativeProxyIndicatorClass()} status-indicator"></div>
@@ -283,14 +284,14 @@ export class ConnectionPanel {
               </span>
             </div>
             <div class="text-xs opacity-75">
-              ${this.isNativeProxyFailed() ? '💡 설치하기' : 'ℹ️ 가이드'}
+              ${this.isNativeProxyFailed() ? i18n.t('connection.nativeGuide.installGuide') : i18n.t('connection.nativeGuide.guideInfo')}
             </div>
           </div>
           <div class="text-xs text-dark-text-muted mt-1">
             <div class="flex items-center justify-between">
               <span class="${this.isCompactMode ? 'truncate' : ''}">Native Host: com.my_company.stdio_proxy</span>
             </div>
-            ${this.isNativeProxyFailed() ? '<div class="text-yellow-400 animate-pulse text-center mt-1">↑ 클릭하여 설치하세요!</div>' : '<div class="text-gray-400 text-center mt-1">↑ 재설치/문제해결</div>'}
+            ${this.isNativeProxyFailed() ? `<div class="text-yellow-400 animate-pulse text-center mt-1">${i18n.t('connection.nativeGuide.clickToInstallTooltip')}</div>` : `<div class="text-gray-400 text-center mt-1">${i18n.t('connection.nativeGuide.reinstallTooltip')}</div>`}
           </div>
         </div>
 
@@ -311,7 +312,7 @@ export class ConnectionPanel {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-              IP Address
+              ${i18n.t('connection.tcp.host')}
             </label>
             <input 
               type="text" 
@@ -324,7 +325,7 @@ export class ConnectionPanel {
 
           <div>
             <label class="block text-sm font-medium text-dark-text-secondary mb-2">
-              Port
+              ${i18n.t('connection.tcp.port')}
             </label>
             <input 
               type="number" 
@@ -893,7 +894,7 @@ export class ConnectionPanel {
   private showNativeHostInstallGuide(): void {
     const currentExtensionId = chrome?.runtime?.id || 'YOUR_EXTENSION_ID';
     const isConnected = !this.isNativeProxyFailed();
-    const titleText = isConnected ? '🔌 TCP Native 가이드 및 문제해결' : '🔌 TCP Native 기능 설치하기';
+    const titleText = isConnected ? `🔌 ${i18n.t('connection.nativeGuide.title')} ${i18n.t('connection.nativeGuide.troubleshootingTitle')}` : `🔌 ${i18n.t('connection.nativeGuide.title')}`;
     
     const guideHtml = `
       <div id="native-install-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -906,17 +907,17 @@ export class ConnectionPanel {
           ${isConnected ? `
             <!-- 연결됨 상태 -->
             <div class="bg-green-900/20 border border-green-600/30 rounded p-4 mb-4">
-              <h4 class="text-sm font-medium text-green-300 mb-2">✅ Native Host가 정상적으로 연결되었습니다!</h4>
+              <h4 class="text-sm font-medium text-green-300 mb-2">✅ ${i18n.t('connection.nativeGuide.connected')}</h4>
               <p class="text-sm text-green-200">
-                TCP Native 기능을 사용할 수 있습니다. 아래는 추가 설정 및 문제해결 방법입니다.
+                ${i18n.t('connection.nativeGuide.connectedDesc')}
               </p>
             </div>
           ` : `
             <!-- 연결 안됨 상태 -->
             <div class="bg-red-900/20 border border-red-600/30 rounded p-4 mb-4">
-              <h4 class="text-sm font-medium text-red-300 mb-2">❌ Native Host 설치가 필요합니다</h4>
+              <h4 class="text-sm font-medium text-red-300 mb-2">❌ ${i18n.t('connection.nativeGuide.notConnected')}</h4>
               <p class="text-sm text-red-200">
-                TCP Native 기능을 사용하려면 아래 단계를 따라 설치해주세요.
+                ${i18n.t('connection.nativeGuide.notConnectedDesc')}
               </p>
             </div>
           `}
@@ -924,29 +925,29 @@ export class ConnectionPanel {
           <div class="space-y-4">
             <!-- 왜 설치가 필요한지 설명 -->
             <div class="bg-blue-900/20 border border-blue-600/30 rounded p-4">
-              <h4 class="text-sm font-medium text-blue-300 mb-2">🤔 왜 별도 설치가 필요한가요?</h4>
+              <h4 class="text-sm font-medium text-blue-300 mb-2">🤔 ${i18n.t('connection.nativeGuide.whyNeeded')}</h4>
               <div class="text-sm text-blue-200 space-y-2">
-                <p><strong>브라우저 보안 제한:</strong> Chromium 기반 브라우저는 보안상 직접 TCP 연결을 할 수 없습니다.</p>
-                <p><strong>Web Serial vs TCP:</strong></p>
+                <p><strong>${i18n.t('connection.nativeGuide.browserSecurity')}</strong></p>
+                <p><strong>${i18n.t('connection.nativeGuide.webSerialVsTcp')}</strong></p>
                 <ul class="list-disc list-inside ml-4 space-y-1">
-                  <li><span class="text-green-300">RTU (시리얼)</span> → 브라우저 내장 Web Serial API 사용 ✅</li>
-                  <li><span class="text-yellow-300">TCP Native</span> → 외부 프로그램(Native Host) 필요 📦</li>
+                  <li>${i18n.t('connection.nativeGuide.rtuSerial')}</li>
+                  <li>${i18n.t('connection.nativeGuide.tcpNative')}</li>
                 </ul>
-                <p><strong>Native Host 역할:</strong> 확장과 TCP 장치 사이의 브리지 역할을 합니다.</p>
-                <p><strong>지원 브라우저:</strong> Chrome, Edge, Brave, Opera, Vivaldi 등 모든 Chromium 기반 브라우저</p>
+                <p><strong>${i18n.t('connection.nativeGuide.nativeHostRole')}</strong></p>
+                <p><strong>${i18n.t('connection.nativeGuide.supportedBrowsers')}</strong></p>
               </div>
             </div>
 
             <!-- 설치 단계 -->
             <div class="bg-dark-panel border border-dark-border rounded p-4">
-              <h4 class="text-sm font-medium text-dark-text-primary mb-3">📋 간단 설치 (Node.js 불필요)</h4>
+              <h4 class="text-sm font-medium text-dark-text-primary mb-3">📋 ${i18n.t('connection.nativeGuide.simpleInstall')}</h4>
               
               <div class="space-y-3">
                 <div class="flex items-start gap-3">
                   <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">1</span>
                   <div>
-                    <p class="text-sm font-medium text-dark-text-primary">OS별 설치 패키지 다운로드</p>
-                    <p class="text-xs text-dark-text-muted mb-2">실행파일 + 설치스크립트가 포함된 압축파일</p>
+                    <p class="text-sm font-medium text-dark-text-primary">${i18n.t('connection.nativeGuide.step1')}</p>
+                    <p class="text-xs text-dark-text-muted mb-2">${i18n.t('connection.nativeGuide.step1Desc')}</p>
                     <div class="flex flex-wrap gap-2 mt-2">
                       <button data-download-url="https://github.com/coreanq/release/releases/download/stdio-proxy-v1.0.0/stdio-proxy-macos.zip"
                               class="download-btn bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
@@ -967,21 +968,21 @@ export class ConnectionPanel {
                 <div class="flex items-start gap-3">
                   <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">2</span>
                   <div>
-                    <p class="text-sm font-medium text-dark-text-primary">압축 해제 후 설치 실행</p>
+                    <p class="text-sm font-medium text-dark-text-primary">${i18n.t('connection.nativeGuide.step2')}</p>
                     <div class="text-sm text-dark-text-secondary mt-1 space-y-1">
-                      <div><strong>macOS/Linux:</strong> 압축 해제 → <code class="bg-dark-bg px-2 py-1 rounded">./install-*.sh</code></div>
-                      <div><strong>Windows:</strong> 압축 해제 → <code class="bg-dark-bg px-2 py-1 rounded">install-windows.bat</code> 더블클릭</div>
+                      <div><strong>${i18n.t('connection.nativeGuide.macosLinux')}</strong></div>
+                      <div><strong>${i18n.t('connection.nativeGuide.windows')}</strong></div>
                     </div>
-                    <p class="text-xs text-yellow-300 mt-1">💡 Extension ID 자동 감지, 모든 브라우저 자동 설치</p>
+                    <p class="text-xs text-yellow-300 mt-1">${i18n.t('connection.nativeGuide.autoDetect')}</p>
                   </div>
                 </div>
 
                 <div class="flex items-start gap-3">
                   <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">3</span>
                   <div>
-                    <p class="text-sm font-medium text-dark-text-primary">브라우저 재시작</p>
-                    <p class="text-sm text-dark-text-secondary">사용 중인 브라우저를 완전히 종료 후 다시 실행하세요</p>
-                    <p class="text-xs text-gray-400 mt-1">✨ Chrome, Edge, Brave, Opera, Vivaldi 등 모든 Chromium 기반 브라우저 지원</p>
+                    <p class="text-sm font-medium text-dark-text-primary">${i18n.t('connection.nativeGuide.step3')}</p>
+                    <p class="text-sm text-dark-text-secondary">${i18n.t('connection.nativeGuide.step3Desc')}</p>
+                    <p class="text-xs text-gray-400 mt-1">✨ ${i18n.t('connection.nativeGuide.supportedBrowsers')}</p>
                   </div>
                 </div>
               </div>
@@ -989,39 +990,35 @@ export class ConnectionPanel {
 
             <!-- Extension ID 정보 -->
             <div class="bg-yellow-900/20 border border-yellow-600/30 rounded p-3">
-              <h4 class="text-sm font-medium text-yellow-300 mb-2">🔑 현재 Extension ID</h4>
+              <h4 class="text-sm font-medium text-yellow-300 mb-2">🔑 ${i18n.t('connection.nativeGuide.extensionId')}</h4>
               <div class="bg-dark-bg p-2 rounded font-mono text-sm text-dark-text-primary break-all">
                 ${currentExtensionId}
               </div>
               <p class="text-xs text-yellow-200 mt-2">
-                이 ID가 설치 스크립트에 자동으로 설정됩니다.
+                ${i18n.t('connection.nativeGuide.extensionIdDesc')}
               </p>
             </div>
 
             <!-- 설치 후 확인 -->
             <div class="bg-green-900/20 border border-green-600/30 rounded p-3">
-              <h4 class="text-sm font-medium text-green-300 mb-2">✅ 설치 완료 확인</h4>
+              <h4 class="text-sm font-medium text-green-300 mb-2">✅ ${i18n.t('connection.nativeGuide.installationConfirm')}</h4>
               <p class="text-sm text-green-200">
-                설치가 완료되면 위의 "Native Proxy" 상태가 "🟢 Connected"로 변경됩니다.
+                ${i18n.t('connection.nativeGuide.installationConfirmDesc')}
               </p>
             </div>
 
             <!-- 트러블슈팅 -->
             <div class="bg-orange-900/20 border border-orange-600/30 rounded p-3">
-              <h4 class="text-sm font-medium text-orange-300 mb-2">🔧 문제 해결</h4>
+              <h4 class="text-sm font-medium text-orange-300 mb-2">🔧 ${i18n.t('connection.nativeGuide.troubleshooting')}</h4>
               <div class="text-sm text-orange-200 space-y-1">
-                <p>• 실행파일에 실행 권한이 있는지 확인 (macOS/Linux)</p>
-                <p>• Windows에서 바이러스 검사기가 차단하지 않는지 확인</p>
-                <p>• Extension ID가 정확히 설정되었는지 확인</p>
-                <p>• 브라우저를 완전히 재시작 (Chrome, Edge, Brave 등)</p>
-                <p>• 다른 Chromium 기반 브라우저에서도 테스트해보기</p>
+                ${i18n.t('connection.nativeGuide.troubleshootingItems').map(item => `<p>• ${item}</p>`).join('')}
               </div>
             </div>
           </div>
 
           <div class="flex justify-center mt-6">
             <button class="modal-close bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded text-sm" data-modal="native-install-modal">
-              확인
+              ${i18n.t('connection.nativeGuide.confirm')}
             </button>
           </div>
         </div>
@@ -1072,7 +1069,7 @@ export class ConnectionPanel {
               window.location.href = url;
             } catch (locationError) {
               console.error('All download methods failed:', locationError);
-              alert('다운로드 링크를 수동으로 열어주세요: ' + url);
+              alert(i18n.t('connection.nativeGuide.downloadManually') + url);
             }
           }
         } else {
@@ -1197,11 +1194,11 @@ export class ConnectionPanel {
   private getNativeProxyStatusText(): string {
     switch (this.nativeProxyStatus) {
       case 'connected':
-        return 'Native Proxy Connected';
+        return i18n.t('connection.status.nativeProxyConnected');
       case 'connecting':
-        return 'Connecting to Native Proxy...';
+        return i18n.t('connection.status.nativeProxyConnecting');
       case 'error':
-        return 'Native Proxy Connection Failed';
+        return i18n.t('connection.status.nativeProxyFailed');
       default:
         return 'Native Proxy Disconnected';
     }
@@ -1311,6 +1308,20 @@ export class ConnectionPanel {
     document.dispatchEvent(event);
   }
 
+
+  /**
+   * Handle language change - re-render the panel
+   */
+  onLanguageChange(): void {
+    const container = document.querySelector('[id*="connection-content"]') as HTMLElement;
+    if (!container) return;
+
+    // Re-render the panel content
+    container.innerHTML = this.render();
+    
+    // Re-attach event listeners
+    this.attachEventListeners();
+  }
 
   // Cleanup method to remove event handlers
   public cleanup(): void {
