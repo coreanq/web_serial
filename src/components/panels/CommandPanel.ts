@@ -96,7 +96,7 @@ export class CommandPanel {
               <div class="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <label class="block text-xs text-dark-text-muted mb-1">
-                    ${this.connectionType.startsWith('TCP') ? 'Unit ID (for MBAP header)' : i18n.t('command.generator.slaveId')}
+                    ${i18n.t('command.generator.slaveId')}
                   </label>
                   <input id="slave-id" class="input-field w-full text-sm" value="01" 
                          placeholder="${this.connectionType.startsWith('TCP') ? '01 (Unit ID for MBAP)' : '01 (hex) or 1 (dec)'}">
