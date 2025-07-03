@@ -74,6 +74,52 @@ export class I18nService {
   }
 
   /**
+   * Get translated array by key with fallback support
+   */
+  tArray(key: string): string[] {
+    const translation = this.getNestedTranslation(key, this.currentLanguage);
+    
+    if (translation && Array.isArray(translation)) {
+      return translation;
+    }
+
+    // Fallback to English if translation not found
+    if (this.currentLanguage !== 'en') {
+      const fallback = this.getNestedTranslation(key, 'en');
+      if (fallback && Array.isArray(fallback)) {
+        return fallback;
+      }
+    }
+
+    // Return empty array if no translation found
+    console.warn(`Translation array not found: ${key}`);
+    return [];
+  }
+
+  /**
+   * Get translated string by key with fallback support (guaranteed string return)
+   */
+  tString(key: string, params?: Record<string, string | number>): string {
+    const translation = this.getNestedTranslation(key, this.currentLanguage);
+    
+    if (translation && typeof translation === 'string') {
+      return this.interpolateParams(translation, params);
+    }
+
+    // Fallback to English if translation not found
+    if (this.currentLanguage !== 'en') {
+      const fallback = this.getNestedTranslation(key, 'en');
+      if (fallback && typeof fallback === 'string') {
+        return this.interpolateParams(fallback, params);
+      }
+    }
+
+    // Return key if no translation found
+    console.warn(`Translation string not found: ${key}`);
+    return key;
+  }
+
+  /**
    * Get nested translation by dot notation key
    */
   private getNestedTranslation(key: string, language: SupportedLanguage): string | string[] | null {

@@ -50,8 +50,12 @@
 - **실시간 로그 분석**: 패킷 해석 및 시각화
 - **명령 전송**: 수동 Modbus 명령 테스트
 - **반복 모드**: 자동 명령 반복 실행
-- **최적화된 로그 관리**: 순환 버퍼 + 지연 할당으로 메모리 효율성 극대화
+- **최적화된 로그 관리**: 순환 버퍼 + IndexedDB로 메모리 효율성 극대화
 - **자동 파일 저장**: 메모리 버퍼 초과 시 오래된 로그 자동 내보내기
+- **다국어 지원**: 한국어, 영어 인터페이스 지원
+- **가상 스크롤링**: 대용량 로그 표시 최적화
+- **Modbus 응답 계산기**: 실시간 응답 시간 및 통계 계산
+- **Chrome 확장 통합**: 백그라운드, 옵션, 팝업 페이지 완전 지원
 
 ---
 
@@ -73,25 +77,39 @@ web_serial/
 ## 소스 코드 구조 (src/)
 ```
 src/
-├── components/           # UI 컴포넌트
-│   ├── App.ts           # 메인 애플리케이션
-│   ├── LogSettingsPanel.ts  # 로그 설정 패널
-│   └── panels/          # 패널 컴포넌트들
-│       ├── ConnectionPanel.ts  # 연결 설정 패널
-│       ├── LogPanel.ts         # 로그 표시 패널 (Virtual Scrolling + 최적화)
-│       └── CommandPanel.ts     # 명령 전송 패널
-├── services/            # 비즈니스 로직
-│   ├── SerialService.ts      # Web Serial API 관리
-│   ├── TcpNativeService.ts   # Native Messaging 관리
-│   ├── ModbusParser.ts       # Modbus 프로토콜 파싱
-│   ├── LogService.ts         # 기본 로그 관리
+├── index.ts                   # 진입점
+├── background.ts              # 백그라운드 스크립트
+├── options.ts                 # 옵션 페이지 스크립트
+├── popup.ts                   # 팝업 스크립트
+├── components/                # UI 컴포넌트
+│   ├── App.ts                 # 메인 애플리케이션
+│   ├── LogSettingsPanel.ts    # 로그 설정 패널
+│   └── panels/                # 패널 컴포넌트들
+│       ├── ConnectionPanel.ts # 연결 설정 패널
+│       ├── LogPanel.ts        # 로그 표시 패널 (Virtual Scrolling + 최적화)
+│       └── CommandPanel.ts    # 명령 전송 패널
+├── services/                  # 비즈니스 로직
+│   ├── SerialService.ts       # Web Serial API 관리
+│   ├── TcpNativeService.ts    # TCP Native 서비스
+│   ├── NativeMessagingService.ts # Native Messaging 관리
+│   ├── LogService.ts          # 기본 로그 관리
 │   ├── OptimizedLogService.ts # 최적화된 로그 서비스 (CircularBuffer)
-│   └── LazyCircularBuffer.ts  # 지연 할당 순환 버퍼
-├── utils/               # 유틸리티 함수들
-│   └── DateTimeFilter.ts    # 날짜/시간 필터
-├── types/               # TypeScript 타입 정의
-├── styles/              # CSS 스타일 파일
-└── index.ts            # 진입점
+│   ├── IndexedDBLogService.ts # IndexedDB 로그 서비스
+│   ├── SimpleCircularBuffer.ts # 순환 버퍼 구현
+│   └── I18nService.ts         # 다국어 지원 서비스
+├── locales/                   # 다국어 파일
+│   ├── index.ts               # 다국어 진입점
+│   ├── ko.ts                  # 한국어 번역
+│   └── en.ts                  # 영어 번역
+├── utils/                     # 유틸리티 함수들
+│   ├── DateTimeFilter.ts      # 날짜/시간 필터
+│   ├── ModbusResponseCalculator.ts # Modbus 응답 계산기
+│   └── VirtualScrollManager.ts # 가상 스크롤 관리자
+├── types/                     # TypeScript 타입 정의
+│   ├── index.ts               # 메인 타입 정의
+│   └── chrome.d.ts            # Chrome API 타입 정의
+└── styles/                    # CSS 스타일 파일
+    └── index.css              # 메인 스타일 시트
 ```
 
 ---
@@ -102,13 +120,22 @@ src/
 크롬 확장의 핵심 파일들:
 - **manifest.json**: 확장 설정 및 권한 정의
 - **background.js**: 서비스 워커
-- **content.js**: 웹 페이지 스크립트
-- **icons/**: 확장 아이콘들
+- **icons/**: 확장 아이콘들 (16x16, 32x32, 48x48, 128x128)
+- **templates/**: HTML 템플릿
+  - **popup.html**: 팝업 페이지
+  - **options.html**: 옵션 페이지
+- **dist/**: 빌드된 확장 파일들
+- **modbus-debugger-extension-v1.0.0.zip**: 패키지된 확장
 
 ### 주요 권한
 - `webSerial`: Web Serial API 사용
 - `nativeMessaging`: Native Host와 통신
 - `storage`: 로컬 데이터 저장
+
+### 확장 스크립트
+- **src/background.ts**: 백그라운드 서비스 워커
+- **src/popup.ts**: 팝업 페이지 스크립트
+- **src/options.ts**: 옵션 페이지 스크립트
 
 ## 2. Native Messaging Host (stdio-proxy/)
 TCP 소켓 통신을 위한 네이티브 프로그램:
@@ -213,6 +240,8 @@ chmod +x install-linux.sh
 - **Web Serial API**: 시리얼 포트 통신
 - **Chrome Native Messaging**: 네이티브 앱 통신
 - **Chrome Storage API**: 로컬 데이터 저장
+- **IndexedDB API**: 대용량 로그 데이터 저장
+- **Chrome Extension APIs**: 백그라운드, 팝업, 옵션 페이지
 
 ## Protocol
 - **Modbus RTU**: 시리얼 기반 Modbus
@@ -263,16 +292,23 @@ chmod +x install-linux.sh
 
 ## 최적화된 로그 관리 시스템
 
-### LazyCircularBuffer
-- **지연 할당 기법**: 메모리 세그먼트를 필요할 때만 할당하여 메모리 효율성 극대화
+### SimpleCircularBuffer
 - **순환 버퍼**: 설정된 크기를 초과하면 오래된 로그를 자동 제거
-- **세그먼트 기반**: 큰 버퍼를 작은 세그먼트로 나누어 관리
+- **메모리 효율성**: 고정 크기 버퍼로 메모리 사용량 예측 가능
+- **고속 액세스**: 인덱스 기반 빠른 데이터 접근
 
 ### OptimizedLogService
-- **자동 파일 저장**: 버퍼 용량 초과 시 오래된 로그를 자동으로 파일 저장
+- **하이브리드 저장**: 메모리 버퍼 + IndexedDB 조합으로 대용량 로그 처리
+- **자동 오버플로우 처리**: 메모리 버퍼 초과 시 IndexedDB로 자동 이동
 - **사용자 설정 가능**: 버퍼 크기, 세그먼트 크기, 자동 저장 임계값 등 사용자 정의
 - **다양한 파일 형식**: JSON, CSV, TXT 형식으로 로그 내보내기 지원
 - **메모리 자동 정리**: 주기적으로 사용하지 않는 메모리 세그먼트 해제
+
+### IndexedDBLogService
+- **브라우저 DB 활용**: IndexedDB를 활용한 대용량 로그 저장
+- **오프라인 지원**: 브라우저 재시작 후에도 로그 데이터 유지
+- **효율적 검색**: 인덱스 기반 빠른 로그 검색 및 필터링
+- **자동 정리**: 전체 로그 저장 시 IndexedDB 자동 초기화
 
 ### 반복 모드 최적화
 - **Throttled Logging**: 반복 모드에서 UI 응답성을 위한 로그 배치 처리
@@ -285,10 +321,75 @@ chmod +x install-linux.sh
 - **자동 메모리 정리**: 주기적 메모리 정리 설정 및 수동 정리 기능
 
 ### 메모리 최적화 특징
-1. **지연 할당**: 실제 필요할 때만 메모리 할당
-2. **세그먼트 기반**: 메모리 재할당 없이 버퍼 크기 변경 가능
-3. **자동 해제**: 사용하지 않는 세그먼트 자동 해제
-4. **효율성 모니터링**: 실시간 메모리 효율성 추적
+1. **하이브리드 저장**: 메모리 + IndexedDB 조합으로 최적 성능
+2. **순환 버퍼**: 고정 크기 버퍼로 메모리 사용량 예측 가능
+3. **자동 오버플로우**: 메모리 초과 시 IndexedDB로 자동 이동
+4. **효율성 모니터링**: 실시간 메모리 및 DB 사용량 추적
+
+## UI 최적화 시스템
+
+### VirtualScrollManager
+- **가상 스크롤링**: 대용량 로그 데이터를 효율적으로 렌더링
+- **동적 높이 계산**: 로그 항목의 동적 높이 자동 계산
+- **스크롤 위치 추적**: 정확한 스크롤 위치 및 가시 영역 관리
+- **메모리 절약**: 화면에 보이는 항목만 DOM에 렌더링
+
+### 성능 최적화
+- **지연 렌더링**: 필요할 때만 DOM 요소 생성
+- **배치 업데이트**: 다수의 로그를 한 번에 처리
+- **스크롤 버퍼링**: 부드러운 스크롤 경험을 위한 버퍼 관리
+
+## Modbus 프로토콜 지원
+
+### ModbusResponseCalculator
+- **응답 시간 계산**: 요청-응답 쌍의 정확한 응답 시간 측정
+- **통계 수집**: 평균, 최소, 최대 응답 시간 통계
+- **오류 분석**: Modbus 오류 코드 분석 및 통계
+- **성능 모니터링**: 실시간 통신 성능 지표 제공
+
+## 다국어 지원 시스템 (I18nService)
+
+### 주요 기능
+- **다국어 지원**: 한국어, 영어 지원
+- **중첩 객체 지원**: 점 표기법(dot notation)으로 중첩된 번역 키 접근
+- **폴백 지원**: 번역이 없는 경우 영어로 자동 폴백
+- **타입 안전성**: 문자열과 배열을 구분하는 전용 메서드 제공
+
+### 메서드 종류
+- **`t(key)`**: 범용 번역 메서드 (string | string[] 반환)
+- **`tString(key)`**: 문자열 전용 번역 메서드 (string 반환 보장)
+- **`tArray(key)`**: 배열 전용 번역 메서드 (string[] 반환 보장)
+- **파라미터 보간**: `{{key}}` 형태의 동적 값 치환 지원
+
+### 사용 예시
+```typescript
+// 문자열 번역
+const title = i18n.tString('app.title');
+
+// 배열 번역 (예: 문제해결 항목)
+const items = i18n.tArray('connection.nativeGuide.troubleshootingItems');
+
+// 파라미터 보간
+const message = i18n.tString('log.count', { count: 10 });
+```
+
+### 로케일 파일 구조
+```typescript
+// src/locales/ko.ts, en.ts
+export const ko = {
+  app: {
+    title: "Modbus 프로토콜 분석기"
+  },
+  connection: {
+    nativeGuide: {
+      troubleshootingItems: [
+        "항목 1",
+        "항목 2"
+      ]
+    }
+  }
+};
+```
 
 ## 패키지 매니저 마이그레이션
 
@@ -301,6 +402,47 @@ chmod +x install-linux.sh
 - `npm install` → `bun install`
 - `npm run dev` → `bun run dev`
 - `npm run build` → `bun run build`
+
+---
+
+---
+
+# 추가 프로젝트 파일
+
+## 다이어그램 (diagram/)
+- **serial_read_seq.mmd**: 시리얼 읽기 시퀀스 다이어그램
+- **serial_write_seq.mmd**: 시리얼 쓰기 시퀀스 다이어그램
+
+## 프로덕션 관련 (prd/)
+- **prd.txt**: 프로덕션 관련 정보
+
+## 설정 파일들
+- **tailwind.config.js**: Tailwind CSS 설정
+- **postcss.config.js**: PostCSS 설정
+- **tsconfig.json**: TypeScript 설정
+- **bunfig.toml**: Bun 런타임 설정
+
+---
+
+# 최신 업데이트 사항
+
+## v1.0.0 주요 변경사항
+1. **다국어 지원 완전 구현**: 한국어, 영어 UI 완전 지원
+2. **IndexedDB 로그 시스템**: 대용량 로그 처리 및 오프라인 지원
+3. **가상 스크롤링**: 수만 개 로그 항목 실시간 렌더링
+4. **Chrome 확장 완전 통합**: 백그라운드, 팝업, 옵션 페이지
+5. **Modbus 응답 분석**: 실시간 통신 성능 모니터링
+6. **UI/UX 개선**: 반응형 디자인 및 접근성 향상
+
+## 타입 안전성 개선
+- Chrome API 타입 정의 추가
+- I18nService 타입 안전성 강화 (tString, tArray 메서드)
+- 엄격한 TypeScript 설정 적용
+
+## 성능 최적화
+- 가상 스크롤링으로 DOM 요소 최소화
+- IndexedDB 활용으로 메모리 사용량 최적화
+- 배치 처리로 UI 응답성 향상
 
 ---
 

@@ -1011,9 +1011,7 @@ export class ConnectionPanel {
             <div class="bg-orange-900/20 border border-orange-600/30 rounded p-3">
               <h4 class="text-sm font-medium text-orange-300 mb-2">🔧 ${i18n.t('connection.nativeGuide.troubleshooting')}</h4>
               <div class="text-sm text-orange-200 space-y-1">
-                ${Array.isArray(i18n.t('connection.nativeGuide.troubleshootingItems')) ? 
-                  (i18n.t('connection.nativeGuide.troubleshootingItems') as string[]).map(item => `<p>• ${item}</p>`).join('') :
-                  `<p>• ${i18n.t('connection.nativeGuide.troubleshootingItems')}</p>`}
+                ${i18n.tArray('connection.nativeGuide.troubleshootingItems').map(item => `<p>• ${item}</p>`).join('')}
               </div>
             </div>
           </div>
@@ -1196,11 +1194,11 @@ export class ConnectionPanel {
   private getNativeProxyStatusText(): string {
     switch (this.nativeProxyStatus) {
       case 'connected':
-        return i18n.t('connection.status.nativeProxyConnected');
+        return i18n.tString('connection.status.nativeProxyConnected');
       case 'connecting':
-        return i18n.t('connection.status.nativeProxyConnecting');
+        return i18n.tString('connection.status.nativeProxyConnecting');
       case 'error':
-        return i18n.t('connection.status.nativeProxyFailed');
+        return i18n.tString('connection.status.nativeProxyFailed');
       default:
         return 'Native Proxy Disconnected';
     }
