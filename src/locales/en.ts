@@ -49,7 +49,6 @@ export const en = {
   // Connection Panel
   connection: {
     title: "Connection",
-    status: "Status",
     connected: "Connected",
     disconnected: "Disconnected",
     connecting: "Connecting...",

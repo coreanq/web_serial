@@ -1011,7 +1011,9 @@ export class ConnectionPanel {
             <div class="bg-orange-900/20 border border-orange-600/30 rounded p-3">
               <h4 class="text-sm font-medium text-orange-300 mb-2">🔧 ${i18n.t('connection.nativeGuide.troubleshooting')}</h4>
               <div class="text-sm text-orange-200 space-y-1">
-                ${i18n.t('connection.nativeGuide.troubleshootingItems').map(item => `<p>• ${item}</p>`).join('')}
+                ${Array.isArray(i18n.t('connection.nativeGuide.troubleshootingItems')) ? 
+                  (i18n.t('connection.nativeGuide.troubleshootingItems') as string[]).map(item => `<p>• ${item}</p>`).join('') :
+                  `<p>• ${i18n.t('connection.nativeGuide.troubleshootingItems')}</p>`}
               </div>
             </div>
           </div>

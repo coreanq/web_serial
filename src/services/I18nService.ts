@@ -53,18 +53,18 @@ export class I18nService {
   /**
    * Get translated text by key with fallback support
    */
-  t(key: string, params?: Record<string, string | number>): string {
+  t(key: string, params?: Record<string, string | number>): string | string[] {
     const translation = this.getNestedTranslation(key, this.currentLanguage);
     
     if (translation) {
-      return this.interpolateParams(translation, params);
+      return Array.isArray(translation) ? translation : this.interpolateParams(translation, params);
     }
 
     // Fallback to English if translation not found
     if (this.currentLanguage !== 'en') {
       const fallback = this.getNestedTranslation(key, 'en');
       if (fallback) {
-        return this.interpolateParams(fallback, params);
+        return Array.isArray(fallback) ? fallback : this.interpolateParams(fallback, params);
       }
     }
 
@@ -76,7 +76,7 @@ export class I18nService {
   /**
    * Get nested translation by dot notation key
    */
-  private getNestedTranslation(key: string, language: SupportedLanguage): string | null {
+  private getNestedTranslation(key: string, language: SupportedLanguage): string | string[] | null {
     const keys = key.split('.');
     let current: any = this.translations[language];
 
@@ -88,7 +88,7 @@ export class I18nService {
       }
     }
 
-    return typeof current === 'string' ? current : null;
+    return (typeof current === 'string' || Array.isArray(current)) ? current : null;
   }
 
   /**

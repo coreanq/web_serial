@@ -49,7 +49,6 @@ export const ko = {
   // Connection Panel
   connection: {
     title: "연결",
-    status: "상태",
     connected: "연결됨",
     disconnected: "연결 안됨",
     connecting: "연결 중...",
