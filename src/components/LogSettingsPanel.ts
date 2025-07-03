@@ -75,10 +75,10 @@ export class LogSettingsPanel {
                 </div>
                 <div class="ml-3">
                   <h4 class="text-sm font-medium text-blue-800 dark:text-blue-200">
-                    자동 파일 저장 방식
+                    순환 버퍼 + IndexedDB 저장
                   </h4>
                   <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                    버퍼가 가득 차면 오래된 로그를 1초마다 자동으로 파일에 추가 저장합니다.
+                    설정한 버퍼 크기만큼 메모리에 보관하고, 초과된 로그는 즉시 IndexedDB에 저장됩니다.
                   </p>
                 </div>
               </div>
@@ -89,7 +89,7 @@ export class LogSettingsPanel {
           <div class="space-y-4">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">📈 현재 상태</h3>
             
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                 <div class="text-xl font-bold text-blue-600 dark:text-blue-400" id="stat-memory-logs">-</div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">메모리 로그</div>
@@ -99,6 +99,34 @@ export class LogSettingsPanel {
                 <div class="text-xl font-bold text-green-600 dark:text-green-400" id="stat-total-logs">-</div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">전체 로그</div>
               </div>
+
+              <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                <div class="text-xl font-bold text-purple-600 dark:text-purple-400" id="stat-indexeddb-logs">-</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">IndexedDB 로그</div>
+              </div>
+              
+              <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                <div class="text-xl font-bold text-orange-600 dark:text-orange-400" id="stat-indexeddb-size">-</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">IndexedDB 크기</div>
+              </div>
+            </div>
+
+            <div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+              <div class="flex items-start">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <h4 class="text-sm font-medium text-purple-800 dark:text-purple-200">
+                    IndexedDB 오버플로우 저장
+                  </h4>
+                  <p class="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                    메모리 버퍼를 초과한 로그는 자동으로 IndexedDB에 저장됩니다. 전체 로그 저장 시 IndexedDB가 초기화됩니다.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -107,16 +135,28 @@ export class LogSettingsPanel {
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">🔧 작업</h3>
             
             <div class="flex flex-wrap gap-3">
-              <button id="export-all-logs" 
+              <button id="export-memory-logs" 
                       class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 
                              focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
-                📁 현재 로그 수동 저장
+                📁 메모리 로그만 저장
+              </button>
+
+              <button id="export-all-logs" 
+                      class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 
+                             focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors">
+                💾 전체 로그 저장 (DB 초기화)
               </button>
               
               <button id="clear-logs" 
                       class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 
                              focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors">
-                🗑️ 로그 지우기
+                🗑️ 메모리 로그 지우기
+              </button>
+
+              <button id="clear-all-logs" 
+                      class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 
+                             focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                🗂️ 전체 로그 지우기 (DB 포함)
               </button>
             </div>
           </div>
@@ -160,13 +200,21 @@ export class LogSettingsPanel {
     const saveBtn = panel.querySelector('#save-settings') as HTMLElement;
     saveBtn?.addEventListener('click', () => this.saveSettings());
 
-    // 전체 로그 저장
-    const exportBtn = panel.querySelector('#export-all-logs') as HTMLElement;
-    exportBtn?.addEventListener('click', () => this.exportAllLogs());
+    // 메모리 로그만 저장
+    const exportMemoryBtn = panel.querySelector('#export-memory-logs') as HTMLElement;
+    exportMemoryBtn?.addEventListener('click', () => this.exportMemoryLogs());
 
-    // 로그 지우기
+    // 전체 로그 저장 (DB 초기화)
+    const exportAllBtn = panel.querySelector('#export-all-logs') as HTMLElement;
+    exportAllBtn?.addEventListener('click', () => this.exportAllLogsWithDBClear());
+
+    // 메모리 로그 지우기
     const clearBtn = panel.querySelector('#clear-logs') as HTMLElement;
     clearBtn?.addEventListener('click', () => this.clearLogs());
+
+    // 전체 로그 지우기 (DB 포함)
+    const clearAllBtn = panel.querySelector('#clear-all-logs') as HTMLElement;
+    clearAllBtn?.addEventListener('click', () => this.clearAllLogs());
 
     // 실시간 통계 업데이트
     this.startStatsUpdate();
@@ -215,11 +263,22 @@ export class LogSettingsPanel {
     }
   }
 
-  private updateStats(): void {
-    const stats = this.logService.getStats();
-    
-    (this.container.querySelector('#stat-memory-logs') as HTMLElement).textContent = stats.memoryLogs.toLocaleString();
-    (this.container.querySelector('#stat-total-logs') as HTMLElement).textContent = stats.totalLogs.toLocaleString();
+  private async updateStats(): Promise<void> {
+    try {
+      const stats = await this.logService.getStats();
+      
+      (this.container.querySelector('#stat-memory-logs') as HTMLElement).textContent = stats.memoryLogs.toLocaleString();
+      (this.container.querySelector('#stat-total-logs') as HTMLElement).textContent = stats.totalLogs.toLocaleString();
+      (this.container.querySelector('#stat-indexeddb-logs') as HTMLElement).textContent = stats.indexedDBLogs.toLocaleString();
+      (this.container.querySelector('#stat-indexeddb-size') as HTMLElement).textContent = stats.indexedDBSize;
+    } catch (error) {
+      console.error('Failed to update stats:', error);
+      // 오류 시 기본값 표시
+      (this.container.querySelector('#stat-memory-logs') as HTMLElement).textContent = '-';
+      (this.container.querySelector('#stat-total-logs') as HTMLElement).textContent = '-';
+      (this.container.querySelector('#stat-indexeddb-logs') as HTMLElement).textContent = '-';
+      (this.container.querySelector('#stat-indexeddb-size') as HTMLElement).textContent = '-';
+    }
   }
 
   private startStatsUpdate(): void {
@@ -231,27 +290,51 @@ export class LogSettingsPanel {
     }, 5000);
   }
 
-  private async exportAllLogs(): Promise<void> {
+  private async exportMemoryLogs(): Promise<void> {
     try {
       await this.logService.exportAllLogs();
-      this.showNotification('로그가 성공적으로 저장되었습니다!', 'success');
+      this.showNotification('메모리 로그가 성공적으로 저장되었습니다!', 'success');
       this.updateStats();
     } catch (error) {
-      this.showNotification('로그 저장 중 오류가 발생했습니다.', 'error');
-      console.error('Failed to export logs:', error);
+      this.showNotification('메모리 로그 저장 중 오류가 발생했습니다.', 'error');
+      console.error('Failed to export memory logs:', error);
+    }
+  }
+
+  private async exportAllLogsWithDBClear(): Promise<void> {
+    try {
+      await this.logService.exportAllLogsIncludingIndexedDB();
+      this.showNotification('전체 로그가 성공적으로 저장되고 IndexedDB가 초기화되었습니다!', 'success');
+      this.updateStats();
+    } catch (error) {
+      this.showNotification('전체 로그 저장 중 오류가 발생했습니다.', 'error');
+      console.error('Failed to export all logs:', error);
     }
   }
 
 
   private async clearLogs(): Promise<void> {
-    if (confirm('모든 로그를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+    if (confirm('메모리 로그를 삭제하시겠습니까? IndexedDB 로그는 유지됩니다.')) {
       try {
-        await this.logService.clearLogs();
+        this.logService.clearLogs(); // 동기 메서드
+        this.updateStats();
+        this.showNotification('메모리 로그가 삭제되었습니다.', 'success');
+      } catch (error) {
+        this.showNotification('메모리 로그 삭제 중 오류가 발생했습니다.', 'error');
+        console.error('Failed to clear memory logs:', error);
+      }
+    }
+  }
+
+  private async clearAllLogs(): Promise<void> {
+    if (confirm('모든 로그를 삭제하시겠습니까? (메모리 + IndexedDB) 이 작업은 되돌릴 수 없습니다.')) {
+      try {
+        await this.logService.clearAllLogs();
         this.updateStats();
         this.showNotification('모든 로그가 삭제되었습니다.', 'success');
       } catch (error) {
         this.showNotification('로그 삭제 중 오류가 발생했습니다.', 'error');
-        console.error('Failed to clear logs:', error);
+        console.error('Failed to clear all logs:', error);
       }
     }
   }

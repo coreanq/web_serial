@@ -1,5 +1,6 @@
 import { LogEntry } from '../types';
 import { SimpleCircularBuffer } from './SimpleCircularBuffer';
+import { IndexedDBLogService, IndexedDBStats } from './IndexedDBLogService';
 
 export interface LogBufferConfig {
   // CircularBuffer 설정
@@ -13,8 +14,7 @@ export class OptimizedLogService {
   private buffer: SimpleCircularBuffer;
   private config: LogBufferConfig;
   private exportedFileCount: number = 0;
-  private overflowQueue: LogEntry[] = [];      // 오버플로우된 로그들을 1초마다 저장
-  private autoSaveTimer: NodeJS.Timeout | null = null;  // 1초 타이머
+  private indexedDBService: IndexedDBLogService;  // IndexedDB 서비스
   private onLogEvicted?: (log: LogEntry) => void; // Object Pool 콜백
 
   constructor(config?: Partial<LogBufferConfig>, onLogEvicted?: (log: LogEntry) => void) {
@@ -25,9 +25,9 @@ export class OptimizedLogService {
     };
 
     this.buffer = new SimpleCircularBuffer(this.config.bufferSize);
+    this.indexedDBService = new IndexedDBLogService();
     this.onLogEvicted = onLogEvicted;
     this.loadSettings();
-    this.startAutoSaveTimer();
   }
 
   // 설정 로드/저장
@@ -39,7 +39,9 @@ export class OptimizedLogService {
         this.config = { ...this.config, ...savedConfig };
         
         // 버퍼 크기가 변경된 경우 재할당
-        this.buffer.resize(this.config.bufferSize);
+        if (this.buffer) {
+          this.buffer.resize(this.config.bufferSize);
+        }
       }
     } catch (error) {
       console.warn('Failed to load log settings:', error);
@@ -60,12 +62,13 @@ export class OptimizedLogService {
     
     this.config = { ...this.config, ...newConfig };
     
-    // Always keep pendingQueueSize same as bufferSize
-    this.config.pendingQueueSize = this.config.bufferSize;
+    // Note: pendingQueueSize no longer exists in simplified config
     
     // 버퍼 크기 변경 시 적용
     if (newConfig.bufferSize && newConfig.bufferSize !== oldBufferSize) {
-      this.buffer.resize(newConfig.bufferSize);
+      if (this.buffer) {
+        this.buffer.resize(newConfig.bufferSize);
+      }
     }
     
     this.saveSettings();
@@ -87,73 +90,49 @@ export class OptimizedLogService {
         this.onLogEvicted(evictedLog);
       }
       
-      // 오버플로우 큐에 추가 (1초마다 파일에 저장)
-      this.overflowQueue.push(evictedLog);
+      // IndexedDB에 오버플로우 로그 저장
+      try {
+        await this.indexedDBService.addOverflowLog(evictedLog);
+      } catch (error) {
+        console.error('Failed to save overflow log to IndexedDB:', error);
+      }
     }
   }
 
-  // 1초마다 오버플로우 로그를 파일에 저장하는 타이머 시작
-  private startAutoSaveTimer(): void {
-    this.autoSaveTimer = setInterval(() => {
-      this.saveOverflowLogs();
-    }, 1000); // 1초마다 실행
-  }
-
-  // 오버플로우 로그들을 파일에 append
-  private async saveOverflowLogs(): Promise<void> {
-    if (this.overflowQueue.length === 0) return;
-
+  // 모든 로그 내보내기 (메모리 + IndexedDB)
+  public async exportAllLogsIncludingIndexedDB(filename?: string): Promise<void> {
     try {
-      // 현재 오버플로우 큐의 모든 로그를 가져와서 클리어
-      const logsToSave = [...this.overflowQueue];
-      this.overflowQueue = [];
-
-      // 고정된 파일명으로 append
-      const filename = 'modbus_logs_continuous';
-      await this.appendToFile(logsToSave, filename);
+      // 메모리의 로그
+      const memoryLogs = this.buffer.getAllLogs();
       
-      this.exportedFileCount++;
+      // IndexedDB의 오버플로우 로그
+      const overflowLogs = await this.indexedDBService.getAllOverflowLogs();
+      
+      // 시간순으로 병합
+      const allLogs = [...overflowLogs, ...memoryLogs].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      if (allLogs.length === 0) {
+        throw new Error('No logs to export');
+      }
+
+      const exportFilename = filename || `modbus_logs_complete_${this.formatTimestamp(new Date())}`;
+      await this.exportToFile(allLogs, exportFilename);
+      
+      // 내보내기 후 IndexedDB 초기화
+      await this.indexedDBService.clearAllOverflowLogs();
+      console.log('IndexedDB cleared after export');
+      
     } catch (error) {
-      console.error('Failed to save overflow logs:', error);
-      // 실패한 경우 다시 큐에 추가
-      this.overflowQueue.unshift(...this.overflowQueue);
+      console.error('Failed to export all logs:', error);
+      throw error;
     }
   }
 
-  // 파일에 append하는 메서드 (기존 파일에 계속 추가)
-  private async appendToFile(logs: LogEntry[], filename: string): Promise<void> {
-    let content: string;
-    let mimeType: string;
-    let fileExtension: string;
-
-    switch (this.config.exportFormat) {
-      case 'csv':
-        content = this.logsToCSV(logs);
-        mimeType = 'text/csv';
-        fileExtension = '.csv';
-        break;
-      
-      case 'txt':
-        content = this.logsToText(logs);
-        mimeType = 'text/plain';
-        fileExtension = '.txt';
-        break;
-      
-      case 'json':
-      default:
-        // JSON은 배열 형태로 저장 (append하기 어려우므로 개별 JSON 라인으로)
-        content = logs.map(log => JSON.stringify(log)).join('\n') + '\n';
-        mimeType = 'application/json';
-        fileExtension = '.jsonl'; // JSON Lines 형식
-        break;
-    }
-
-    // 현재 시간을 포함한 고유 파일명 생성
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const fullFilename = `${filename}_${timestamp}${fileExtension}`;
-
-    // 브라우저에서 파일 다운로드 (append 기능 대신 새 파일 생성)
-    this.downloadFile(content, fullFilename, mimeType);
+  // IndexedDB 통계 조회
+  public async getIndexedDBStats(): Promise<IndexedDBStats> {
+    return await this.indexedDBService.getStats();
   }
 
   // 모든 로그 가져오기
@@ -177,7 +156,7 @@ export class OptimizedLogService {
   // 전체 로그 수 반환 (메모리 + 파일로 저장된 것)
   public getTotalCount(): number {
     const bufferStats = this.buffer.getStats();
-    return bufferStats.totalCount + (this.exportedFileCount * this.config.batchSize);
+    return bufferStats.totalCount + this.exportedFileCount;
   }
 
   // 현재 메모리 로그 수 반환
@@ -224,12 +203,7 @@ export class OptimizedLogService {
         break;
     }
 
-    // 압축이 활성화된 경우
-    if (this.config.compressionEnabled) {
-      content = this.compressContent(content);
-      mimeType = 'application/gzip';
-      fileExtension = fileExtension + '.gz';
-    }
+    // Note: compression feature removed in simplified version
 
     // 브라우저에서 파일 다운로드
     this.downloadFile(content, filename + fileExtension, mimeType);
@@ -237,16 +211,13 @@ export class OptimizedLogService {
 
   // CSV 형식으로 변환
   private logsToCSV(logs: LogEntry[]): string {
-    const headers = ['Timestamp', 'Direction', 'Data', 'Type', 'Function', 'Address', 'Count', 'Values'];
+    const headers = ['Timestamp', 'Direction', 'Data', 'Error', 'ResponseTime'];
     const rows = logs.map(log => [
       log.timestamp.toISOString(),
       log.direction,
       log.data,
-      log.analysis?.type || '',
-      log.analysis?.function || '',
-      log.analysis?.address?.toString() || '',
-      log.analysis?.count?.toString() || '',
-      log.analysis?.values ? JSON.stringify(log.analysis.values) : ''
+      log.error || '',
+      log.responseTime?.toString() || ''
     ]);
 
     return [headers, ...rows].map(row => 
@@ -259,19 +230,13 @@ export class OptimizedLogService {
     return logs.map(log => {
       const timestamp = log.timestamp.toISOString();
       const direction = log.direction.toUpperCase();
-      const analysis = log.analysis ? 
-        `[${log.analysis.type}] Function: ${log.analysis.function}, Address: ${log.analysis.address}` :
-        '';
+      const error = log.error ? ` [ERROR: ${log.error}]` : '';
+      const responseTime = log.responseTime ? ` (${log.responseTime}ms)` : '';
       
-      return `${timestamp} ${direction}: ${log.data} ${analysis}`;
+      return `${timestamp} ${direction}: ${log.data}${error}${responseTime}`;
     }).join('\n');
   }
 
-  // 간단한 압축 (실제 환경에서는 pako 라이브러리 사용 권장)
-  private compressContent(content: string): string {
-    // 여기서는 간단한 예시, 실제로는 gzip 압축 라이브러리 사용
-    return content; // TODO: 실제 압축 구현
-  }
 
   // 파일 다운로드
   private downloadFile(content: string, filename: string, mimeType: string): void {
@@ -293,26 +258,31 @@ export class OptimizedLogService {
     return date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
   }
 
-  // 로그 통계
-  public getStats(): {
+  // 로그 통계 (비동기 - IndexedDB 조회 포함)
+  public async getStats(): Promise<{
     memoryLogs: number;
     totalLogs: number;
     exportedFiles: number;
     memoryUsage: string;
     bufferUtilization: string;
-    pendingOverflow: number;
-  } {
+    indexedDBLogs: number;
+    indexedDBSize: string;
+  }> {
     const bufferStats = this.buffer.getStats();
     const allLogs = this.buffer.getAllLogs();
     const memoryUsage = (JSON.stringify(allLogs).length / 1024 / 1024).toFixed(2);
     
+    // IndexedDB 통계 조회
+    const indexedDBStats = await this.indexedDBService.getStats();
+    
     return {
       memoryLogs: bufferStats.size || 0,
-      totalLogs: bufferStats.totalCount || 0,
+      totalLogs: (bufferStats.totalCount || 0) + indexedDBStats.totalLogs,
       exportedFiles: this.exportedFileCount || 0,
       memoryUsage: `${memoryUsage} MB`,
       bufferUtilization: `${(bufferStats.size / bufferStats.capacity * 100).toFixed(1)}%`,
-      pendingOverflow: this.overflowQueue?.length || 0
+      indexedDBLogs: indexedDBStats.totalLogs,
+      indexedDBSize: indexedDBStats.dbSize
     };
   }
 
@@ -321,12 +291,11 @@ export class OptimizedLogService {
     return {
       buffer: this.buffer.getStats(),
       config: this.config,
-      overflowQueue: this.overflowQueue.length,
       exportedFileCount: this.exportedFileCount
     };
   }
 
-  // 로그 지우기
+  // 로그 지우기 (메모리만 - IndexedDB는 유지)
   public clearLogs(): void {
     // 현재 버퍼의 모든 로그를 Object Pool로 반환
     if (this.onLogEvicted) {
@@ -336,15 +305,21 @@ export class OptimizedLogService {
       }
     }
     
-    // 오버플로우 큐의 로그들도 Object Pool로 반환
-    if (this.onLogEvicted) {
-      for (const log of this.overflowQueue) {
-        this.onLogEvicted(log);
-      }
+    this.buffer.clear();
+  }
+
+  // 모든 로그 지우기 (메모리 + IndexedDB)
+  public async clearAllLogs(): Promise<void> {
+    // 메모리 버퍼 지우기
+    this.clearLogs();
+    
+    // IndexedDB도 지우기
+    try {
+      await this.indexedDBService.clearAllOverflowLogs();
+    } catch (error) {
+      console.error('Failed to clear IndexedDB logs:', error);
     }
     
-    this.buffer.clear();
-    this.overflowQueue = [];
     this.exportedFileCount = 0;
   }
 
@@ -375,22 +350,7 @@ export class OptimizedLogService {
 
   // 리소스 정리
   public async destroy(): Promise<void> {
-    // 자동 저장 타이머 정지
-    if (this.autoSaveTimer) {
-      clearInterval(this.autoSaveTimer);
-      this.autoSaveTimer = null;
-    }
-    
-    // 남은 오버플로우 로그들을 마지막으로 저장
-    if (this.overflowQueue.length > 0) {
-      try {
-        await this.saveOverflowLogs();
-      } catch (error) {
-        console.warn('Failed to save final overflow logs:', error);
-      }
-    }
-    
-    // 리소스 정리
-    this.overflowQueue = [];
+    // IndexedDB 연결 해제
+    this.indexedDBService.destroy();
   }
 }
