@@ -16,6 +16,8 @@ export class OptimizedLogService {
   private exportedFileCount: number = 0;
   private indexedDBService: IndexedDBLogService;  // IndexedDB 서비스
   private onLogEvicted?: (log: LogEntry) => void; // Object Pool 콜백
+  private overflowQueue: LogEntry[] = [];
+  private flushTimeout: number | null = null;
 
   constructor(config?: Partial<LogBufferConfig>, onLogEvicted?: (log: LogEntry) => void) {
     this.config = {
@@ -91,11 +93,42 @@ export class OptimizedLogService {
       }
       
       // IndexedDB에 오버플로우 로그 저장
-      try {
-        await this.indexedDBService.addOverflowLog(evictedLog);
-      } catch (error) {
-        console.error('Failed to save overflow log to IndexedDB:', error);
+      this.overflowQueue.push(evictedLog);
+
+      if (this.overflowQueue.length >= 100) {
+        this.flushOverflowQueue();
+      } else {
+        this.scheduleFlush();
       }
+    }
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushTimeout) {
+      clearTimeout(this.flushTimeout);
+    }
+    this.flushTimeout = setTimeout(() => {
+      this.flushOverflowQueue();
+    }, 500);
+  }
+
+  private async flushOverflowQueue(): Promise<void> {
+    if (this.flushTimeout) {
+      clearTimeout(this.flushTimeout);
+      this.flushTimeout = null;
+    }
+
+    if (this.overflowQueue.length === 0) {
+      return;
+    }
+
+    const logsToFlush = [...this.overflowQueue];
+    this.overflowQueue = [];
+
+    try {
+      await this.indexedDBService.addOverflowLogs(logsToFlush);
+    } catch (error) {
+      console.error('Failed to save bulk overflow logs to IndexedDB:', error);
     }
   }
 
@@ -350,6 +383,7 @@ export class OptimizedLogService {
 
   // 리소스 정리
   public async destroy(): Promise<void> {
+    await this.flushOverflowQueue();
     // IndexedDB 연결 해제
     this.indexedDBService.destroy();
   }

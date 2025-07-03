@@ -22,6 +22,12 @@ export class LogPanel {
   private virtualScrollManager?: VirtualScrollManager; // Virtual scrolling manager
   private useVirtualScrolling = false; // Virtual scrolling toggle
   private isRenderingVirtualScroll = false; // Prevent infinite recursion
+  
+  // Event handlers for event delegation
+  private handleTooltipMouseOver!: (e: Event) => void;
+  private handleTooltipMouseOut!: (e: Event) => void;
+  private handleLogContainerMouseOver!: (e: Event) => void;
+  private handleLogContainerMouseOut!: (e: Event) => void;
 
   mount(container: HTMLElement): void {
     this.logService = new LogService();
@@ -124,27 +130,37 @@ export class LogPanel {
     document.removeEventListener('mouseover', this.handleTooltipMouseOver);
     document.removeEventListener('mouseout', this.handleTooltipMouseOut);
 
-    // Add tooltip positioning listeners
-    document.addEventListener('mouseover', (e) => {
-      const target = e.target as HTMLElement;
-      const logContainer = document.getElementById('log-container');
+    // Use event delegation for better performance with many log entries
+    const logContainer = document.getElementById('log-container');
+    if (logContainer) {
+      // Remove existing listeners from log container
+      logContainer.removeEventListener('mouseover', this.handleLogContainerMouseOver);
+      logContainer.removeEventListener('mouseout', this.handleLogContainerMouseOut);
       
-      // Check if tooltip should be shown (not during repeat mode or scrolling)
-      if (target.classList.contains('modbus-packet') && 
-          target.dataset.tooltip && 
-          !this.isRepeatMode &&
-          !logContainer?.classList.contains('scrolling')) {
-        currentTooltip = this.showTooltip(target, target.dataset.tooltip);
-      }
-    });
+      // Add event delegation listeners to log container
+      this.handleLogContainerMouseOver = (e: Event) => {
+        const target = e.target as HTMLElement;
+        
+        // Check if tooltip should be shown (not during repeat mode or scrolling)
+        if (target.classList.contains('modbus-packet') && 
+            target.dataset.tooltip && 
+            !this.isRepeatMode &&
+            !logContainer.classList.contains('scrolling')) {
+          currentTooltip = this.showTooltip(target, target.dataset.tooltip);
+        }
+      };
 
-    document.addEventListener('mouseout', (e) => {
-      const target = e.target as HTMLElement;
-      if (target.classList.contains('modbus-packet') && currentTooltip) {
-        this.hideTooltip(currentTooltip);
-        currentTooltip = null;
-      }
-    });
+      this.handleLogContainerMouseOut = (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('modbus-packet') && currentTooltip) {
+          this.hideTooltip(currentTooltip);
+          currentTooltip = null;
+        }
+      };
+      
+      logContainer.addEventListener('mouseover', this.handleLogContainerMouseOver);
+      logContainer.addEventListener('mouseout', this.handleLogContainerMouseOut);
+    }
   }
 
   private showTooltip(element: HTMLElement, content: string): HTMLElement {
@@ -215,14 +231,6 @@ export class LogPanel {
         tooltip.remove();
       }
     }, 150);
-  }
-
-  private handleTooltipMouseOver = () => {
-    // This will be bound to the class instance
-  }
-
-  private handleTooltipMouseOut = () => {
-    // This will be bound to the class instance  
   }
 
   private render(): string {
@@ -1006,13 +1014,23 @@ export class LogPanel {
     // Filter new logs based on current time filter
     const filteredNewLogs = this.filterLogsByTimeRange(newLogs);
     
-    // Append only new logs using appendChild for better performance
+    // Collect new logs that haven't been rendered yet
+    const logsToRender: LogEntry[] = [];
     for (const log of filteredNewLogs) {
       if (!this.renderedLogIds.has(log.id)) {
-        const logElement = this.createLogElement(log);
-        logContainer.appendChild(logElement);
+        logsToRender.push(log);
         this.renderedLogIds.add(log.id);
       }
+    }
+    
+    // Batch DOM operations using DocumentFragment for better performance
+    if (logsToRender.length > 0) {
+      const fragment = document.createDocumentFragment();
+      for (const log of logsToRender) {
+        const logElement = this.createLogElement(log);
+        fragment.appendChild(logElement);
+      }
+      logContainer.appendChild(fragment);
     }
   }
 
@@ -1035,13 +1053,15 @@ export class LogPanel {
     const timestamp = this.formatTimestamp(log.timestamp);
     const directionClass = log.direction === 'send' ? 'send' : 'recv';
     const directionText = log.direction === 'send' ? 'SEND' : 'RECV';
-    const modbusInfo = this.analyzeModbusPacket(log.data);
+    
+    // Disable tooltip analysis during repeat mode for better performance
+    const modbusInfo = this.isRepeatMode ? null : this.analyzeModbusPacket(log.data);
     
     div.innerHTML = `
       <div class="log-timestamp">${timestamp}</div>
       <div class="log-direction ${directionClass}">${directionText}</div>
-      <div class="log-data ${modbusInfo ? 'cursor-help modbus-packet' : ''}" 
-           ${modbusInfo ? `data-tooltip="${modbusInfo.replace(/"/g, '&quot;')}"` : ''}>
+      <div class="log-data ${modbusInfo && !this.isRepeatMode ? 'cursor-help modbus-packet' : ''}" 
+           ${modbusInfo && !this.isRepeatMode ? `data-tooltip="${modbusInfo.replace(/"/g, '&quot;')}"` : ''}>
         ${this.formatLogData(log.data)}
       </div>
       ${log.responseTime ? `<div class="text-xs text-dark-text-muted">${log.responseTime}ms</div>` : ''}
@@ -1074,7 +1094,7 @@ export class LogPanel {
 
   private shouldUseVirtualScrolling(): boolean {
     // Enable virtual scrolling when log count exceeds threshold
-    const VIRTUAL_SCROLL_THRESHOLD = 100; // Lowered for easier testing
+    const VIRTUAL_SCROLL_THRESHOLD = 30; // Optimized for high-frequency 10ms operations
     const shouldUse = this.filteredLogs.length > VIRTUAL_SCROLL_THRESHOLD;
     
     if (shouldUse && !this.useVirtualScrolling) {
