@@ -93,4 +93,8 @@ export class VirtualScrollManager {
     this.config = { ...this.config, ...config };
     this.updateState();
   }
+
+  getConfig(): VirtualScrollConfig {
+    return { ...this.config };
+  }
 }

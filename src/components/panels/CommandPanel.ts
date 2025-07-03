@@ -10,6 +10,8 @@ export class CommandPanel {
   private repeatTimer: NodeJS.Timeout | null = null;
   private isRepeating = false;
   private repeatInterval = 1000; // Default 1 second
+  private startTime = 0; // Track start time for precise timing
+  private expectedNextTime = 0; // Expected time for next execution
   private checkedCommands: Set<string> = new Set(); // Track checked commands
 
   constructor(onCommandSend: (command: string, isRepeating?: boolean) => void, onRepeatModeChanged?: (isRepeating: boolean) => void) {
@@ -158,12 +160,12 @@ export class CommandPanel {
                 id="repeat-interval" 
                 class="input-field text-xs w-20" 
                 value="1000" 
-                min="50" 
+                min="10" 
                 max="999999"
                 step="1"
                 pattern="[0-9]*"
                 placeholder="1000"
-                title="Interval in milliseconds (min 50ms, integers only)">
+                title="Interval in milliseconds (min 10ms, integers only)">
               <span class="text-xs text-dark-text-muted">ms</span>
               <button class="btn-secondary text-xs py-1 px-2" id="toggle-repeat">
                 Start
@@ -269,20 +271,20 @@ export class CommandPanel {
       
       repeatIntervalInput.addEventListener('change', () => {
         const value = parseInt(repeatIntervalInput.value, 10);
-        if (value >= 50 && Number.isInteger(value)) {
+        if (value >= 10 && Number.isInteger(value)) {
           this.repeatInterval = value;
         } else {
-          repeatIntervalInput.value = '50';
-          this.repeatInterval = 50;
-          alert('Minimum interval is 50ms (integers only)');
+          repeatIntervalInput.value = '10';
+          this.repeatInterval = 10;
+          alert('Minimum interval is 10ms (integers only)');
         }
       });
       
       // Also handle input event for real-time validation
       repeatIntervalInput.addEventListener('input', () => {
         const value = parseInt(repeatIntervalInput.value, 10);
-        if (isNaN(value) || value < 50) {
-          repeatIntervalInput.setCustomValidity('Minimum interval is 50ms');
+        if (isNaN(value) || value < 10) {
+          repeatIntervalInput.setCustomValidity('Minimum interval is 10ms');
         } else {
           repeatIntervalInput.setCustomValidity('');
         }
@@ -1351,6 +1353,7 @@ export class CommandPanel {
     }
   }
 
+
   private startRepeatMode(): void {
     const checkedCommands = this.getCheckedCommands();
     if (checkedCommands.length === 0) {
@@ -1360,6 +1363,11 @@ export class CommandPanel {
 
     this.isRepeating = true;
     this.updateToggleButton();
+    this.updateIntervalInputState(); // Disable interval input during repeat mode
+    
+    // Initialize precise timing
+    this.startTime = performance.now();
+    this.expectedNextTime = this.startTime + this.repeatInterval;
     
     // Notify App that repeat mode started
     if (this.onRepeatModeChanged) {
@@ -1377,6 +1385,8 @@ export class CommandPanel {
         return;
       }
       
+      const now = performance.now();
+      
       // Send current command
       const command = checkedCommands[currentIndex];
       this.sendCommandDirectlyWithoutHistory(command);
@@ -1384,8 +1394,15 @@ export class CommandPanel {
       // Move to next command
       currentIndex = (currentIndex + 1) % checkedCommands.length;
       
-      // Schedule next send
-      this.repeatTimer = setTimeout(sendNextCommand, this.repeatInterval);
+      // Calculate drift compensation
+      const drift = now - this.expectedNextTime;
+      const nextDelay = Math.max(0, this.repeatInterval - drift);
+      
+      // Update expected next time
+      this.expectedNextTime = now + nextDelay;
+      
+      // Schedule next send with drift compensation
+      this.repeatTimer = setTimeout(sendNextCommand, nextDelay);
     };
     
     // Start immediately
@@ -1398,7 +1415,13 @@ export class CommandPanel {
       clearTimeout(this.repeatTimer);
       this.repeatTimer = null;
     }
+    
+    // Reset timing variables
+    this.startTime = 0;
+    this.expectedNextTime = 0;
+    
     this.updateToggleButton();
+    this.updateIntervalInputState(); // Enable interval input when stopped
     
     // Notify App that repeat mode stopped (to flush pending logs)
     if (this.onRepeatModeChanged) {
@@ -1413,6 +1436,23 @@ export class CommandPanel {
       toggleButton.className = this.isRepeating ? 
         'btn-secondary text-xs py-1 px-2 bg-red-600 hover:bg-red-700 text-white' : 
         'btn-secondary text-xs py-1 px-2';
+    }
+  }
+
+  private updateIntervalInputState(): void {
+    const repeatIntervalInput = document.getElementById('repeat-interval') as HTMLInputElement;
+    if (repeatIntervalInput) {
+      // Disable input during repeat mode, enable when stopped
+      repeatIntervalInput.disabled = this.isRepeating;
+      
+      // Visual feedback: reduce opacity when disabled
+      if (this.isRepeating) {
+        repeatIntervalInput.style.opacity = '0.5';
+        repeatIntervalInput.style.cursor = 'not-allowed';
+      } else {
+        repeatIntervalInput.style.opacity = '1';
+        repeatIntervalInput.style.cursor = '';
+      }
     }
   }
 

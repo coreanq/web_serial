@@ -4,49 +4,30 @@ import { SimpleCircularBuffer } from './SimpleCircularBuffer';
 export interface LogBufferConfig {
   // CircularBuffer 설정
   bufferSize: number;           // 메모리 버퍼 크기 (기본: 1000)
-  pendingQueueSize: number;     // 대기 중인 export 큐 크기 (기본: 200)
-  autoExportThreshold: number;  // 자동 파일 저장 임계값 (기본: 100)
   
   // 파일 저장 설정
   exportFormat: 'json' | 'csv' | 'txt';  // 파일 형식
-  autoExportEnabled: boolean;   // 자동 저장 활성화
-  exportPath?: string;          // 저장 경로 (브라우저에서는 다운로드)
-  
-  // 성능 설정
-  batchSize: number;           // 일괄 처리 크기 (기본: 100)
-  compressionEnabled: boolean;  // 압축 저장
-  
-  // 비동기 처리 설정
-  maxConcurrentExports: number; // 동시 export 작업 수 (기본: 2)
-  exportRetryAttempts: number;  // export 실패 시 재시도 횟수 (기본: 3)
 }
 
 export class OptimizedLogService {
   private buffer: SimpleCircularBuffer;
   private config: LogBufferConfig;
   private exportedFileCount: number = 0;
-  private pendingExportQueue: LogEntry[] = [];
-  private activeExports: Set<Promise<void>> = new Set();
+  private overflowQueue: LogEntry[] = [];      // 오버플로우된 로그들을 1초마다 저장
+  private autoSaveTimer: NodeJS.Timeout | null = null;  // 1초 타이머
+  private onLogEvicted?: (log: LogEntry) => void; // Object Pool 콜백
 
-  constructor(config?: Partial<LogBufferConfig>) {
+  constructor(config?: Partial<LogBufferConfig>, onLogEvicted?: (log: LogEntry) => void) {
     this.config = {
       bufferSize: 10000,
-      pendingQueueSize: 10000, // Always same as bufferSize
-      autoExportThreshold: 2000,
       exportFormat: 'json',
-      autoExportEnabled: true,
-      batchSize: 100,
-      compressionEnabled: false,
-      maxConcurrentExports: 2,
-      exportRetryAttempts: 3,
       ...config
     };
 
-    // Always keep pendingQueueSize same as bufferSize
-    this.config.pendingQueueSize = this.config.bufferSize;
-
     this.buffer = new SimpleCircularBuffer(this.config.bufferSize);
+    this.onLogEvicted = onLogEvicted;
     this.loadSettings();
+    this.startAutoSaveTimer();
   }
 
   // 설정 로드/저장
@@ -99,65 +80,85 @@ export class OptimizedLogService {
     // SimpleCircularBuffer에 로그 추가
     const evictedLog = this.buffer.add(log);
     
-    // 제거된 로그가 있고 자동 저장이 활성화된 경우 pending queue에 추가
-    if (evictedLog && this.config.autoExportEnabled) {
-      this.pendingExportQueue.push(evictedLog);
-      
-      // Pending queue가 임계값에 도달하면 비동기 export 시작
-      if (this.pendingExportQueue.length >= this.config.autoExportThreshold) {
-        this.triggerAsyncExport();
+    // 제거된 로그가 있는 경우 처리
+    if (evictedLog) {
+      // Object Pool로 반환 (우선순위)
+      if (this.onLogEvicted) {
+        this.onLogEvicted(evictedLog);
       }
+      
+      // 오버플로우 큐에 추가 (1초마다 파일에 저장)
+      this.overflowQueue.push(evictedLog);
     }
   }
 
-  // 비동기 export 트리거
-  private triggerAsyncExport(): void {
-    // 동시 export 작업 수 제한
-    if (this.activeExports.size >= this.config.maxConcurrentExports) {
-      return;
-    }
-    
-    // Export할 로그들 분리 (배치 크기만큼)
-    const logsToExport = this.pendingExportQueue.splice(0, this.config.batchSize);
-    if (logsToExport.length === 0) return;
-    
-    // 비동기 export 실행
-    const exportPromise = this.performAsyncExport(logsToExport);
-    this.activeExports.add(exportPromise);
-    
-    // Export 완료 후 정리
-    exportPromise.finally(() => {
-      this.activeExports.delete(exportPromise);
-      
-      // 더 export할 것이 있다면 재귀 호출
-      if (this.pendingExportQueue.length >= this.config.autoExportThreshold && 
-          this.activeExports.size < this.config.maxConcurrentExports) {
-        this.triggerAsyncExport();
-      }
-    });
+  // 1초마다 오버플로우 로그를 파일에 저장하는 타이머 시작
+  private startAutoSaveTimer(): void {
+    this.autoSaveTimer = setInterval(() => {
+      this.saveOverflowLogs();
+    }, 1000); // 1초마다 실행
   }
 
-  // 실제 비동기 export 수행 (재시도 로직 포함)
-  private async performAsyncExport(logs: LogEntry[], retryCount: number = 0): Promise<void> {
+  // 오버플로우 로그들을 파일에 append
+  private async saveOverflowLogs(): Promise<void> {
+    if (this.overflowQueue.length === 0) return;
+
     try {
-      const filename = `auto_export_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      await this.exportToFile(logs, filename);
+      // 현재 오버플로우 큐의 모든 로그를 가져와서 클리어
+      const logsToSave = [...this.overflowQueue];
+      this.overflowQueue = [];
+
+      // 고정된 파일명으로 append
+      const filename = 'modbus_logs_continuous';
+      await this.appendToFile(logsToSave, filename);
+      
       this.exportedFileCount++;
     } catch (error) {
-      console.error(`Export failed (attempt ${retryCount + 1}):`, error);
-      
-      // 재시도 로직
-      if (retryCount < this.config.exportRetryAttempts) {
-        // 지수 백오프로 재시도 (1초, 2초, 4초...)
-        const delay = Math.pow(2, retryCount) * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return this.performAsyncExport(logs, retryCount + 1);
-      } else {
-        // 최종 실패 시 pending queue 맨 앞에 다시 추가 (데이터 손실 방지)
-        this.pendingExportQueue.unshift(...logs);
-        throw error;
-      }
+      console.error('Failed to save overflow logs:', error);
+      // 실패한 경우 다시 큐에 추가
+      this.overflowQueue.unshift(...this.overflowQueue);
     }
+  }
+
+  // 파일에 append하는 메서드 (기존 파일에 계속 추가)
+  private async appendToFile(logs: LogEntry[], filename: string): Promise<void> {
+    let content: string;
+    let mimeType: string;
+    let fileExtension: string;
+
+    switch (this.config.exportFormat) {
+      case 'csv':
+        content = this.logsToCSV(logs);
+        mimeType = 'text/csv';
+        fileExtension = '.csv';
+        break;
+      
+      case 'txt':
+        content = this.logsToText(logs);
+        mimeType = 'text/plain';
+        fileExtension = '.txt';
+        break;
+      
+      case 'json':
+      default:
+        // JSON은 배열 형태로 저장 (append하기 어려우므로 개별 JSON 라인으로)
+        content = logs.map(log => JSON.stringify(log)).join('\n') + '\n';
+        mimeType = 'application/json';
+        fileExtension = '.jsonl'; // JSON Lines 형식
+        break;
+    }
+
+    // 현재 시간을 포함한 고유 파일명 생성
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const fullFilename = `${filename}_${timestamp}${fileExtension}`;
+
+    // 브라우저에서 파일 다운로드 (append 기능 대신 새 파일 생성)
+    this.downloadFile(content, fullFilename, mimeType);
+  }
+
+  // 모든 로그 가져오기
+  public getAllLogs(): LogEntry[] {
+    return this.buffer.getAllLogs();
   }
 
   // 최신 로그들 가져오기
@@ -184,30 +185,15 @@ export class OptimizedLogService {
     return this.buffer.getStats().size;
   }
 
-  // 강제로 pending queue를 비우기 (수동 호출용)
-  public async flushPendingExports(): Promise<void> {
-    if (this.pendingExportQueue.length === 0) return;
-    
-    // 모든 pending 로그를 한 번에 export
-    const logsToExport = [...this.pendingExportQueue];
-    this.pendingExportQueue = [];
-    
-    try {
-      await this.performAsyncExport(logsToExport);
-    } catch (error) {
-      console.error('Failed to flush pending exports:', error);
-      throw error;
-    }
-  }
 
-  // 수동 파일 저장
+  // 수동 파일 저장 (현재 메모리의 모든 로그)
   public async exportAllLogs(filename?: string): Promise<void> {
     const allLogs = this.buffer.getAllLogs();
     if (allLogs.length === 0) {
       throw new Error('No logs to export');
     }
 
-    const exportFilename = filename || `modbus_logs_${this.formatTimestamp(new Date())}`;
+    const exportFilename = filename || `modbus_logs_manual_${this.formatTimestamp(new Date())}`;
     await this.exportToFile(allLogs, exportFilename);
   }
 
@@ -307,15 +293,14 @@ export class OptimizedLogService {
     return date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
   }
 
-  // 로그 통계 (확장된 메모리 정보 포함)
+  // 로그 통계
   public getStats(): {
     memoryLogs: number;
     totalLogs: number;
     exportedFiles: number;
     memoryUsage: string;
     bufferUtilization: string;
-    pendingExports: number;
-    activeExports: number;
+    pendingOverflow: number;
   } {
     const bufferStats = this.buffer.getStats();
     const allLogs = this.buffer.getAllLogs();
@@ -323,12 +308,11 @@ export class OptimizedLogService {
     
     return {
       memoryLogs: bufferStats.size || 0,
-      totalLogs: (bufferStats.totalCount || 0) + (this.exportedFileCount * this.config.batchSize),
+      totalLogs: bufferStats.totalCount || 0,
       exportedFiles: this.exportedFileCount || 0,
       memoryUsage: `${memoryUsage} MB`,
       bufferUtilization: `${(bufferStats.size / bufferStats.capacity * 100).toFixed(1)}%`,
-      pendingExports: this.pendingExportQueue?.length || 0,
-      activeExports: this.activeExports?.size || 0
+      pendingOverflow: this.overflowQueue?.length || 0
     };
   }
 
@@ -337,19 +321,31 @@ export class OptimizedLogService {
     return {
       buffer: this.buffer.getStats(),
       config: this.config,
-      pendingExportQueue: this.pendingExportQueue.length,
-      activeExports: this.activeExports.size,
+      overflowQueue: this.overflowQueue.length,
       exportedFileCount: this.exportedFileCount
     };
   }
 
   // 로그 지우기
   public clearLogs(): void {
-    this.buffer.clear();
-    this.pendingExportQueue = [];
-    this.exportedFileCount = 0;
+    // 현재 버퍼의 모든 로그를 Object Pool로 반환
+    if (this.onLogEvicted) {
+      const allLogs = this.buffer.getAllLogs();
+      for (const log of allLogs) {
+        this.onLogEvicted(log);
+      }
+    }
     
-    // 활성 export 작업들을 취소하지는 않음 (진행 중인 작업 보호)
+    // 오버플로우 큐의 로그들도 Object Pool로 반환
+    if (this.onLogEvicted) {
+      for (const log of this.overflowQueue) {
+        this.onLogEvicted(log);
+      }
+    }
+    
+    this.buffer.clear();
+    this.overflowQueue = [];
+    this.exportedFileCount = 0;
   }
 
   // 검색 기능
@@ -379,14 +375,22 @@ export class OptimizedLogService {
 
   // 리소스 정리
   public async destroy(): Promise<void> {
-    // 모든 pending exports를 완료
-    await this.flushPendingExports();
+    // 자동 저장 타이머 정지
+    if (this.autoSaveTimer) {
+      clearInterval(this.autoSaveTimer);
+      this.autoSaveTimer = null;
+    }
     
-    // 활성 export 작업들이 완료될 때까지 대기
-    await Promise.allSettled(Array.from(this.activeExports));
+    // 남은 오버플로우 로그들을 마지막으로 저장
+    if (this.overflowQueue.length > 0) {
+      try {
+        await this.saveOverflowLogs();
+      } catch (error) {
+        console.warn('Failed to save final overflow logs:', error);
+      }
+    }
     
     // 리소스 정리
-    this.activeExports.clear();
-    this.pendingExportQueue = [];
+    this.overflowQueue = [];
   }
 }

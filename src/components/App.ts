@@ -3,6 +3,7 @@ import { LogPanel } from './panels/LogPanel';
 import { CommandPanel } from './panels/CommandPanel';
 import { LogSettingsPanel } from './LogSettingsPanel';
 import { AppState, ConnectionStatus } from '../types';
+import { OptimizedLogService } from '../services/OptimizedLogService';
 
 export class App {
   private state: AppState;
@@ -15,6 +16,11 @@ export class App {
   private pendingRepeatLogs: any[] = [];
   private lastLogUpdateTime = 0;
   private logUpdateThrottleMs = 250; // Update logs every 250ms during repeat mode for better sequence visibility
+  private batchSize = 50; // Batch size for log processing
+  private logEntryPool: any[] = []; // Object pool for log entries
+  private maxPoolSize = 500; // Maximum pool size for memory management
+  private gcTimer: NodeJS.Timeout | null = null; // Garbage collection timer
+  private optimizedLogService!: OptimizedLogService; // Central log service with memory limits
 
   constructor() {
     this.state = {
@@ -30,7 +36,6 @@ export class App {
           stopBits: 1
         }
       },
-      logs: [],
       isAutoScroll: true,
       filter: {}
     };
@@ -51,6 +56,12 @@ export class App {
     document.addEventListener('panelBackgroundChange', () => {
       this.updatePanelBackground();
     });
+
+    // Initialize optimized log service with Object Pool callback
+    this.optimizedLogService = new OptimizedLogService(undefined, this.recycleLogEntry.bind(this));
+    
+    // Initialize memory management
+    this.initializeMemoryManagement();
   }
 
   async mount(container: HTMLElement): Promise<void> {
@@ -438,21 +449,21 @@ export class App {
         const currentConnectionType = this.getCurrentConnectionType();
         
         if (currentConnectionType === 'RTU') {
-          // Create log entry
-          const logEntry = {
-            id: Date.now().toString(),
-            timestamp: new Date(),
-            direction: 'send' as const,
-            data: command
-          };
+          // Create log entry using object pool
+          const logEntry = this.createLogEntry(
+            Date.now().toString(),
+            new Date(),
+            'send',
+            command
+          );
           
           if (isRepeating) {
             // Add to pending logs and update with throttling
             this.addToThrottledLogs(logEntry);
           } else {
-            // Immediate update for non-repeating commands
-            this.state.logs.push(logEntry);
-            this.logPanel.updateLogs(this.state.logs);
+            // Immediate update for non-repeating commands using optimized service
+            this.optimizedLogService.addLog(logEntry);
+            this.updateLogPanelFromService();
           }
           
           // Get serial service from connection panel
@@ -467,21 +478,21 @@ export class App {
             // Get the actual data that will be sent (with MBAP header for ModbusTCP)
             const actualSentData = this.getActualTcpData(command);
             
-            // Create log entry
-            const logEntry = {
-              id: Date.now().toString(),
-              timestamp: new Date(),
-              direction: 'send' as const,
-              data: actualSentData
-            };
+            // Create log entry using object pool
+            const logEntry = this.createLogEntry(
+              Date.now().toString(),
+              new Date(),
+              'send',
+              actualSentData
+            );
             
             if (isRepeating) {
               // Add to pending logs and update with throttling
               this.addToThrottledLogs(logEntry);
             } else {
-              // Immediate update for non-repeating commands
-              this.state.logs.push(logEntry);
-              this.logPanel.updateLogs(this.state.logs);
+              // Immediate update for non-repeating commands using optimized service
+              this.optimizedLogService.addLog(logEntry);
+              this.updateLogPanelFromService();
             }
             
             // Send ModbusTCP packet with MBAP header
@@ -497,16 +508,16 @@ export class App {
       
       // Only add error to log if not repeating (errors are rare and should be shown immediately)
       if (!isRepeating) {
-        const errorLogEntry = {
-          id: (Date.now() + 1).toString(),
-          timestamp: new Date(),
-          direction: 'recv' as const,
-          data: '',
-          error: error instanceof Error ? error.message : String(error)
-        };
+        const errorLogEntry = this.createLogEntry(
+          (Date.now() + 1).toString(),
+          new Date(),
+          'recv',
+          '',
+          error instanceof Error ? error.message : String(error)
+        );
         
-        this.state.logs.push(errorLogEntry);
-        this.logPanel.updateLogs(this.state.logs);
+        this.optimizedLogService.addLog(errorLogEntry);
+        this.updateLogPanelFromService();
       }
     }
   }
@@ -514,32 +525,31 @@ export class App {
   private async addToThrottledLogs(logEntry: any): Promise<void> {
     this.pendingRepeatLogs.push(logEntry);
     
-    const now = Date.now();
-    if (now - this.lastLogUpdateTime >= this.logUpdateThrottleMs) {
-      await this.flushThrottledLogs();
+    // Flush based on batch size or time threshold
+    if (this.pendingRepeatLogs.length >= this.batchSize) {
+      await this.flushPendingLogs();
+    } else {
+      const now = Date.now();
+      if (now - this.lastLogUpdateTime >= this.logUpdateThrottleMs) {
+        await this.flushPendingLogs();
+      }
     }
   }
 
   private async flushThrottledLogs(): Promise<void> {
     if (this.pendingRepeatLogs.length === 0) return;
     
-    // Process each pending log individually to ensure proper counting
-    for (const pendingLog of this.pendingRepeatLogs) {
-      // Find the correct position to insert based on timestamp
-      const insertIndex = this.state.logs.findIndex(existingLog => 
-        existingLog.timestamp > pendingLog.timestamp
-      );
-      
-      if (insertIndex === -1) {
-        // No log found with later timestamp, append to end
-        this.state.logs.push(pendingLog);
-      } else {
-        // Insert at the correct chronological position
-        this.state.logs.splice(insertIndex, 0, pendingLog);
-      }
-      
-      // Also add to LogPanel's optimized service for proper counting
-      await this.logPanel.addLog(pendingLog);
+    // Add logs to optimized service instead of state.logs
+    for (const logEntry of this.pendingRepeatLogs) {
+      this.optimizedLogService.addLog(logEntry);
+    }
+    
+    // Update log panel from service
+    this.updateLogPanelFromService();
+    
+    // Recycle objects to pool before clearing
+    for (const logEntry of this.pendingRepeatLogs) {
+      this.recycleLogEntry(logEntry);
     }
     
     // Clear pending logs and update timestamp
@@ -547,10 +557,134 @@ export class App {
     this.lastLogUpdateTime = Date.now();
   }
 
-  private async flushPendingLogs(): Promise<void> {
-    if (this.pendingRepeatLogs.length > 0) {
-      await this.flushThrottledLogs();
+
+  private updateLogPanelFromService(): void {
+    // Get logs from optimized service instead of state.logs
+    const allLogs = this.optimizedLogService.getAllLogs();
+    this.logPanel.updateLogs(allLogs);
+  }
+
+  private initializeMemoryManagement(): void {
+    // Schedule periodic garbage collection every 30 seconds
+    this.gcTimer = setInterval(() => {
+      this.performMemoryCleanup();
+    }, 30000);
+
+    // Listen for page unload to clean up
+    window.addEventListener('beforeunload', () => {
+      this.cleanup();
+    });
+  }
+
+  private createLogEntry(id: string, timestamp: Date, direction: 'send' | 'recv', data: string, error?: string): any {
+    // Try to reuse object from pool
+    let logEntry = this.logEntryPool.pop();
+    
+    if (!logEntry) {
+      // Create new object if pool is empty
+      logEntry = {};
     }
+    
+    // Reset and populate object
+    logEntry.id = id;
+    logEntry.timestamp = timestamp;
+    logEntry.direction = direction;
+    logEntry.data = data;
+    logEntry.error = error;
+    
+    return logEntry;
+  }
+
+  private recycleLogEntry(logEntry: any): void {
+    // Return object to pool if pool size is under limit
+    if (this.logEntryPool.length < this.maxPoolSize) {
+      // Clear references to help GC
+      logEntry.error = undefined;
+      logEntry.data = '';
+      this.logEntryPool.push(logEntry);
+    }
+  }
+
+  private performMemoryCleanup(): void {
+    // Trim pool size if it's grown too large
+    if (this.logEntryPool.length > this.maxPoolSize) {
+      this.logEntryPool = this.logEntryPool.slice(0, this.maxPoolSize);
+    }
+
+    // Force garbage collection if available (development only)
+    if (typeof window.gc === 'function') {
+      window.gc();
+    }
+  }
+
+  private cleanup(): void {
+    // Clear timers
+    if (this.gcTimer) {
+      clearInterval(this.gcTimer);
+      this.gcTimer = null;
+    }
+
+    // Clear object pool
+    this.logEntryPool = [];
+    this.pendingRepeatLogs = [];
+  }
+
+  // Complete application shutdown and resource cleanup
+  public async destroy(): Promise<void> {
+    try {
+      // Clean up OptimizedLogService first (flushes pending exports)
+      if (this.optimizedLogService) {
+        await this.optimizedLogService.destroy();
+      }
+
+      // Clean up child components
+      if (this.connectionPanel) {
+        // Disconnect any active connections (if connection exists)
+        try {
+          const serialService = this.connectionPanel.getSerialService?.();
+          if (serialService && serialService.getConnectionStatus()) {
+            await serialService.disconnect();
+          }
+          
+          const tcpService = this.connectionPanel.getTcpNativeService?.();
+          if (tcpService && tcpService.isTcpConnected()) {
+            await tcpService.disconnect();
+          }
+        } catch (error) {
+          console.warn('[App] Error disconnecting services:', error);
+        }
+      }
+
+      if (this.logPanel && typeof this.logPanel.destroy === 'function') {
+        this.logPanel.destroy();
+      }
+
+      if (this.commandPanel && typeof this.commandPanel.destroy === 'function') {
+        this.commandPanel.destroy();
+      }
+
+      if (this.logSettingsPanel && typeof this.logSettingsPanel.destroy === 'function') {
+        this.logSettingsPanel.destroy();
+      }
+
+      // Remove global event listeners
+      document.removeEventListener('panelBackgroundChange', this.updatePanelBackground);
+      window.removeEventListener('beforeunload', this.cleanup);
+
+      // Clear all timers and intervals
+      this.cleanup();
+
+      // Final memory cleanup
+      this.performMemoryCleanup();
+
+      console.log('[App] Destroyed successfully');
+    } catch (error) {
+      console.error('[App] Error during destroy:', error);
+    }
+  }
+
+  private async flushPendingLogs(): Promise<void> {
+    await this.flushThrottledLogs();
   }
 
   private async onRepeatModeChanged(isRepeating: boolean): Promise<void> {
@@ -564,14 +698,28 @@ export class App {
   }
 
   private onLogsClear(): void {
-    // Clear all logs including pending repeat logs
-    this.state.logs = [];
+    // Clear optimized service instead of state.logs
+    this.optimizedLogService.clearLogs();
+    
+    // Recycle pending repeat logs to pool before clearing
+    for (const log of this.pendingRepeatLogs) {
+      this.recycleLogEntry(log);
+    }
+    
+    // Clear pending repeat logs
     this.pendingRepeatLogs = [];
     this.lastLogUpdateTime = 0;
     
-    // Update the log panel
-    this.logPanel.updateLogs(this.state.logs);
+    // Reset incremental rendering tracking in App level
+    this.resetIncrementalTracking();
     
+    // Update the log panel from service
+    this.updateLogPanelFromService();
+  }
+
+  private resetIncrementalTracking(): void {
+    // Reset any App-level tracking variables related to incremental rendering
+    // This ensures clean state for next logging session
   }
 
   private getCurrentConnectionType(): 'RTU' | 'TCP_NATIVE' {
@@ -606,21 +754,17 @@ export class App {
   }
 
   private async onDataReceived(data: string): Promise<void> {
-    // Flush any pending repeat logs first to maintain chronological order
-    if (this.pendingRepeatLogs.length > 0) {
-      await this.flushThrottledLogs();
-    }
+    // Add received data to log immediately using object pool
+    const logEntry = this.createLogEntry(
+      Date.now().toString(),
+      new Date(),
+      'recv',
+      data
+    );
     
-    // Add received data to log immediately
-    const logEntry = {
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      direction: 'recv' as const,
-      data: data
-    };
-    
-    this.state.logs.push(logEntry);
-    this.logPanel.updateLogs(this.state.logs);
+    // Use optimized service instead of state.logs
+    this.optimizedLogService.addLog(logEntry);
+    this.updateLogPanelFromService();
   }
 
   private updateStatus(): void {
@@ -639,7 +783,7 @@ export class App {
   private showGlobalSettings(): void {
     // Initialize LogSettingsPanel if not already created
     if (!this.logSettingsPanel) {
-      this.logSettingsPanel = new LogSettingsPanel(this.logPanel.getOptimizedLogService());
+      this.logSettingsPanel = new LogSettingsPanel(this.optimizedLogService);
     }
     
     this.logSettingsPanel.show();

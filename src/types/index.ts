@@ -110,7 +110,6 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 export interface AppState {
   connectionStatus: ConnectionStatus;
   connectionConfig: ConnectionConfig;
-  logs: LogEntry[];
   isAutoScroll: boolean;
   filter: LogFilter;
 }
