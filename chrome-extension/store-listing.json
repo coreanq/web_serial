@@ -1,0 +1,44 @@
+{
+  "name": "Modbus Protocol Analyzer",
+  "short_description": "Professional Modbus RTU/TCP debugging tool with real-time packet analysis",
+  "detailed_description": "A powerful Chrome extension for debugging and analyzing Modbus communication protocols. Supports both RTU (Serial) and TCP communication modes with real-time packet analysis, advanced logging, and comprehensive debugging tools.\n\nKey Features:\n• RTU (Serial) communication via Web Serial API\n• TCP Native communication via Native Messaging\n• Real-time packet logging with virtual scrolling\n• Modbus command generator with GUI\n• Advanced log management with IndexedDB storage\n• Multi-language support (Korean/English)\n• Professional debugging tools\n• Response time analysis and statistics\n• Automatic CRC calculation and validation\n• Export logs in multiple formats (JSON, CSV, TXT)\n\nSupported Modbus Functions:\n• Read Coils (0x01)\n• Read Discrete Inputs (0x02)\n• Read Holding Registers (0x03)\n• Read Input Registers (0x04)\n• Write Single Coil (0x05)\n• Write Single Register (0x06)\n• Write Multiple Coils (0x0F)\n• Write Multiple Registers (0x10)\n\nPerfect for industrial automation engineers, system integrators, and developers working with Modbus devices.",
+  "category": "Developer Tools",
+  "language": "en",
+  "keywords": [
+    "modbus",
+    "protocol",
+    "analyzer",
+    "debugging",
+    "serial",
+    "tcp",
+    "rtu",
+    "industrial",
+    "automation",
+    "developer tools"
+  ],
+  "screenshots": {
+    "desktop": [
+      "screenshots/main-dashboard.png",
+      "screenshots/connection-panel.png",
+      "screenshots/command-panel.png",
+      "screenshots/log-panel.png",
+      "screenshots/settings-panel.png"
+    ]
+  },
+  "promotional_images": {
+    "small_tile": "promotional/small-tile-440x280.png",
+    "large_tile": "promotional/large-tile-920x680.png",
+    "marquee": "promotional/marquee-1400x560.png"
+  },
+  "permissions_justification": {
+    "nativeMessaging": "Required for TCP communication through Native Messaging Host",
+    "storage": "Required for saving user settings and log configurations",
+    "tabs": "Required for extension functionality and tab management"
+  },
+  "single_purpose": "This extension serves the single purpose of debugging and analyzing Modbus communication protocols.",
+  "support": {
+    "website": "https://github.com/your-org/web_serial",
+    "email": "support@your-domain.com"
+  },
+  "privacy_policy": "https://github.com/your-org/web_serial/blob/main/PRIVACY.md"
+}

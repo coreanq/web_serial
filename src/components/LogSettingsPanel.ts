@@ -5,10 +5,17 @@ export class LogSettingsPanel {
   private logService: OptimizedLogService;
   private container: HTMLElement;
   private isVisible: boolean = false;
+  private onClearCallback?: () => void;
 
   constructor(logService: OptimizedLogService) {
     this.logService = logService;
     this.container = this.createSettingsPanel();
+  }
+
+  public setClearCallback(callback: () => void): void {
+    console.log('LogSettingsPanel.setClearCallback called'); // Debug log
+    this.onClearCallback = callback;
+    console.log('Callback set successfully:', !!this.onClearCallback); // Debug log
   }
 
   private createSettingsPanel(): HTMLElement {
@@ -315,28 +322,46 @@ export class LogSettingsPanel {
 
 
   private async clearLogs(): Promise<void> {
-    if (confirm(i18n.t('log.settings.confirmClearMemory'))) {
-      try {
-        this.logService.clearLogs(); // 동기 메서드
-        this.updateStats();
-        this.showNotification(i18n.t('log.settings.memoryLogsCleared'), 'success');
-      } catch (error) {
-        this.showNotification(i18n.t('log.settings.memoryClearError'), 'error');
-        console.error('Failed to clear memory logs:', error);
+    console.log('LogSettingsPanel.clearLogs called'); // Debug log
+    console.log('onClearCallback available:', !!this.onClearCallback); // Debug log
+    
+    try {
+      // Call App's clear functionality if available
+      if (this.onClearCallback) {
+        console.log('Calling onClearCallback from LogSettingsPanel'); // Debug log
+        this.onClearCallback();
+      } else {
+        console.log('No callback available, using direct service call'); // Debug log
+        // Fallback to direct service call
+        this.logService.clearLogs();
       }
+      this.updateStats();
+      this.showNotification(i18n.t('log.settings.memoryLogsCleared'), 'success');
+    } catch (error) {
+      this.showNotification(i18n.t('log.settings.memoryClearError'), 'error');
+      console.error('Failed to clear memory logs:', error);
     }
   }
 
   private async clearAllLogs(): Promise<void> {
-    if (confirm(i18n.t('log.settings.confirmClearAll'))) {
-      try {
+    console.log('LogSettingsPanel.clearAllLogs called'); // Debug log
+    console.log('onClearCallback available:', !!this.onClearCallback); // Debug log
+    
+    try {
+      // Call App's clear functionality if available
+      if (this.onClearCallback) {
+        console.log('Calling onClearCallback from LogSettingsPanel (clearAll)'); // Debug log
+        this.onClearCallback();
+      } else {
+        console.log('No callback available, using direct service call (clearAll)'); // Debug log
+        // Fallback to direct service call
         await this.logService.clearAllLogs();
-        this.updateStats();
-        this.showNotification(i18n.t('log.settings.allLogsCleared'), 'success');
-      } catch (error) {
-        this.showNotification(i18n.t('log.settings.allClearError'), 'error');
-        console.error('Failed to clear all logs:', error);
       }
+      this.updateStats();
+      this.showNotification(i18n.t('log.settings.allLogsCleared'), 'success');
+    } catch (error) {
+      this.showNotification(i18n.t('log.settings.allClearError'), 'error');
+      console.error('Failed to clear all logs:', error);
     }
   }
 

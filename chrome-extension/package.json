@@ -1,7 +1,7 @@
 {
-  "name": "modbus-debugger-chrome-extension",
+  "name": "modbus-analyzer-chrome-extension",
   "version": "1.0.0",
-  "description": "Chrome extension for Modbus Protocol Debugging with Web Serial API and Native Messaging",
+  "description": "Chrome extension for Modbus Protocol Analyzer with Web Serial API and Native Messaging",
   "main": "dist/background.js",
   "scripts": {
     "build": "NODE_ENV=production bun run vite build",
@@ -9,7 +9,11 @@
     "clean": "rm -rf dist",
     "lint": "bun run eslint ../src --ext .ts,.tsx",
     "lint:fix": "bun run eslint ../src --ext .ts,.tsx --fix",
-    "typecheck": "bun run tsc --noEmit"
+    "typecheck": "bun run tsc --noEmit",
+    "pack": "node scripts/build-extension.js",
+    "pack:dev": "bun run build && bun run pack:zip",
+    "pack:zip": "cd dist && zip -r ../modbus-analyzer-extension-v$(node -p \"require('../package.json').version\").zip . -x '*.map' '*.DS_Store' 'node_modules/*'",
+    "pack:clean": "rm -f modbus-analyzer-extension-v*.zip && rm -rf dist"
   },
   "keywords": [
     "chrome-extension",

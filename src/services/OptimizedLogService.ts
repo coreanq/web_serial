@@ -330,6 +330,8 @@ export class OptimizedLogService {
 
   // 로그 지우기 (메모리만 - IndexedDB는 유지)
   public clearLogs(): void {
+    console.log('OptimizedLogService.clearLogs called'); // Debug log
+    
     // 현재 버퍼의 모든 로그를 Object Pool로 반환
     if (this.onLogEvicted) {
       const allLogs = this.buffer.getAllLogs();
@@ -338,7 +340,20 @@ export class OptimizedLogService {
       }
     }
     
+    // 오버플로우 큐도 지우기
+    if (this.overflowQueue.length > 0) {
+      console.log(`Clearing ${this.overflowQueue.length} overflow logs`); // Debug log
+      this.overflowQueue = [];
+    }
+    
+    // 플러시 타이머 정리
+    if (this.flushTimeout) {
+      clearTimeout(this.flushTimeout);
+      this.flushTimeout = null;
+    }
+    
     this.buffer.clear();
+    console.log('OptimizedLogService buffer cleared'); // Debug log
   }
 
   // 모든 로그 지우기 (메모리 + IndexedDB)

@@ -196,11 +196,12 @@ export class App {
       // Clear logs button
       const clearButton = document.getElementById('clear-logs');
       clearButton?.addEventListener('click', () => {
+        console.log('Clear logs button clicked'); // Debug log
         this.onLogsClear();
       });
 
       // Log settings button removed
-    }, 0);
+    }, 50); // Increase timeout to ensure DOM is ready
   }
 
   private async mountChildComponents(): Promise<void> {
@@ -571,6 +572,7 @@ export class App {
   private updateLogPanelFromService(): void {
     // Get logs from optimized service instead of state.logs
     const allLogs = this.optimizedLogService.getAllLogs();
+    console.log(`Updating LogPanel with ${allLogs.length} logs from service`); // Debug log
     this.logPanel.updateLogs(allLogs);
   }
 
@@ -708,8 +710,11 @@ export class App {
   }
 
   private onLogsClear(): void {
+    console.log('onLogsClear called'); // Debug log
+    
     // Clear optimized service instead of state.logs
     this.optimizedLogService.clearLogs();
+    console.log('OptimizedLogService cleared'); // Debug log
     
     // Recycle pending repeat logs to pool before clearing
     for (const log of this.pendingRepeatLogs) {
@@ -723,8 +728,12 @@ export class App {
     // Reset incremental rendering tracking in App level
     this.resetIncrementalTracking();
     
-    // Update the log panel from service
+    // Force update the log panel from service with empty data
     this.updateLogPanelFromService();
+    console.log('Log panel updated from service'); // Debug log
+    
+    // Force LogPanel to refresh its display
+    this.logPanel.clearLogs();
   }
 
   private resetIncrementalTracking(): void {
@@ -794,6 +803,9 @@ export class App {
     // Initialize LogSettingsPanel if not already created
     if (!this.logSettingsPanel) {
       this.logSettingsPanel = new LogSettingsPanel(this.optimizedLogService);
+      // Set the clear callback after creating the panel
+      console.log('Setting clear callback for LogSettingsPanel from App'); // Debug log
+      this.logSettingsPanel.setClearCallback(this.onLogsClear.bind(this));
     }
     
     this.logSettingsPanel.show();

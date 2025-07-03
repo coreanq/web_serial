@@ -34,6 +34,14 @@ export class LogPanel {
     this.optimizedLogService = new OptimizedLogService();
     this.logSettingsPanel = new LogSettingsPanel(this.optimizedLogService);
     
+    // Set clear callback if already available
+    if (this.onClearLogs) {
+      console.log('Setting callback in mount - callback available'); // Debug log
+      this.logSettingsPanel.setClearCallback(this.onClearLogs);
+    } else {
+      console.log('Setting callback in mount - no callback available yet'); // Debug log
+    }
+    
     container.innerHTML = this.render();
     this.attachEventListeners();
     this.addCustomStyles();
@@ -51,7 +59,15 @@ export class LogPanel {
   }
 
   setClearLogsCallback(callback: () => void): void {
+    console.log('LogPanel.setClearLogsCallback called'); // Debug log
     this.onClearLogs = callback;
+    // Also set the callback for LogSettingsPanel
+    if (this.logSettingsPanel) {
+      console.log('Setting callback for LogSettingsPanel'); // Debug log
+      this.logSettingsPanel.setClearCallback(callback);
+    } else {
+      console.log('LogSettingsPanel not available yet'); // Debug log
+    }
   }
 
   setConnectionType(type: 'RTU' | 'TCP_NATIVE'): void {
@@ -944,14 +960,6 @@ export class LogPanel {
 
     // Handle scroll events
     logContainer.addEventListener('scroll', (e) => {
-      
-      // Check if auto scroll is enabled - if so, prevent user scrolling
-      const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
-      if (autoScrollCheckbox?.checked) {
-        // Auto scroll is enabled - prevent user interaction
-        e.preventDefault();
-        return;
-      }
 
       // Disable hover during scroll
       if (!isScrolling) {
@@ -1222,15 +1230,32 @@ export class LogPanel {
     this.logs = [];
     this.filteredLogs = [];
     
-    // Reset scroll position to top
+    // Reset scroll position to top immediately and after DOM update
     const logContainer = document.getElementById('log-container');
     if (logContainer) {
       logContainer.scrollTop = 0;
+      
+      // Use multiple frames to ensure scroll position is maintained during DOM updates
+      requestAnimationFrame(() => {
+        logContainer.scrollTop = 0;
+        requestAnimationFrame(() => {
+          logContainer.scrollTop = 0;
+        });
+      });
     }
     
     // Force complete DOM refresh immediately
     this.forceRefreshDisplay();
     // Log count display has been removed
+    
+    // Additional scroll reset after DOM refresh
+    setTimeout(() => {
+      const logContainer = document.getElementById('log-container');
+      if (logContainer) {
+        logContainer.scrollTop = 0;
+        console.log('Post-refresh scroll reset:', logContainer.scrollTop); // Debug log
+      }
+    }, 50);
     
     // Ensure auto scroll is enabled after clearing
     this.isAutoScroll = true;
@@ -1247,9 +1272,9 @@ export class LogPanel {
       
       // Re-render based on current state
       if (this.logs.length === 0) {
-        // Show empty state
+        // Show empty state without taking full height
         logContainer.innerHTML = `
-          <div class="flex items-center justify-center h-full text-dark-text-muted">
+          <div class="flex items-center justify-center py-8 text-dark-text-muted">
             <div class="text-center">
               <div class="text-4xl mb-4">📡</div>
               <p>No communication logs yet</p>
@@ -1432,15 +1457,30 @@ export class LogPanel {
     const isAutoScrollEnabled = autoScrollCheckbox?.checked ?? this.isAutoScroll;
     
     if (isAutoScrollEnabled) {
-      // Auto scroll to bottom when new logs are added
-      // Use setTimeout to ensure it happens after virtual scroll updates
-      setTimeout(() => {
-        // Triple check before scrolling to prevent unwanted scrolling
-        const currentAutoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
-        if (currentAutoScrollCheckbox?.checked) {
-          this.scrollToBottom();
+      // Only auto scroll if we have enough logs to justify scrolling
+      // This prevents scrolling to bottom when there are only a few logs after clear
+      const logContainer = document.getElementById('log-container');
+      if (logContainer && this.filteredLogs.length > 0) {
+        // Check if content height exceeds container height
+        const contentHeight = logContainer.scrollHeight;
+        const containerHeight = logContainer.clientHeight;
+        
+        // Only scroll if content actually overflows the container
+        if (contentHeight > containerHeight) {
+          // Use setTimeout to ensure it happens after virtual scroll updates
+          setTimeout(() => {
+            // Triple check before scrolling to prevent unwanted scrolling
+            const currentAutoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
+            if (currentAutoScrollCheckbox?.checked) {
+              this.scrollToBottom();
+            }
+          }, 10);
+        } else {
+          // If content doesn't overflow, ensure we're at the top for clear visibility
+          // This happens right after clear when we have few logs
+          logContainer.scrollTop = 0;
         }
-      }, 10);
+      }
     }
   }
 
