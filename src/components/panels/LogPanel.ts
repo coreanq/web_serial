@@ -47,10 +47,7 @@ export class LogPanel {
     // Initialize filtered logs with current time filter
     this.applyCurrentTimeFilter();
     
-    // Initialize log count display after DOM is ready
-    setTimeout(() => {
-      this.updateLogCount();
-    }, 0);
+    // Log count display has been removed
   }
 
   setClearLogsCallback(callback: () => void): void {
@@ -259,7 +256,6 @@ export class LogPanel {
           </div>
 
           <div class="flex items-center justify-start gap-2 text-sm text-dark-text-secondary">
-            <span id="log-count">0 entries</span>
           </div>
         </div>
 
@@ -919,25 +915,8 @@ export class LogPanel {
   }
 
   private updateLogCount(): void {
-    const logCountElement = document.getElementById('log-count');
-    
-    if (logCountElement) {
-      if (this.useOptimizedService) {
-        this.optimizedLogService.getStats().then(stats => {
-          const totalLogs = stats.totalLogs || 0;
-          logCountElement.textContent = `${totalLogs.toLocaleString()} entries`;
-        });
-      } else {
-        const totalLogs = this.logs.length;
-        const filteredLogs = this.filteredLogs.length;
-        
-        if (totalLogs === filteredLogs) {
-          logCountElement.textContent = `${totalLogs} entries`;
-        } else {
-          logCountElement.textContent = `${filteredLogs} / ${totalLogs} entries (filtered)`;
-        }
-      }
-    }
+    // Log count display has been removed from UI
+    // This method is kept for backward compatibility but does nothing
   }
 
   private scrollToBottom(): void {
@@ -1226,35 +1205,38 @@ export class LogPanel {
   }
 
   public clearLogs(): void {
-    if (confirm('Are you sure you want to clear all logs?')) {
-      // Reset all tracking variables for incremental rendering
-      this.lastRenderedCount = 0;
-      this.renderedLogIds.clear();
-      
-      // Reset Virtual Scrolling state
-      if (this.virtualScrollManager) {
-        this.virtualScrollManager.setData([]);
-      }
-      this.useVirtualScrolling = false;
-      
-      // Reset filtered logs
-      this.filteredLogs = [];
-      
-      // Notify App to clear all logs (including pending repeat logs)
-      if (this.onClearLogs) {
-        this.onClearLogs();
-      } else {
-        // Fallback to clearing only local logs if no callback is set
-        this.logs = [];
-        this.refreshLogDisplay();
-        this.updateLogCount();
-      }
-      
-      // Force complete DOM refresh after clearing
-      setTimeout(() => {
-        this.forceRefreshDisplay();
-      }, 0);
+    console.log('LogPanel.clearLogs called'); // Debug log
+    
+    // Reset all tracking variables for incremental rendering
+    this.lastRenderedCount = 0;
+    this.renderedLogIds.clear();
+    
+    // Reset Virtual Scrolling state
+    if (this.virtualScrollManager) {
+      this.virtualScrollManager.setData([]);
+      this.virtualScrollManager.setScrollTop(0); // Reset scroll position
     }
+    this.useVirtualScrolling = false;
+    
+    // Clear local log arrays
+    this.logs = [];
+    this.filteredLogs = [];
+    
+    // Reset scroll position to top
+    const logContainer = document.getElementById('log-container');
+    if (logContainer) {
+      logContainer.scrollTop = 0;
+    }
+    
+    // Force complete DOM refresh immediately
+    this.forceRefreshDisplay();
+    // Log count display has been removed
+    
+    // Ensure auto scroll is enabled after clearing
+    this.isAutoScroll = true;
+    this.updateAutoScrollCheckbox();
+    
+    console.log('LogPanel cleared and refreshed'); // Debug log
   }
 
   private forceRefreshDisplay(): void {
@@ -1379,8 +1361,7 @@ export class LogPanel {
     // Render updated logs
     this.renderRegularScrollLogs();
     
-    // Update log count
-    this.updateLogCount();
+    // Log count display has been removed
     
     // Handle auto scroll
     this.handleAutoScroll();
@@ -1426,7 +1407,7 @@ export class LogPanel {
     // Update tracking variables
     this.lastRenderedCount = logs.length;
     
-    this.updateLogCount();
+    // Log count display has been removed
     
     // Re-setup tooltip positioning for new log entries
     this.setupTooltipPositioning();
@@ -1573,7 +1554,7 @@ export class LogPanel {
     
     // Update display
     this.refreshLogDisplay();
-    this.updateLogCount();
+    // Log count display has been removed
     
     // Update time filter button text to show active filter
     const timeFilterButton = document.getElementById('time-filter-btn');
