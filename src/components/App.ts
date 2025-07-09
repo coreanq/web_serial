@@ -12,7 +12,9 @@ export class App {
   private logPanel: LogPanel;
   private commandPanel: CommandPanel;
   private logSettingsPanel: LogSettingsPanel | null = null;
-  private connectionPanelPosition: 'top' | 'left' | 'right' = 'left';
+  private connectionPanelPosition: 'top' | 'left' | 'right' = 'right';
+  private mainContentLayout: 'command-left' | 'command-right' = 'command-left';
+  private currentTheme: 'light' | 'dark' = 'light';
   private connectionPanelVisible: boolean = true;
   private pendingRepeatLogs: any[] = [];
   private lastLogUpdateTime = 0;
@@ -40,6 +42,9 @@ export class App {
       isAutoScroll: true,
       filter: {}
     };
+    
+    // Load saved UI settings
+    this.loadUISettings();
 
     // Initialize panels
     this.connectionPanel = new ConnectionPanel(
@@ -68,6 +73,11 @@ export class App {
     i18n.onLanguageChange(() => {
       this.onLanguageChange();
     });
+    
+    // Save UI settings when page unloads
+    window.addEventListener('beforeunload', () => {
+      this.saveUISettings();
+    });
   }
 
   async mount(container: HTMLElement): Promise<void> {
@@ -89,13 +99,13 @@ export class App {
     console.log('render() called, connectionPanelPosition:', this.connectionPanelPosition);
     
     return `
-      <div class="min-h-screen bg-dark-bg p-4">
+      <div class="min-h-screen ${this.getThemeClasses().background} p-4">
         <div class="max-w-7xl mx-auto">
           <!-- Header with Controls -->
           <header class="text-center py-4 mb-4">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-4">
-                <h1 class="text-2xl font-bold text-dark-text-primary">
+                <h1 class="text-2xl font-bold ${this.getThemeClasses().textPrimary}">
                   🔧 ${i18n.t('app.title')}
                 </h1>
               </div>
@@ -103,21 +113,32 @@ export class App {
               <!-- Panel Controls -->
               <div class="flex items-center gap-3">
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-dark-text-muted">${i18n.t('panel.position')}:</span>
                   <select id="panel-position" class="input-field btn-sm">
                     <option value="top" ${this.connectionPanelPosition === 'top' ? 'selected' : ''}>📍 ${i18n.t('panel.top')}</option>
                     <option value="left" ${this.connectionPanelPosition === 'left' ? 'selected' : ''}>⬅️ ${i18n.t('panel.left')}</option>
                     <option value="right" ${this.connectionPanelPosition === 'right' ? 'selected' : ''}>➡️ ${i18n.t('panel.right')}</option>
+                    <option value="hide">🚫 ${i18n.t('panel.hide')}</option>
                   </select>
                 </div>
-                <button id="toggle-connection-panel" class="btn-secondary btn-sm">
-                  ${this.connectionPanelVisible ? '🔼 ' + i18n.t('panel.hide') : '🔽 ' + i18n.t('panel.show')}
-                </button>
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-dark-text-muted">${i18n.t('common.language')}:</span>
+                  <select id="main-layout" class="input-field btn-sm">
+                    <option value="command-left" ${this.mainContentLayout === 'command-left' ? 'selected' : ''}>⬅️ ${i18n.t('panel.commandLeft')}</option>
+                    <option value="command-right" ${this.mainContentLayout === 'command-right' ? 'selected' : ''}>➡️ ${i18n.t('panel.commandRight')}</option>
+                  </select>
+                </div>
+                ${!this.connectionPanelVisible ? `<button id="show-connection-panel" class="btn-secondary btn-sm">
+                  🔽 ${i18n.t('panel.show')}
+                </button>` : ''}
+                <div class="flex items-center gap-2">
                   <select id="language-selector" class="input-field btn-sm">
                     <option value="en" ${i18n.getCurrentLanguage() === 'en' ? 'selected' : ''}>🇺🇸 English</option>
                     <option value="ko" ${i18n.getCurrentLanguage() === 'ko' ? 'selected' : ''}>🇰🇷 한국어</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2">
+                  <select id="theme-selector" class="input-field btn-sm">
+                    <option value="dark" ${this.currentTheme === 'dark' ? 'selected' : ''}>🌙 ${i18n.t('common.dark')}</option>
+                    <option value="light" ${this.currentTheme === 'light' ? 'selected' : ''}>☀️ ${i18n.t('common.light')}</option>
                   </select>
                 </div>
                 <button id="global-settings" class="btn-secondary btn-sm" title="${i18n.t('common.settings')}">
@@ -128,7 +149,7 @@ export class App {
             
             <div class="flex items-center justify-center gap-2">
               <div class="status-indicator ${this.getStatusClass()}"></div>
-              <span class="text-sm text-dark-text-secondary">
+              <span class="text-sm ${this.getThemeClasses().textSecondary}">
                 ${this.getStatusText()}
               </span>
             </div>
@@ -151,11 +172,23 @@ export class App {
     positionSelect?.addEventListener('change', (e) => {
       this.connectionPanelPosition = (e.target as HTMLSelectElement).value as 'top' | 'left' | 'right';
       this.updateLayout();
+      this.saveUISettings();
     });
     
-    toggleButton?.addEventListener('click', () => {
-      this.connectionPanelVisible = !this.connectionPanelVisible;
+    // Main content layout controls
+    const mainLayoutSelect = document.getElementById('main-layout') as HTMLSelectElement;
+    mainLayoutSelect?.addEventListener('change', (e) => {
+      this.mainContentLayout = (e.target as HTMLSelectElement).value as 'command-left' | 'command-right';
       this.updateLayout();
+      this.saveUISettings();
+    });
+    
+    // Show connection panel button (only appears when panel is hidden)
+    const showButton = document.getElementById('show-connection-panel');
+    showButton?.addEventListener('click', () => {
+      this.connectionPanelVisible = true;
+      this.updateLayout();
+      this.saveUISettings();
     });
 
     // Language selector
@@ -164,6 +197,13 @@ export class App {
       const selectedLanguage = (e.target as HTMLSelectElement).value as 'en' | 'ko';
       i18n.setLanguage(selectedLanguage);
       this.onLanguageChange();
+    });
+    
+    // Theme selector
+    const themeSelector = document.getElementById('theme-selector') as HTMLSelectElement;
+    themeSelector?.addEventListener('change', (e) => {
+      const selectedTheme = (e.target as HTMLSelectElement).value as 'light' | 'dark';
+      this.setTheme(selectedTheme);
     });
 
     // Global settings button
@@ -186,6 +226,7 @@ export class App {
       minimizeButton?.addEventListener('click', () => {
         this.connectionPanelVisible = false;
         this.updateLayout();
+        this.saveUISettings();
       });
     }, 0);
   }
@@ -249,15 +290,15 @@ export class App {
     switch (this.connectionPanelPosition) {
       case 'left':
         return `
-          <div class="grid ${this.connectionPanelVisible ? 'grid-cols-1 xl:grid-cols-5' : 'grid-cols-1'} gap-4 h-screen-adjusted">
+          <div class="grid ${this.connectionPanelVisible ? 'grid-cols-1 lg:grid-cols-5' : 'grid-cols-1'} gap-4 h-screen-adjusted">
             ${this.connectionPanelVisible ? `
               <!-- Left Connection Panel -->
-              <div class="xl:col-span-1 h-full">
+              <div class="lg:col-span-1 h-full">
                 ${connectionPanel}
               </div>
               
               <!-- Main Content -->
-              <div class="xl:col-span-4 h-full">
+              <div class="lg:col-span-4 h-full">
                 ${this.renderMainContent()}
               </div>
             ` : `
@@ -271,15 +312,15 @@ export class App {
         
       case 'right':
         return `
-          <div class="grid ${this.connectionPanelVisible ? 'grid-cols-1 xl:grid-cols-5' : 'grid-cols-1'} gap-4 h-screen-adjusted">
+          <div class="grid ${this.connectionPanelVisible ? 'grid-cols-1 lg:grid-cols-5' : 'grid-cols-1'} gap-4 h-screen-adjusted">
             ${this.connectionPanelVisible ? `
               <!-- Main Content -->
-              <div class="xl:col-span-4 h-full">
+              <div class="lg:col-span-4 h-full">
                 ${this.renderMainContent()}
               </div>
               
               <!-- Right Connection Panel -->
-              <div class="xl:col-span-1 h-full">
+              <div class="lg:col-span-1 h-full">
                 ${connectionPanel}
               </div>
             ` : `
@@ -299,20 +340,28 @@ export class App {
           </div>
         `;
         
-      default:
-        console.warn('Unknown panel position:', this.connectionPanelPosition, 'defaulting to left');
-        // Force left position for unknown values
-        this.connectionPanelPosition = 'left';
+      case 'hide':
         return `
-          <div class="grid ${this.connectionPanelVisible ? 'grid-cols-1 xl:grid-cols-5' : 'grid-cols-1'} gap-4 h-screen-adjusted">
+          <div class="h-screen-adjusted">
+            ${connectionPanel}
+            ${this.renderMainContent()}
+          </div>
+        `;
+        
+      default:
+        console.warn('Unknown panel position:', this.connectionPanelPosition, 'defaulting to right');
+        // Force right position for unknown values
+        this.connectionPanelPosition = 'right';
+        return `
+          <div class="grid ${this.connectionPanelVisible ? 'grid-cols-1 lg:grid-cols-5' : 'grid-cols-1'} gap-4 h-screen-adjusted">
             ${this.connectionPanelVisible ? `
               <!-- Left Connection Panel -->
-              <div class="xl:col-span-1 h-full">
+              <div class="lg:col-span-1 h-full">
                 ${connectionPanel}
               </div>
               
               <!-- Main Content -->
-              <div class="xl:col-span-4 h-full">
+              <div class="lg:col-span-4 h-full">
                 ${this.renderMainContent()}
               </div>
             ` : `
@@ -327,39 +376,75 @@ export class App {
   }
 
   private renderMainContent(): string {
-    return `
-      <!-- Main Layout: Log Panel (left) + Command Panel (right) -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <!-- Log Panel with fixed height -->
-        <div class="lg:col-span-2">
-          <div id="log-panel" class="panel panel-fixed">
-            <div class="panel-header flex-shrink-0 flex items-center justify-between">
-              <span>${i18n.t('log.title')}</span>
-              <div class="flex items-center gap-2">
-                <button class="btn-secondary text-sm py-1 px-3" id="clear-logs">
-                  ${i18n.t('log.clearLogs')}
-                </button>
+    if (this.mainContentLayout === 'command-left') {
+      return `
+        <!-- Main Layout: Command Panel (left) + Log Panel (right) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+          <!-- Command Panel with flexible height -->
+          <div class="md:col-span-1 order-2 md:order-1">
+            <div id="command-panel" class="panel h-auto max-h-screen">
+              <div class="panel-header">
+                ${i18n.t('command.manual.title')}
+              </div>
+              <div class="panel-content overflow-y-auto h-auto" id="command-content">
+                <!-- Command panel content will be mounted here -->
               </div>
             </div>
-            <div class="panel-content flex-1 min-h-0 p-0" id="log-content">
-              <!-- Log panel content will be mounted here -->
-            </div>
           </div>
-        </div>
 
-        <!-- Command Panel with flexible height -->
-        <div class="lg:col-span-1">
-          <div id="command-panel" class="panel">
-            <div class="panel-header">
-              ${i18n.t('command.manual.title')}
-            </div>
-            <div class="panel-content" id="command-content">
-              <!-- Command panel content will be mounted here -->
+          <!-- Log Panel with fixed height -->
+          <div class="md:col-span-2 order-1 md:order-2">
+            <div id="log-panel" class="panel panel-fixed">
+              <div class="panel-header flex-shrink-0 flex items-center justify-between">
+                <span>${i18n.t('log.title')}</span>
+                <div class="flex items-center gap-2">
+                  <button class="btn-secondary text-sm py-1 px-3" id="clear-logs">
+                    ${i18n.t('log.clearLogs')}
+                  </button>
+                </div>
+              </div>
+              <div class="panel-content flex-1 min-h-0 p-0" id="log-content">
+                <!-- Log panel content will be mounted here -->
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    `;
+      `;
+    } else {
+      return `
+        <!-- Main Layout: Log Panel (left) + Command Panel (right) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+          <!-- Log Panel with fixed height -->
+          <div class="md:col-span-2 order-1">
+            <div id="log-panel" class="panel panel-fixed">
+              <div class="panel-header flex-shrink-0 flex items-center justify-between">
+                <span>${i18n.t('log.title')}</span>
+                <div class="flex items-center gap-2">
+                  <button class="btn-secondary text-sm py-1 px-3" id="clear-logs">
+                    ${i18n.t('log.clearLogs')}
+                  </button>
+                </div>
+              </div>
+              <div class="panel-content flex-1 min-h-0 p-0" id="log-content">
+                <!-- Log panel content will be mounted here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Command Panel with flexible height -->
+          <div class="md:col-span-1 order-2">
+            <div id="command-panel" class="panel h-auto max-h-screen">
+              <div class="panel-header">
+                ${i18n.t('command.manual.title')}
+              </div>
+              <div class="panel-content overflow-y-auto h-auto" id="command-content">
+                <!-- Command panel content will be mounted here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
   }
 
   private getConnectionPanelClasses(): string {
@@ -374,6 +459,8 @@ export class App {
         return `${baseClasses} ${visibilityClass} ${backgroundClass} panel-positioned-right panel-compact h-screen-adjusted panel-full-height debug-layout-right`;
       case 'top':
         return `${baseClasses} ${visibilityClass} ${backgroundClass} panel-positioned-top debug-layout-top`;
+      case 'hide':
+        return `${baseClasses} hidden ${backgroundClass}`;
       default:
         console.warn('getConnectionPanelClasses: Unknown position:', this.connectionPanelPosition);
         return `${baseClasses} ${visibilityClass} ${backgroundClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height debug-layout-left`;
@@ -815,11 +902,13 @@ export class App {
   public toggleConnectionPanel(): void {
     this.connectionPanelVisible = !this.connectionPanelVisible;
     this.updateLayout();
+    this.saveUISettings();
   }
 
   public setConnectionPanelPosition(position: 'top' | 'left' | 'right'): void {
     this.connectionPanelPosition = position;
     this.updateLayout();
+    this.saveUISettings();
   }
 
   public getConnectionPanelState(): { position: 'top' | 'left' | 'right', visible: boolean } {
@@ -827,6 +916,57 @@ export class App {
       position: this.connectionPanelPosition,
       visible: this.connectionPanelVisible
     };
+  }
+
+  public setMainContentLayout(layout: 'command-left' | 'command-right'): void {
+    this.mainContentLayout = layout;
+    this.updateLayout();
+    this.saveUISettings();
+  }
+
+  public getMainContentLayout(): 'command-left' | 'command-right' {
+    return this.mainContentLayout;
+  }
+
+  /**
+   * Load UI settings from Chrome storage
+   */
+  private async loadUISettings(): Promise<void> {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        const result = await chrome.storage.local.get(['uiSettings']);
+        if (result.uiSettings) {
+          const settings = result.uiSettings;
+          this.connectionPanelPosition = settings.connectionPanelPosition || 'right';
+          this.connectionPanelVisible = settings.connectionPanelVisible !== false;
+          this.mainContentLayout = settings.mainContentLayout || 'command-left';
+          this.currentTheme = settings.theme || 'light';
+          // Apply theme after loading
+          setTimeout(() => this.applyTheme(), 0);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load UI settings:', error);
+    }
+  }
+
+  /**
+   * Save UI settings to Chrome storage
+   */
+  private async saveUISettings(): Promise<void> {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        const settings = {
+          connectionPanelPosition: this.connectionPanelPosition,
+          connectionPanelVisible: this.connectionPanelVisible,
+          mainContentLayout: this.mainContentLayout,
+          theme: this.currentTheme
+        };
+        await chrome.storage.local.set({ uiSettings: settings });
+      }
+    } catch (error) {
+      console.warn('Failed to save UI settings:', error);
+    }
   }
 
   /**
@@ -873,5 +1013,110 @@ export class App {
         this.logSettingsPanel = null;
       }
     });
+  }
+
+  /**
+   * Get theme-specific CSS classes
+   */
+  private getThemeClasses(): { background: string; textPrimary: string; textSecondary: string; textMuted: string } {
+    if (this.currentTheme === 'light') {
+      return {
+        background: 'bg-gray-50',
+        textPrimary: 'text-gray-900',
+        textSecondary: 'text-gray-700',
+        textMuted: 'text-gray-500'
+      };
+    } else {
+      return {
+        background: 'bg-dark-bg',
+        textPrimary: 'text-dark-text-primary',
+        textSecondary: 'text-dark-text-secondary',
+        textMuted: 'text-dark-text-muted'
+      };
+    }
+  }
+
+  /**
+   * Apply theme to the entire application
+   */
+  private applyTheme(): void {
+    const rootElement = document.documentElement;
+    
+    // Remove existing theme classes
+    rootElement.classList.remove('light-theme', 'dark-theme');
+    
+    // Add new theme class
+    rootElement.classList.add(this.currentTheme + '-theme');
+    
+    // Update existing elements without full re-render
+    this.updateExistingElementsForTheme();
+  }
+
+  /**
+   * Update existing DOM elements for theme change without full re-render
+   */
+  private updateExistingElementsForTheme(): void {
+    const themeClasses = this.getThemeClasses();
+    
+    // Update main container background
+    const mainContainer = document.querySelector('.min-h-screen') as HTMLElement;
+    if (mainContainer) {
+      mainContainer.className = mainContainer.className.replace(/bg-\S+/g, '');
+      mainContainer.classList.add(themeClasses.background.split(' ')[0]);
+    }
+    
+    // Update all text elements
+    const titleElement = document.querySelector('h1');
+    if (titleElement) {
+      titleElement.className = titleElement.className.replace(/text-\S+/g, '');
+      titleElement.classList.add(themeClasses.textPrimary.split(' ')[0]);
+    }
+    
+    // Update all muted text spans
+    const mutedSpans = document.querySelectorAll('span.text-dark-text-muted, span.text-gray-500');
+    mutedSpans.forEach(span => {
+      span.className = span.className.replace(/text-\S+/g, '');
+      span.classList.add(themeClasses.textMuted.split(' ')[0]);
+    });
+    
+    // Force CSS recalculation by triggering a repaint
+    if (mainContainer) {
+      mainContainer.style.display = 'none';
+      mainContainer.offsetHeight; // Trigger reflow
+      mainContainer.style.display = '';
+    }
+    
+    // Update theme selector to reflect current theme
+    const themeSelector = document.getElementById('theme-selector') as HTMLSelectElement;
+    if (themeSelector) {
+      themeSelector.value = this.currentTheme;
+    }
+    
+    // Notify child panels of theme change
+    if (this.connectionPanel && typeof this.connectionPanel.onThemeChange === 'function') {
+      this.connectionPanel.onThemeChange(this.currentTheme);
+    }
+    if (this.logPanel && typeof this.logPanel.onThemeChange === 'function') {
+      this.logPanel.onThemeChange(this.currentTheme);
+    }
+    if (this.commandPanel && typeof this.commandPanel.onThemeChange === 'function') {
+      this.commandPanel.onThemeChange(this.currentTheme);
+    }
+  }
+
+  /**
+   * Get current theme
+   */
+  public getCurrentTheme(): 'light' | 'dark' {
+    return this.currentTheme;
+  }
+
+  /**
+   * Set theme
+   */
+  public setTheme(theme: 'light' | 'dark'): void {
+    this.currentTheme = theme;
+    this.applyTheme();
+    this.saveUISettings();
   }
 }

@@ -32,7 +32,10 @@ export const en = {
     enabled: "Enabled",
     disabled: "Disabled",
     settings: "Settings",
-    language: "Language"
+    language: "Language",
+    theme: "Theme",
+    dark: "Dark",
+    light: "Light"
   },
 
   // Panel Controls
@@ -43,7 +46,10 @@ export const en = {
     right: "Right",
     hide: "Hide Panel",
     show: "Show Panel",
-    visibility: "Panel Visibility"
+    visibility: "Panel Visibility",
+    layout: "Main Layout",
+    commandLeft: "Command Left",
+    commandRight: "Command Right"
   },
 
   // Connection Panel

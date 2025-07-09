@@ -32,7 +32,10 @@ export const ko = {
     enabled: "활성화",
     disabled: "비활성화",
     settings: "설정",
-    language: "언어"
+    language: "언어",
+    theme: "테마",
+    dark: "다크",
+    light: "라이트"
   },
 
   // Panel Controls
@@ -43,7 +46,10 @@ export const ko = {
     right: "우측", 
     hide: "패널 숨기기",
     show: "패널 보이기",
-    visibility: "패널 표시"
+    visibility: "패널 표시",
+    layout: "메인 레이아웃",
+    commandLeft: "명령 창 좌측",
+    commandRight: "명령 창 우측"
   },
 
   // Connection Panel

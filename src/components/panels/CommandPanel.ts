@@ -35,7 +35,7 @@ export class CommandPanel {
 
   private render(): string {
     return `
-      <div class="h-full flex flex-col space-y-4">
+      <div class="flex flex-col space-y-4">
         <!-- Quick Commands -->
         <div>
           <h3 class="text-sm font-medium text-dark-text-secondary mb-3">Quick Commands & Examples</h3>
@@ -48,10 +48,10 @@ export class CommandPanel {
         </div>
 
         <!-- Manual Command Input -->
-        <div class="flex-1 flex flex-col">
+        <div class="flex flex-col">
           <h3 class="text-sm font-medium text-dark-text-secondary mb-3">${i18n.t('command.manual.title')}</h3>
           
-          <div class="flex-1 flex flex-col space-y-3">
+          <div class="flex flex-col space-y-3">
             <!-- Manual HEX Input -->
             <div>
               <div class="flex items-center justify-between mb-2">
@@ -71,7 +71,7 @@ export class CommandPanel {
               </div>
               <textarea 
                 id="manual-hex-input"
-                class="input-field w-full h-20 font-mono text-sm resize-none"
+                class="input-field w-full h-16 font-mono text-sm resize-none"
                 placeholder="Enter Modbus PDU data:&#10;• HEX Mode: 01 03 00 00 00 0A&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
               ></textarea>
               <div class="text-xs mt-1" id="hex-preview">

@@ -32,16 +32,31 @@
 }
 
 @layer components {
+  /* Global components - default to light theme */
   .panel {
-    @apply bg-dark-surface border border-dark-border rounded-lg shadow-lg;
+    @apply bg-white border border-gray-200 rounded-lg shadow-lg;
   }
   
   .panel-header {
-    @apply border-b border-dark-border p-4 font-semibold;
+    @apply border-b border-gray-200 p-4 font-semibold text-gray-900;
   }
   
   .panel-content {
     @apply p-4;
+  }
+  
+  /* Command Panel specific styles */
+  #command-panel {
+    @apply h-auto;
+    max-height: calc(100vh - 200px); /* Viewport height minus header and margins */
+    overflow-y: auto;
+    height: auto !important;
+  }
+  
+  #command-panel .panel-content {
+    @apply h-auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 300px); /* Account for panel header */
   }
   
   .btn-primary {
@@ -49,25 +64,78 @@
   }
   
   .btn-secondary {
-    @apply bg-dark-panel hover:bg-dark-border text-dark-text-primary px-4 py-2 rounded-md transition-colors duration-200 font-medium border border-dark-border;
+    @apply bg-gray-100 hover:bg-gray-200 text-gray-900 px-4 py-2 rounded-md transition-colors duration-200 font-medium border border-gray-300;
   }
   
   .input-field {
-    @apply bg-dark-panel border border-dark-border rounded-md px-3 py-2 text-dark-text-primary placeholder-dark-text-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply bg-white border border-gray-300 rounded-md px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
   }
   
   .tab-button {
-    @apply px-4 py-2 rounded-t-md border-b-2 border-transparent text-dark-text-secondary hover:text-dark-text-primary transition-colors duration-200;
+    @apply px-4 py-2 rounded-t-md border-b-2 border-transparent text-gray-600 hover:text-gray-900 transition-colors duration-200;
   }
   
   .tab-button.active {
-    @apply text-dark-text-primary border-blue-500 bg-dark-panel;
+    @apply text-gray-900 border-blue-500 bg-gray-100;
   }
   
+  /* Dark theme overrides */
+  .dark-theme .panel {
+    @apply bg-dark-surface border border-dark-border rounded-lg shadow-lg !important;
+  }
+  
+  .dark-theme .panel-header {
+    @apply border-b border-dark-border p-4 font-semibold text-dark-text-primary !important;
+  }
+  
+  .dark-theme .panel-content {
+    @apply p-4 !important;
+  }
+  
+  .light-theme #command-panel {
+    @apply h-auto !important;
+    max-height: calc(100vh - 200px) !important; /* Viewport height minus header and margins */
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+  
+  .light-theme #command-panel .panel-content {
+    @apply h-auto !important;
+    overflow-y: auto !important;
+    max-height: calc(100vh - 300px) !important; /* Account for panel header */
+  }
+  
+  .light-theme .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors duration-200 font-medium !important;
+  }
+  
+  .dark-theme .btn-secondary {
+    @apply bg-dark-panel hover:bg-dark-border text-dark-text-primary px-4 py-2 rounded-md transition-colors duration-200 font-medium border border-dark-border !important;
+  }
+  
+  .dark-theme .input-field {
+    @apply bg-dark-panel border border-dark-border rounded-md px-3 py-2 text-dark-text-primary placeholder-dark-text-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent !important;
+  }
+  
+  .dark-theme .tab-button {
+    @apply px-4 py-2 rounded-t-md border-b-2 border-transparent text-dark-text-secondary hover:text-dark-text-primary transition-colors duration-200 !important;
+  }
+  
+  .dark-theme .tab-button.active {
+    @apply text-dark-text-primary border-blue-500 bg-dark-panel !important;
+  }
+  
+  /* Log entries - default dark theme */
   .log-entry {
-    @apply flex items-start gap-3 p-2 border-b border-dark-border last:border-b-0 hover:bg-dark-panel transition-colors duration-150;
+    @apply flex items-start gap-3 p-2 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors duration-150;
     min-height: 40px; /* Minimum height for consistent appearance */
     /* Remove fixed height to allow dynamic height for long data */
+  }
+
+  /* Dark theme log entries */
+  .dark-theme .log-entry {
+    @apply flex items-start gap-3 p-2 border-b border-dark-border last:border-b-0 hover:bg-dark-panel transition-colors duration-150 !important;
+    min-height: 40px;
   }
 
   /* Disable hover effects during scrolling */
@@ -82,7 +150,11 @@
   }
   
   .log-timestamp {
-    @apply text-xs text-dark-text-muted font-mono min-w-max;
+    @apply text-xs text-gray-500 font-mono min-w-max;
+  }
+  
+  .dark-theme .log-timestamp {
+    @apply text-xs text-dark-text-muted font-mono min-w-max !important;
   }
   
   .log-direction {

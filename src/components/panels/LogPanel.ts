@@ -29,6 +29,62 @@ export class LogPanel {
   private handleLogContainerMouseOver!: (e: Event) => void;
   private handleLogContainerMouseOut!: (e: Event) => void;
 
+  /**
+   * Get theme-specific CSS classes
+   */
+  private getThemeClasses(): { 
+    background: string; 
+    panelBg: string;
+    border: string;
+    inputBg: string;
+    textPrimary: string; 
+    textSecondary: string; 
+    textMuted: string 
+  } {
+    if (this.currentTheme === 'light') {
+      return {
+        background: 'bg-gray-50',
+        panelBg: 'bg-white',
+        border: 'border-gray-200',
+        inputBg: 'bg-white',
+        textPrimary: 'text-gray-900',
+        textSecondary: 'text-gray-700',
+        textMuted: 'text-gray-500'
+      };
+    } else {
+      return {
+        background: 'bg-dark-bg',
+        panelBg: 'bg-dark-panel',
+        border: 'border-dark-border',
+        inputBg: 'bg-dark-surface',
+        textPrimary: 'text-dark-text-primary',
+        textSecondary: 'text-dark-text-secondary',
+        textMuted: 'text-dark-text-muted'
+      };
+    }
+  }
+
+  /**
+   * Handle theme change from parent App
+   */
+  public onThemeChange(theme: 'light' | 'dark'): void {
+    this.currentTheme = theme;
+    // Re-render the panel with new theme
+    const container = document.querySelector('#log-content');
+    if (container) {
+      container.innerHTML = this.render();
+      this.attachEventListeners();
+      this.addCustomStyles();
+      this.setupScrollContainer();
+      this.setupTooltipPositioning();
+      this.updateAutoScrollCheckbox();
+      this.initializeVirtualScrolling();
+      this.applyCurrentTimeFilter();
+      // Re-render logs with current data
+      this.renderLogs();
+    }
+  }
+
   mount(container: HTMLElement): void {
     this.logService = new LogService();
     this.optimizedLogService = new OptimizedLogService();
@@ -250,12 +306,12 @@ export class LogPanel {
     return `
       <div class="h-full flex flex-col" style="height: 100%; min-height: 400px;">
         <!-- Log Controls -->
-        <div class="flex items-center justify-between p-4 border-b border-dark-border bg-dark-panel flex-shrink-0">
+        <div class="flex items-center justify-between p-4 border-b ${this.getThemeClasses().border} ${this.getThemeClasses().panelBg} flex-shrink-0">
           <div class="flex items-center gap-4">
             <label class="flex items-center gap-2 text-sm">
               <input type="checkbox" id="auto-scroll" ${this.isAutoScroll ? 'checked' : ''} 
-                class="rounded border-dark-border bg-dark-surface">
-              <span class="text-dark-text-secondary">Auto Scroll</span>
+                class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
+              <span class="${this.getThemeClasses().textSecondary}">Auto Scroll</span>
             </label>
             
             <div class="flex items-center gap-2">
@@ -271,7 +327,7 @@ export class LogPanel {
             </div>
           </div>
 
-          <div class="flex items-center justify-start gap-2 text-sm text-dark-text-secondary">
+          <div class="flex items-center justify-start gap-2 text-sm ${this.getThemeClasses().textSecondary}">
           </div>
         </div>
 
@@ -384,7 +440,7 @@ export class LogPanel {
              ${modbusInfo ? `data-tooltip="${modbusInfo.replace(/"/g, '&quot;')}"` : ''}>
           ${this.formatLogData(log.data)}
         </div>
-        ${log.responseTime ? `<div class="text-xs text-dark-text-muted">${log.responseTime}ms</div>` : ''}
+        ${log.responseTime ? `<div class="text-xs ${this.getThemeClasses().textMuted}">${log.responseTime}ms</div>` : ''}
         ${log.error ? `<div class="text-xs text-status-error">${log.error}</div>` : ''}
       </div>
     `;
