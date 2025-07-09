@@ -6,6 +6,7 @@ export class LogSettingsPanel {
   private container: HTMLElement;
   private isVisible: boolean = false;
   private onClearCallback?: () => void;
+  private currentTheme: 'light' | 'dark' = 'light'; // Default theme
 
   constructor(logService: OptimizedLogService) {
     this.logService = logService;
@@ -24,13 +25,13 @@ export class LogSettingsPanel {
     panel.id = 'log-settings-panel';
     
     panel.innerHTML = `
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+      <div class="${this.getThemeClasses().panelBg} rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
         <!-- Header -->
-        <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+        <div class="flex items-center justify-between p-6 border-b ${this.getThemeClasses().border}">
+          <h2 class="text-xl font-semibold ${this.getThemeClasses().textPrimary}">
             📊 ${i18n.t('log.settings.title')}
           </h2>
-          <button id="close-settings" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+          <button id="close-settings" class="${this.getThemeClasses().textMuted} hover:${this.getThemeClasses().textPrimary.replace('text-', 'hover:text-')}">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -42,33 +43,33 @@ export class LogSettingsPanel {
           
           <!-- Buffer Settings -->
           <div class="space-y-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">🔄 ${i18n.t('log.settings.memoryManagement')}</h3>
+            <h3 class="text-lg font-medium ${this.getThemeClasses().textPrimary}">🔄 ${i18n.t('log.settings.memoryManagement')}</h3>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label class="block text-sm font-medium ${this.getThemeClasses().textSecondary} mb-2">
                   ${i18n.t('log.settings.bufferSize')}
                 </label>
                 <input type="number" id="buffer-size" min="100" max="50000" step="100"
-                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
-                              focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                       class="w-full px-3 py-2 border ${this.getThemeClasses().border} rounded-md shadow-sm 
+                              focus:ring-blue-500 focus:border-blue-500 ${this.getThemeClasses().inputBg} ${this.getThemeClasses().textPrimary}">
+                <p class="text-xs ${this.getThemeClasses().textMuted} mt-1">
                   ${i18n.t('log.settings.bufferSizeDesc')}
                 </p>
               </div>
               
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label class="block text-sm font-medium ${this.getThemeClasses().textSecondary} mb-2">
                   ${i18n.t('log.export.format')}
                 </label>
                 <select id="export-format" 
-                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
-                               focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                        class="w-full px-3 py-2 border ${this.getThemeClasses().border} rounded-md shadow-sm 
+                               focus:ring-blue-500 focus:border-blue-500 ${this.getThemeClasses().inputBg} ${this.getThemeClasses().textPrimary}">
                   <option value="json">${i18n.t('log.export.json')}</option>
                   <option value="csv">${i18n.t('log.export.csv')}</option>
                   <option value="txt">${i18n.t('log.export.txt')}</option>
                 </select>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p class="text-xs ${this.getThemeClasses().textMuted} mt-1">
                   ${i18n.t('log.settings.exportFormatDesc')}
                 </p>
               </div>
@@ -82,10 +83,10 @@ export class LogSettingsPanel {
                   </svg>
                 </div>
                 <div class="ml-3">
-                  <h4 class="text-sm font-medium text-blue-800 dark:text-blue-200">
+                  <h4 class="text-sm font-medium text-blue-800 ${this.currentTheme === 'dark' ? 'dark:text-blue-200' : ''}">
                     ${i18n.t('log.settings.circularBufferInfo')}
                   </h4>
-                  <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                  <p class="text-sm text-blue-700 ${this.currentTheme === 'dark' ? 'dark:text-blue-300' : ''} mt-1">
                     ${i18n.t('log.settings.circularBufferDesc')}
                   </p>
                 </div>
@@ -95,52 +96,35 @@ export class LogSettingsPanel {
 
           <!-- Current Stats -->
           <div class="space-y-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">📈 ${i18n.t('log.settings.statistics')}</h3>
+            <h3 class="text-lg font-medium ${this.getThemeClasses().textPrimary}">📈 ${i18n.t('log.settings.statistics')}</h3>
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+              <div class="${this.getThemeClasses().background} p-3 rounded-lg">
                 <div class="text-xl font-bold text-blue-600 dark:text-blue-400" id="stat-memory-logs">-</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">${i18n.t('log.settings.memoryLogs')}</div>
+                <div class="text-xs ${this.getThemeClasses().textMuted}">${i18n.t('log.settings.memoryLogs')}</div>
               </div>
               
-              <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+              <div class="${this.getThemeClasses().background} p-3 rounded-lg">
                 <div class="text-xl font-bold text-green-600 dark:text-green-400" id="stat-total-logs">-</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">${i18n.t('log.settings.totalLogs')}</div>
+                <div class="text-xs ${this.getThemeClasses().textMuted}">${i18n.t('log.settings.totalLogs')}</div>
               </div>
 
-              <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+              <div class="${this.getThemeClasses().background} p-3 rounded-lg">
                 <div class="text-xl font-bold text-purple-600 dark:text-purple-400" id="stat-indexeddb-logs">-</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">${i18n.t('log.settings.indexedDBLogs')}</div>
+                <div class="text-xs ${this.getThemeClasses().textMuted}">${i18n.t('log.settings.indexedDBLogs')}</div>
               </div>
               
-              <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+              <div class="${this.getThemeClasses().background} p-3 rounded-lg">
                 <div class="text-xl font-bold text-orange-600 dark:text-orange-400" id="stat-indexeddb-size">-</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">${i18n.t('log.settings.indexedDBSize')}</div>
+                <div class="text-xs ${this.getThemeClasses().textMuted}">${i18n.t('log.settings.indexedDBSize')}</div>
               </div>
             </div>
 
-            <div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-              <div class="flex items-start">
-                <div class="flex-shrink-0">
-                  <svg class="h-5 w-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
-                  </svg>
-                </div>
-                <div class="ml-3">
-                  <h4 class="text-sm font-medium text-purple-800 dark:text-purple-200">
-                    ${i18n.t('log.settings.indexedDBInfo')}
-                  </h4>
-                  <p class="text-sm text-purple-700 dark:text-purple-300 mt-1">
-                    ${i18n.t('log.settings.indexedDBDesc')}
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
           <!-- Actions -->
           <div class="space-y-4">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">🔧 ${i18n.t('log.settings.actions')}</h3>
+            <h3 class="text-lg font-medium ${this.getThemeClasses().textPrimary}">🔧 ${i18n.t('log.settings.actions')}</h3>
             
             <div class="flex flex-wrap gap-3">
               <button id="export-memory-logs" 
@@ -171,7 +155,7 @@ export class LogSettingsPanel {
         </div>
 
         <!-- Footer -->
-        <div class="flex justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+        <div class="flex justify-end space-x-3 p-6 border-t ${this.getThemeClasses().border}">
           <button id="cancel-settings" 
                   class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 
                          focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
@@ -418,5 +402,52 @@ export class LogSettingsPanel {
       this.loadCurrentSettings();
       this.updateStats();
     }
+  }
+
+  /**
+   * Get theme-specific CSS classes
+   */
+  private getThemeClasses(): { 
+    background: string; 
+    panelBg: string; 
+    border: string; 
+    inputBg: string; 
+    textPrimary: string; 
+    textSecondary: string; 
+    textMuted: string 
+  } {
+    if (this.currentTheme === 'light') {
+      return {
+        background: 'bg-gray-50',
+        panelBg: 'bg-white',
+        border: 'border-gray-200',
+        inputBg: 'bg-white',
+        textPrimary: 'text-gray-900',
+        textSecondary: 'text-gray-800',
+        textMuted: 'text-gray-600'
+      };
+    } else {
+      return {
+        background: 'bg-dark-bg',
+        panelBg: 'bg-dark-surface',
+        border: 'border-dark-border',
+        inputBg: 'bg-dark-surface',
+        textPrimary: 'text-dark-text-primary',
+        textSecondary: 'text-dark-text-secondary',
+        textMuted: 'text-dark-text-muted'
+      };
+    }
+  }
+
+  /**
+   * Handle theme change from parent App
+   */
+  public onThemeChange(theme: 'light' | 'dark'): void {
+    this.currentTheme = theme;
+    // Re-create the settings panel with new theme
+    if (this.container.parentNode) {
+      this.container.parentNode.removeChild(this.container);
+    }
+    this.container = this.createSettingsPanel();
   }
 }

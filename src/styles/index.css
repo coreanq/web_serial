@@ -20,14 +20,24 @@
   body {
     margin: 0;
     padding: 0;
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
+    overflow: auto;
+    @apply bg-gray-50;
   }
 
   html, body, #app {
-    height: 100vh;
+    min-height: 100vh;
     margin: 0;
     padding: 0;
+  }
+  
+  /* Theme-specific body backgrounds */
+  .light-theme body {
+    background-color: #f9fafb !important;
+  }
+  
+  .dark-theme body {
+    background-color: #0f0f23 !important;
   }
 }
 
@@ -48,15 +58,11 @@
   /* Command Panel specific styles */
   #command-panel {
     @apply h-auto;
-    max-height: calc(100vh - 200px); /* Viewport height minus header and margins */
-    overflow-y: auto;
     height: auto !important;
   }
   
   #command-panel .panel-content {
     @apply h-auto;
-    overflow-y: auto;
-    max-height: calc(100vh - 300px); /* Account for panel header */
   }
   
   .btn-primary {
@@ -93,16 +99,12 @@
   }
   
   .light-theme #command-panel {
-    @apply h-auto !important;
-    max-height: calc(100vh - 200px) !important; /* Viewport height minus header and margins */
-    overflow-y: auto !important;
+    @apply h-auto bg-white !important;
     height: auto !important;
   }
   
   .light-theme #command-panel .panel-content {
-    @apply h-auto !important;
-    overflow-y: auto !important;
-    max-height: calc(100vh - 300px) !important; /* Account for panel header */
+    @apply h-auto bg-white !important;
   }
   
   .light-theme .btn-primary {
@@ -170,7 +172,11 @@
   }
   
   .log-data {
-    @apply font-mono text-sm flex-1 break-all;
+    @apply font-mono text-sm flex-1 break-all text-gray-900;
+  }
+  
+  .dark-theme .log-data {
+    @apply font-mono text-sm flex-1 break-all text-dark-text-primary !important;
   }
   
   .status-indicator {
@@ -289,12 +295,10 @@
   #command-panel {
     @apply flex flex-col;
     height: auto;
-    min-height: 300px;
-    max-height: calc(100vh - var(--header-height) - 100px);
   }
 
   #command-panel .panel-content {
-    @apply overflow-auto;
+    @apply h-auto;
   }
 
   /* Fixed height grid for main content area */

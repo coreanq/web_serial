@@ -16,6 +16,7 @@ export class ConnectionPanel {
   private nativeProxyStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private currentNativeConfig: TcpNativeConnection | null = null;
   private manualDisconnect: boolean = false; // Flag to prevent auto-reconnect after manual disconnect
+  private currentTheme: 'light' | 'dark' = 'light'; // Default theme
 
   constructor(
     onConnectionChange: (status: ConnectionStatus, config?: any) => void, 
@@ -100,7 +101,7 @@ export class ConnectionPanel {
     return `
       <div class="space-y-4">
         <!-- Tab Navigation -->
-        <div class="flex border-b border-dark-border">
+        <div class="flex border-b ${this.getThemeClasses().border}">
           <button class="tab-button ${this.activeTab === 'RTU' ? 'active' : ''}" data-tab="RTU">
             ${i18n.t('connection.rtu.title')}
           </button>
@@ -115,7 +116,7 @@ export class ConnectionPanel {
         </div>
 
         <!-- Connection Controls -->
-        <div class="flex items-center gap-3 pt-4 border-t border-dark-border">
+        <div class="flex items-center gap-3 pt-4 border-t ${this.getThemeClasses().border}">
           <button class="btn-primary flex items-center gap-2" id="connect-btn">
             <span id="connect-btn-text">${i18n.t('common.connect')}</span>
             <div id="connect-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
@@ -171,7 +172,7 @@ export class ConnectionPanel {
         <div class="${this.isCompactMode ? 'space-y-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'}">
           <!-- Serial Port Selection -->
           <div class="${this.isCompactMode ? '' : 'lg:col-span-2'}">
-            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+            <label class="block text-sm font-medium ${this.getThemeClasses().textSecondary} mb-2">
               ${i18n.t('connection.rtu.port')}
             </label>
             <div class="space-y-2">
@@ -197,14 +198,14 @@ export class ConnectionPanel {
                     }).join('')}
                   </select>
                 ` : `
-                  <p class="text-xs text-dark-text-muted">
+                  <p class="text-xs ${this.getThemeClasses().textMuted}">
                     No previously granted ports. Click "Select Serial Port" to choose a port.
                   </p>
                 `}
                 
                 <div class="text-xs" id="selected-port-info">
                   <div class="flex items-center gap-2">
-                    <span class="${this.selectedPort ? 'text-dark-text-secondary' : 'text-dark-text-muted'}">
+                    <span class="${this.selectedPort ? this.getThemeClasses().textSecondary : this.getThemeClasses().textMuted}">
                       ${this.selectedPort ? this.getPortDisplayName(this.selectedPort) : i18n.t('connection.rtu.noPortSelected')}
                     </span>
                     ${this.selectedPort ? `
@@ -227,7 +228,7 @@ export class ConnectionPanel {
 
           <!-- Baud Rate -->
           <div>
-            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+            <label class="block text-sm font-medium ${this.getThemeClasses().textSecondary} mb-2">
               Baud Rate
             </label>
             <select class="input-field w-full ${this.isCompactMode ? 'text-sm' : ''}" id="baud-rate">
@@ -255,7 +256,7 @@ export class ConnectionPanel {
 
           <!-- Parity -->
           <div>
-            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+            <label class="block text-sm font-medium ${this.getThemeClasses().textSecondary} mb-2">
               Parity
             </label>
             <select class="input-field w-full ${this.isCompactMode ? 'text-sm' : ''}" id="parity">
@@ -303,7 +304,7 @@ export class ConnectionPanel {
               ${this.getTcpNativeStatusText()}
             </span>
           </div>
-          <p class="text-xs text-dark-text-muted mt-1 status-detail">
+          <p class="text-xs ${this.getThemeClasses().textMuted} mt-1 status-detail">
             ${this.getTcpNativeStatusDetail()}
           </p>
         </div>
@@ -311,7 +312,7 @@ export class ConnectionPanel {
         <!-- TCP Connection Settings -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+            <label class="block text-sm font-medium ${this.getThemeClasses().textSecondary} mb-2">
               ${i18n.t('connection.tcp.host')}
             </label>
             <input 
@@ -324,7 +325,7 @@ export class ConnectionPanel {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-dark-text-secondary mb-2">
+            <label class="block text-sm font-medium ${this.getThemeClasses().textSecondary} mb-2">
               ${i18n.t('connection.tcp.port')}
             </label>
             <input 
@@ -898,25 +899,25 @@ export class ConnectionPanel {
     
     const guideHtml = `
       <div id="native-install-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-dark-surface border border-dark-border rounded-lg p-6 max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+        <div class="${this.getThemeClasses().panelBg} border ${this.getThemeClasses().border} rounded-lg p-6 max-w-2xl max-h-[90vh] overflow-y-auto m-4">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-dark-text-primary">${titleText}</h3>
-            <button class="modal-close text-dark-text-muted hover:text-dark-text-primary" data-modal="native-install-modal">✕</button>
+            <h3 class="text-lg font-semibold ${this.getThemeClasses().textPrimary}">${titleText}</h3>
+            <button class="modal-close ${this.getThemeClasses().textMuted} hover:${this.getThemeClasses().textPrimary.replace('text-', 'hover:text-')}" data-modal="native-install-modal">✕</button>
           </div>
           
           ${isConnected ? `
             <!-- 연결됨 상태 -->
-            <div class="bg-green-900/20 border border-green-600/30 rounded p-4 mb-4">
-              <h4 class="text-sm font-medium text-green-300 mb-2">✅ ${i18n.t('connection.nativeGuide.connected')}</h4>
-              <p class="text-sm text-green-200">
+            <div class="${this.currentTheme === 'dark' ? 'bg-green-900/20 border-green-600/30' : 'bg-green-100 border-green-400'} border rounded p-4 mb-4">
+              <h4 class="text-sm font-medium ${this.currentTheme === 'dark' ? 'text-green-300' : 'text-green-800'} mb-2">✅ ${i18n.t('connection.nativeGuide.connected')}</h4>
+              <p class="text-sm ${this.currentTheme === 'dark' ? 'text-green-200' : 'text-green-700'}">
                 ${i18n.t('connection.nativeGuide.connectedDesc')}
               </p>
             </div>
           ` : `
             <!-- 연결 안됨 상태 -->
-            <div class="bg-red-900/20 border border-red-600/30 rounded p-4 mb-4">
-              <h4 class="text-sm font-medium text-red-300 mb-2">❌ ${i18n.t('connection.nativeGuide.notConnected')}</h4>
-              <p class="text-sm text-red-200">
+            <div class="${this.currentTheme === 'dark' ? 'bg-red-900/20 border-red-600/30' : 'bg-red-100 border-red-400'} border rounded p-4 mb-4">
+              <h4 class="text-sm font-medium ${this.currentTheme === 'dark' ? 'text-red-300' : 'text-red-800'} mb-2">❌ ${i18n.t('connection.nativeGuide.notConnected')}</h4>
+              <p class="text-sm ${this.currentTheme === 'dark' ? 'text-red-200' : 'text-red-700'}">
                 ${i18n.t('connection.nativeGuide.notConnectedDesc')}
               </p>
             </div>
@@ -924,9 +925,9 @@ export class ConnectionPanel {
           
           <div class="space-y-4">
             <!-- 왜 설치가 필요한지 설명 -->
-            <div class="bg-blue-900/20 border border-blue-600/30 rounded p-4">
-              <h4 class="text-sm font-medium text-blue-300 mb-2">🤔 ${i18n.t('connection.nativeGuide.whyNeeded')}</h4>
-              <div class="text-sm text-blue-200 space-y-2">
+            <div class="${this.currentTheme === 'dark' ? 'bg-blue-900/20 border-blue-600/30' : 'bg-blue-100 border-blue-400'} border rounded p-4">
+              <h4 class="text-sm font-medium ${this.currentTheme === 'dark' ? 'text-blue-300' : 'text-blue-800'} mb-2">🤔 ${i18n.t('connection.nativeGuide.whyNeeded')}</h4>
+              <div class="text-sm ${this.currentTheme === 'dark' ? 'text-blue-200' : 'text-blue-700'} space-y-2">
                 <p><strong>${i18n.t('connection.nativeGuide.browserSecurity')}</strong></p>
                 <p><strong>${i18n.t('connection.nativeGuide.webSerialVsTcp')}</strong></p>
                 <ul class="list-disc list-inside ml-4 space-y-1">
@@ -939,15 +940,15 @@ export class ConnectionPanel {
             </div>
 
             <!-- 설치 단계 -->
-            <div class="bg-dark-panel border border-dark-border rounded p-4">
-              <h4 class="text-sm font-medium text-dark-text-primary mb-3">📋 ${i18n.t('connection.nativeGuide.simpleInstall')}</h4>
+            <div class="${this.getThemeClasses().panelBg} border ${this.getThemeClasses().border} rounded p-4">
+              <h4 class="text-sm font-medium ${this.getThemeClasses().textPrimary} mb-3">📋 ${i18n.t('connection.nativeGuide.simpleInstall')}</h4>
               
               <div class="space-y-3">
                 <div class="flex items-start gap-3">
                   <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">1</span>
                   <div>
-                    <p class="text-sm font-medium text-dark-text-primary">${i18n.t('connection.nativeGuide.step1')}</p>
-                    <p class="text-xs text-dark-text-muted mb-2">${i18n.t('connection.nativeGuide.step1Desc')}</p>
+                    <p class="text-sm font-medium ${this.getThemeClasses().textPrimary}">${i18n.t('connection.nativeGuide.step1')}</p>
+                    <p class="text-xs ${this.getThemeClasses().textMuted} mb-2">${i18n.t('connection.nativeGuide.step1Desc')}</p>
                     <div class="flex flex-wrap gap-2 mt-2">
                       <button data-download-url="https://github.com/coreanq/release/releases/download/stdio-proxy-v1.0.0/stdio-proxy-macos.zip"
                               class="download-btn bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
@@ -968,20 +969,19 @@ export class ConnectionPanel {
                 <div class="flex items-start gap-3">
                   <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">2</span>
                   <div>
-                    <p class="text-sm font-medium text-dark-text-primary">${i18n.t('connection.nativeGuide.step2')}</p>
-                    <div class="text-sm text-dark-text-secondary mt-1 space-y-1">
+                    <p class="text-sm font-medium ${this.getThemeClasses().textPrimary}">${i18n.t('connection.nativeGuide.step2')}</p>
+                    <div class="text-sm ${this.getThemeClasses().textSecondary} mt-1 space-y-1">
                       <div><strong>${i18n.t('connection.nativeGuide.macosLinux')}</strong></div>
                       <div><strong>${i18n.t('connection.nativeGuide.windows')}</strong></div>
                     </div>
-                    <p class="text-xs text-yellow-300 mt-1">${i18n.t('connection.nativeGuide.autoDetect')}</p>
                   </div>
                 </div>
 
                 <div class="flex items-start gap-3">
                   <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">3</span>
                   <div>
-                    <p class="text-sm font-medium text-dark-text-primary">${i18n.t('connection.nativeGuide.step3')}</p>
-                    <p class="text-sm text-dark-text-secondary">${i18n.t('connection.nativeGuide.step3Desc')}</p>
+                    <p class="text-sm font-medium ${this.getThemeClasses().textPrimary}">${i18n.t('connection.nativeGuide.step3')}</p>
+                    <p class="text-sm ${this.getThemeClasses().textSecondary}">${i18n.t('connection.nativeGuide.step3Desc')}</p>
                     <p class="text-xs text-gray-400 mt-1">✨ ${i18n.t('connection.nativeGuide.supportedBrowsers')}</p>
                   </div>
                 </div>
@@ -989,28 +989,25 @@ export class ConnectionPanel {
             </div>
 
             <!-- Extension ID 정보 -->
-            <div class="bg-yellow-900/20 border border-yellow-600/30 rounded p-3">
-              <h4 class="text-sm font-medium text-yellow-300 mb-2">🔑 ${i18n.t('connection.nativeGuide.extensionId')}</h4>
-              <div class="bg-dark-bg p-2 rounded font-mono text-sm text-dark-text-primary break-all">
+            <div class="${this.currentTheme === 'dark' ? 'bg-yellow-900/20 border-yellow-600/30' : 'bg-yellow-100 border-yellow-400'} border rounded p-3">
+              <h4 class="text-sm font-medium ${this.currentTheme === 'dark' ? 'text-yellow-300' : 'text-yellow-800'} mb-2">🔑 ${i18n.t('connection.nativeGuide.extensionId')}</h4>
+              <div class="${this.getThemeClasses().background} p-2 rounded font-mono text-sm ${this.getThemeClasses().textPrimary} break-all">
                 ${currentExtensionId}
               </div>
-              <p class="text-xs text-yellow-200 mt-2">
-                ${i18n.t('connection.nativeGuide.extensionIdDesc')}
-              </p>
             </div>
 
             <!-- 설치 후 확인 -->
-            <div class="bg-green-900/20 border border-green-600/30 rounded p-3">
-              <h4 class="text-sm font-medium text-green-300 mb-2">✅ ${i18n.t('connection.nativeGuide.installationConfirm')}</h4>
-              <p class="text-sm text-green-200">
+            <div class="${this.currentTheme === 'dark' ? 'bg-green-900/20 border-green-600/30' : 'bg-green-100 border-green-400'} border rounded p-3">
+              <h4 class="text-sm font-medium ${this.currentTheme === 'dark' ? 'text-green-300' : 'text-green-800'} mb-2">✅ ${i18n.t('connection.nativeGuide.installationConfirm')}</h4>
+              <p class="text-sm ${this.currentTheme === 'dark' ? 'text-green-200' : 'text-green-700'}">
                 ${i18n.t('connection.nativeGuide.installationConfirmDesc')}
               </p>
             </div>
 
             <!-- 트러블슈팅 -->
-            <div class="bg-orange-900/20 border border-orange-600/30 rounded p-3">
-              <h4 class="text-sm font-medium text-orange-300 mb-2">🔧 ${i18n.t('connection.nativeGuide.troubleshooting')}</h4>
-              <div class="text-sm text-orange-200 space-y-1">
+            <div class="${this.currentTheme === 'dark' ? 'bg-orange-900/20 border-orange-600/30' : 'bg-orange-100 border-orange-400'} border rounded p-3">
+              <h4 class="text-sm font-medium ${this.currentTheme === 'dark' ? 'text-orange-300' : 'text-orange-800'} mb-2">🔧 ${i18n.t('connection.nativeGuide.troubleshooting')}</h4>
+              <div class="text-sm ${this.currentTheme === 'dark' ? 'text-orange-200' : 'text-orange-700'} space-y-1">
                 ${i18n.tArray('connection.nativeGuide.troubleshootingItems').map(item => `<p>• ${item}</p>`).join('')}
               </div>
             </div>
@@ -1328,6 +1325,54 @@ export class ConnectionPanel {
     // Cleanup TCP Native service
     if (this.tcpNativeService.isProxyReady() || this.tcpNativeService.isTcpConnected()) {
       this.tcpNativeService.cleanup();
+    }
+  }
+
+  /**
+   * Get theme-specific CSS classes
+   */
+  private getThemeClasses(): { 
+    background: string; 
+    panelBg: string; 
+    border: string; 
+    inputBg: string; 
+    textPrimary: string; 
+    textSecondary: string; 
+    textMuted: string 
+  } {
+    if (this.currentTheme === 'light') {
+      return {
+        background: 'bg-gray-50',
+        panelBg: 'bg-white',
+        border: 'border-gray-200',
+        inputBg: 'bg-white',
+        textPrimary: 'text-gray-900',
+        textSecondary: 'text-gray-800',
+        textMuted: 'text-gray-600'
+      };
+    } else {
+      return {
+        background: 'bg-dark-bg',
+        panelBg: 'bg-dark-surface',
+        border: 'border-dark-border',
+        inputBg: 'bg-dark-surface',
+        textPrimary: 'text-dark-text-primary',
+        textSecondary: 'text-dark-text-secondary',
+        textMuted: 'text-dark-text-muted'
+      };
+    }
+  }
+
+  /**
+   * Handle theme change from parent App
+   */
+  public onThemeChange(theme: 'light' | 'dark'): void {
+    this.currentTheme = theme;
+    // Re-render the panel with new theme
+    const container = document.querySelector('#connection-content');
+    if (container) {
+      container.innerHTML = this.render();
+      this.attachEventListeners();
     }
   }
 }

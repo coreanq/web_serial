@@ -91,6 +91,9 @@ export class App {
     // Apply initial layout based on default panel position
     this.updateLayout();
     
+    // Apply initial theme
+    this.applyTheme();
+    
     // Log after initial layout
     console.log('Layout applied, current position:', this.connectionPanelPosition);
   }
@@ -1023,8 +1026,8 @@ export class App {
       return {
         background: 'bg-gray-50',
         textPrimary: 'text-gray-900',
-        textSecondary: 'text-gray-700',
-        textMuted: 'text-gray-500'
+        textSecondary: 'text-gray-800',
+        textMuted: 'text-gray-600'
       };
     } else {
       return {
@@ -1048,6 +1051,14 @@ export class App {
     // Add new theme class
     rootElement.classList.add(this.currentTheme + '-theme');
     
+    // Force body background color change
+    const body = document.body;
+    if (this.currentTheme === 'light') {
+      body.style.backgroundColor = '#f9fafb';
+    } else {
+      body.style.backgroundColor = '#0f0f23';
+    }
+    
     // Update existing elements without full re-render
     this.updateExistingElementsForTheme();
   }
@@ -1061,8 +1072,14 @@ export class App {
     // Update main container background
     const mainContainer = document.querySelector('.min-h-screen') as HTMLElement;
     if (mainContainer) {
-      mainContainer.className = mainContainer.className.replace(/bg-\S+/g, '');
-      mainContainer.classList.add(themeClasses.background.split(' ')[0]);
+      // Remove existing background classes
+      mainContainer.classList.remove('bg-gray-50', 'bg-dark-bg');
+      // Add new background class
+      if (this.currentTheme === 'light') {
+        mainContainer.classList.add('bg-gray-50');
+      } else {
+        mainContainer.classList.add('bg-dark-bg');
+      }
     }
     
     // Update all text elements
@@ -1101,6 +1118,9 @@ export class App {
     }
     if (this.commandPanel && typeof this.commandPanel.onThemeChange === 'function') {
       this.commandPanel.onThemeChange(this.currentTheme);
+    }
+    if (this.logSettingsPanel && typeof this.logSettingsPanel.onThemeChange === 'function') {
+      this.logSettingsPanel.onThemeChange(this.currentTheme);
     }
   }
 

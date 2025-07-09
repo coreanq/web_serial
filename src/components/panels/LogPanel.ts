@@ -22,6 +22,7 @@ export class LogPanel {
   private virtualScrollManager?: VirtualScrollManager; // Virtual scrolling manager
   private useVirtualScrolling = false; // Virtual scrolling toggle
   private isRenderingVirtualScroll = false; // Prevent infinite recursion
+  private currentTheme: 'light' | 'dark' = 'light'; // Default theme
   
   // Event handlers for event delegation
   private handleTooltipMouseOver!: (e: Event) => void;
@@ -48,8 +49,8 @@ export class LogPanel {
         border: 'border-gray-200',
         inputBg: 'bg-white',
         textPrimary: 'text-gray-900',
-        textSecondary: 'text-gray-700',
-        textMuted: 'text-gray-500'
+        textSecondary: 'text-gray-800',
+        textMuted: 'text-gray-600'
       };
     } else {
       return {
@@ -1247,7 +1248,6 @@ export class LogPanel {
     this.scrollListener = (e) => {
       if (this.useVirtualScrolling && this.virtualScrollManager) {
         const target = e.target as HTMLElement;
-        console.log(`[Virtual Scroll] Scroll event - scrollTop: ${target.scrollTop}`);
         this.virtualScrollManager.setScrollTop(target.scrollTop);
       }
     };

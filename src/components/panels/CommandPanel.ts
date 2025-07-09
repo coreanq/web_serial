@@ -15,6 +15,7 @@ export class CommandPanel {
   private startTime = 0; // Track start time for precise timing
   private expectedNextTime = 0; // Expected time for next execution
   private checkedCommands: Set<string> = new Set(); // Track checked commands
+  private currentTheme: 'light' | 'dark' = 'light'; // Default theme
 
   constructor(onCommandSend: (command: string, isRepeating?: boolean) => void, onRepeatModeChanged?: (isRepeating: boolean) => void) {
     this.onCommandSend = onCommandSend;
@@ -38,7 +39,7 @@ export class CommandPanel {
       <div class="flex flex-col space-y-4">
         <!-- Quick Commands -->
         <div>
-          <h3 class="text-sm font-medium text-dark-text-secondary mb-3">Quick Commands & Examples</h3>
+          <h3 class="text-sm font-medium ${this.getThemeClasses().textSecondary} mb-3">Quick Commands & Examples</h3>
           <div class="grid grid-cols-1 gap-2" id="quick-commands">
             ${this.renderQuickCommands()}
           </div>
@@ -49,23 +50,23 @@ export class CommandPanel {
 
         <!-- Manual Command Input -->
         <div class="flex flex-col">
-          <h3 class="text-sm font-medium text-dark-text-secondary mb-3">${i18n.t('command.manual.title')}</h3>
+          <h3 class="text-sm font-medium ${this.getThemeClasses().textSecondary} mb-3">${i18n.t('command.manual.title')}</h3>
           
           <div class="flex flex-col space-y-3">
             <!-- Manual HEX Input -->
             <div>
               <div class="flex items-center justify-between mb-2">
-                <label class="block text-xs text-dark-text-muted">
+                <label class="block text-xs ${this.getThemeClasses().textMuted}">
                   ${i18n.t('command.manual.input')}
                 </label>
                 <div class="flex items-center gap-3">
                   <label class="flex items-center gap-1 text-xs">
-                    <input type="checkbox" id="ascii-mode" class="rounded border-dark-border bg-dark-surface">
-                    <span class="text-dark-text-muted">${i18n.t('command.manual.asciiMode')}</span>
+                    <input type="checkbox" id="ascii-mode" class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
+                    <span class="${this.getThemeClasses().textMuted}">${i18n.t('command.manual.asciiMode')}</span>
                   </label>
                   <label class="flex items-center gap-1 text-xs">
-                    <input type="checkbox" id="auto-crc" checked class="rounded border-dark-border bg-dark-surface">
-                    <span class="text-dark-text-muted">${i18n.t('command.manual.autoCrc')}</span>
+                    <input type="checkbox" id="auto-crc" checked class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
+                    <span class="${this.getThemeClasses().textMuted}">${i18n.t('command.manual.autoCrc')}</span>
                   </label>
                 </div>
               </div>
@@ -75,34 +76,34 @@ export class CommandPanel {
                 placeholder="Enter Modbus PDU data:&#10;• HEX Mode: 01 03 00 00 00 0A&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
               ></textarea>
               <div class="text-xs mt-1" id="hex-preview">
-                <span class="text-dark-text-muted">Preview:</span> 
-                <span class="text-dark-text-secondary font-mono">Enter data above (toggle ASCII Mode for text input)...</span>
+                <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
+                <span class="${this.getThemeClasses().textSecondary} font-mono">Enter data above (toggle ASCII Mode for text input)...</span>
               </div>
             </div>
 
             <!-- Command Builder -->
-            <div class="border-t border-dark-border pt-3">
-              <h4 class="text-xs font-medium text-dark-text-muted mb-2">${i18n.t('command.generator.title')}</h4>
+            <div class="border-t ${this.getThemeClasses().border} pt-3">
+              <h4 class="text-xs font-medium ${this.getThemeClasses().textMuted} mb-2">${i18n.t('command.generator.title')}</h4>
               
               <!-- Hex Base Mode Checkbox -->
               <div class="mb-3">
                 <label class="flex items-center gap-2 text-sm">
-                  <input type="checkbox" id="hex-base-mode" checked class="rounded border-dark-border bg-dark-surface">
-                  <span class="text-dark-text-secondary">${i18n.t('command.generator.hexBaseMode')}</span>
-                  <span class="text-xs text-dark-text-muted">(Input values as hex strings)</span>
+                  <input type="checkbox" id="hex-base-mode" checked class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
+                  <span class="${this.getThemeClasses().textSecondary}">${i18n.t('command.generator.hexBaseMode')}</span>
+                  <span class="text-xs ${this.getThemeClasses().textMuted}">(Input values as hex strings)</span>
                 </label>
               </div>
 
               <div class="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <label class="block text-xs text-dark-text-muted mb-1">
+                  <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">
                     ${i18n.t('command.generator.slaveId')}
                   </label>
                   <input id="slave-id" class="input-field w-full text-sm" value="01" 
                          placeholder="${this.connectionType.startsWith('TCP') ? '01 (Unit ID for MBAP)' : '01 (hex) or 1 (dec)'}">
                 </div>
                 <div>
-                  <label class="block text-xs text-dark-text-muted mb-1">${i18n.t('command.generator.functionCode')}</label>
+                  <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">${i18n.t('command.generator.functionCode')}</label>
                   <select id="function-code" class="input-field w-full text-sm">
                     <option value="01">${i18n.t('command.functionCodes.01')}</option>
                     <option value="02">${i18n.t('command.functionCodes.02')}</option>
@@ -115,18 +116,18 @@ export class CommandPanel {
                   </select>
                 </div>
                 <div>
-                  <label class="block text-xs text-dark-text-muted mb-1">${i18n.t('command.generator.startAddress')}</label>
+                  <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">${i18n.t('command.generator.startAddress')}</label>
                   <input id="start-address" class="input-field w-full text-sm" value="0000" placeholder="0000 (hex) or 0 (dec)">
                 </div>
                 <div>
-                  <label class="block text-xs text-dark-text-muted mb-1">${i18n.t('command.generator.quantity')}</label>
+                  <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">${i18n.t('command.generator.quantity')}</label>
                   <input id="quantity" class="input-field w-full text-sm" value="000A" placeholder="000A (hex) or 10 (dec)">
                 </div>
               </div>
               
               <!-- Data Values for Function Code 0F/10 -->
               <div id="data-values-section" class="mt-3 hidden">
-                <label class="block text-xs text-dark-text-muted mb-2" id="data-values-label">${i18n.t('command.dataValues.title')}</label>
+                <label class="block text-xs ${this.getThemeClasses().textMuted} mb-2" id="data-values-label">${i18n.t('command.dataValues.title')}</label>
                 <div class="space-y-2" id="data-values-container">
                   <!-- Data value inputs will be dynamically added here -->
                 </div>
@@ -141,7 +142,7 @@ export class CommandPanel {
             </div>
 
             <!-- Send Controls -->
-            <div class="flex gap-2 pt-3 border-t border-dark-border mt-auto">
+            <div class="flex gap-2 pt-3 border-t ${this.getThemeClasses().border} mt-auto">
               <button class="btn-primary flex-1" id="send-command">
                 ${i18n.t('common.send')}
               </button>
@@ -153,9 +154,9 @@ export class CommandPanel {
         </div>
 
         <!-- Command History -->
-        <div class="border-t border-dark-border pt-3">
+        <div class="border-t ${this.getThemeClasses().border} pt-3">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm font-medium text-dark-text-secondary">${i18n.t('command.history.title')} & ${i18n.t('command.repeat.title')} (Max 10)</h3>
+            <h3 class="text-sm font-medium ${this.getThemeClasses().textSecondary}">${i18n.t('command.history.title')} & ${i18n.t('command.repeat.title')} (Max 10)</h3>
             <div class="flex items-center gap-2">
               <input 
                 type="number" 
@@ -168,7 +169,7 @@ export class CommandPanel {
                 pattern="[0-9]*"
                 placeholder="1000"
                 title="${i18n.t('command.repeat.interval')} (${i18n.t('command.repeat.minInterval')}, integers only)">
-              <span class="text-xs text-dark-text-muted">ms</span>
+              <span class="text-xs ${this.getThemeClasses().textMuted}">ms</span>
               <button class="btn-secondary text-xs py-1 px-2" id="toggle-repeat">
                 ${i18n.t('common.start')}
               </button>
@@ -184,21 +185,21 @@ export class CommandPanel {
 
   private renderCommandHistory(): string {
     if (this.recentCommands.length === 0) {
-      return `<p class="text-xs text-dark-text-muted text-center py-2">${i18n.t('command.history.empty')}</p>`;
+      return `<p class="text-xs ${this.getThemeClasses().textMuted} text-center py-2">${i18n.t('command.history.empty')}</p>`;
     }
 
     return this.recentCommands.map((cmd, index) => `
-      <div class="flex items-center gap-2 p-1 bg-dark-surface rounded border border-dark-border hover:bg-dark-panel transition-colors">
+      <div class="flex items-center gap-2 p-1 ${this.getThemeClasses().panelBg} rounded border ${this.getThemeClasses().border} hover:bg-gray-100 dark:hover:bg-dark-panel transition-colors">
         <input 
           type="checkbox" 
           id="repeat-${index}" 
-          class="rounded border-dark-border bg-dark-surface flex-shrink-0"
+          class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg} flex-shrink-0"
           data-repeat-command="${cmd}"
           title="${i18n.t('command.repeat.selectCommands')}"
           ${this.checkedCommands.has(cmd) ? 'checked' : ''}
         >
         <button 
-          class="flex-1 text-left text-xs font-mono text-dark-text-primary hover:text-blue-400 transition-colors min-w-0 truncate select-none"
+          class="flex-1 text-left text-xs font-mono ${this.getThemeClasses().textPrimary} hover:text-blue-400 transition-colors min-w-0 truncate select-none"
           data-history-command="${cmd}"
           title="Click: Send directly"
           style="user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;"
@@ -960,8 +961,8 @@ export class CommandPanel {
     
     if (!input) {
       previewElement.innerHTML = `
-        <span class="text-dark-text-muted">Preview:</span> 
-        <span class="text-dark-text-secondary font-mono">Enter ${isAsciiMode ? 'text' : 'HEX data'} above...</span>
+        <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
+        <span class="${this.getThemeClasses().textSecondary} font-mono">Enter ${isAsciiMode ? 'text' : 'HEX data'} above...</span>
       `;
       return;
     }
@@ -974,7 +975,7 @@ export class CommandPanel {
       convertedHex = this.formatHexInput(rawInput);
       if (!this.isValidHexInput(convertedHex)) {
         previewElement.innerHTML = `
-          <span class="text-dark-text-muted">Preview:</span> 
+          <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
           <span class="text-red-400 font-mono">Invalid HEX format</span>
         `;
         return;
@@ -1005,16 +1006,16 @@ export class CommandPanel {
     previewElement.innerHTML = `
       <div class="flex flex-col gap-1">
         <div>
-          <span class="text-dark-text-muted">Preview:</span> 
-          <span class="text-dark-text-secondary font-mono">${finalCommand}</span>${protocolInfo}
+          <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
+          <span class="${this.getThemeClasses().textSecondary} font-mono">${finalCommand}</span>${protocolInfo}
         </div>
         <div class="text-xs">
-          ${this.connectionType === 'TCP' ? `<span class="text-dark-text-muted">Protocol:</span> <span class="text-cyan-400">Modbus TCP</span>` : ''}
+          ${this.connectionType === 'TCP' ? `<span class="${this.getThemeClasses().textMuted}">Protocol:</span> <span class="text-cyan-400">Modbus TCP</span>` : ''}
         </div>
         ${packetAnalysis ? `
-        <div class="text-xs border-t border-dark-border pt-1 mt-1">
-          <span class="text-dark-text-muted">Analysis:</span>
-          <div class="mt-1 p-2 bg-dark-surface rounded text-xs text-dark-text-secondary whitespace-pre-line font-mono">${packetAnalysis}</div>
+        <div class="text-xs border-t ${this.getThemeClasses().border} pt-1 mt-1">
+          <span class="${this.getThemeClasses().textMuted}">Analysis:</span>
+          <div class="mt-1 p-2 ${this.getThemeClasses().panelBg} rounded text-xs ${this.getThemeClasses().textSecondary} whitespace-pre-line font-mono">${packetAnalysis}</div>
         </div>
         ` : ''}
       </div>
@@ -1068,7 +1069,7 @@ export class CommandPanel {
     }
     
     if (isNaN(quantity) || quantity <= 0) {
-      container.innerHTML = '<p class="text-xs text-dark-text-muted">Enter valid quantity first</p>';
+      container.innerHTML = '<p class="text-xs ${this.getThemeClasses().textMuted}">Enter valid quantity first</p>';
       return;
     }
     
@@ -1110,7 +1111,7 @@ export class CommandPanel {
       
       html += `
         <div class="flex items-center gap-2">
-          <label class="text-xs text-dark-text-muted min-w-max">${labelPrefix} ${i}:</label>
+          <label class="text-xs ${this.getThemeClasses().textMuted} min-w-max">${labelPrefix} ${i}:</label>
           <input type="text" 
                  class="input-field flex-1 text-xs ${cssClass}" 
                  data-value-index="${i}"
@@ -1168,7 +1169,7 @@ export class CommandPanel {
     const newInput = document.createElement('div');
     newInput.className = 'flex items-center gap-2';
     newInput.innerHTML = `
-      <label class="text-xs text-dark-text-muted min-w-max">${labelPrefix} ${nextIndex}:</label>
+      <label class="text-xs ${this.getThemeClasses().textMuted} min-w-max">${labelPrefix} ${nextIndex}:</label>
       <input type="text" 
              class="input-field flex-1 text-xs ${cssClass}" 
              data-value-index="${nextIndex}"
@@ -1904,5 +1905,54 @@ export class CommandPanel {
     
     // Restore current state
     this.updateConnectionStatus(this.connectionType, this.connectionType !== 'RTU');
+  }
+
+  /**
+   * Get theme-specific CSS classes
+   */
+  private getThemeClasses(): { 
+    background: string; 
+    panelBg: string; 
+    border: string; 
+    inputBg: string; 
+    textPrimary: string; 
+    textSecondary: string; 
+    textMuted: string 
+  } {
+    if (this.currentTheme === 'light') {
+      return {
+        background: 'bg-gray-50',
+        panelBg: 'bg-white',
+        border: 'border-gray-200',
+        inputBg: 'bg-white',
+        textPrimary: 'text-gray-900',
+        textSecondary: 'text-gray-800',
+        textMuted: 'text-gray-600'
+      };
+    } else {
+      return {
+        background: 'bg-dark-bg',
+        panelBg: 'bg-dark-surface',
+        border: 'border-dark-border',
+        inputBg: 'bg-dark-surface',
+        textPrimary: 'text-dark-text-primary',
+        textSecondary: 'text-dark-text-secondary',
+        textMuted: 'text-dark-text-muted'
+      };
+    }
+  }
+
+  /**
+   * Handle theme change from parent App
+   */
+  public onThemeChange(theme: 'light' | 'dark'): void {
+    this.currentTheme = theme;
+    // Re-render the panel with new theme
+    const container = document.querySelector('#command-content');
+    if (container) {
+      container.innerHTML = this.render();
+      this.attachEventListeners();
+      this.updateConnectionStatus(this.connectionType, this.connectionType !== 'RTU');
+    }
   }
 }
