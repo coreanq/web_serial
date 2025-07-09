@@ -257,6 +257,8 @@ export class App {
       // Ensure compact mode is set before mounting
       const isCompact = this.connectionPanelPosition === 'left' || this.connectionPanelPosition === 'right';
       this.connectionPanel.setCompactMode(isCompact);
+      // Set current theme before mounting
+      this.connectionPanel.onThemeChange(this.currentTheme);
       await this.connectionPanel.mount(connectionContent);
     }
 
@@ -271,6 +273,8 @@ export class App {
     }
 
     if (commandContent) {
+      // Set current theme before mounting
+      this.commandPanel.onThemeChange(this.currentTheme);
       this.commandPanel.mount(commandContent);
     }
   }
@@ -1024,14 +1028,14 @@ export class App {
   private getThemeClasses(): { background: string; textPrimary: string; textSecondary: string; textMuted: string } {
     if (this.currentTheme === 'light') {
       return {
-        background: 'bg-gray-50',
+        background: '', // Let body handle the background
         textPrimary: 'text-gray-900',
         textSecondary: 'text-gray-800',
         textMuted: 'text-gray-600'
       };
     } else {
       return {
-        background: 'bg-dark-bg',
+        background: '', // Let body handle the background
         textPrimary: 'text-dark-text-primary',
         textSecondary: 'text-dark-text-secondary',
         textMuted: 'text-dark-text-muted'
@@ -1051,13 +1055,9 @@ export class App {
     // Add new theme class
     rootElement.classList.add(this.currentTheme + '-theme');
     
-    // Force body background color change
-    const body = document.body;
-    if (this.currentTheme === 'light') {
-      body.style.backgroundColor = '#f9fafb';
-    } else {
-      body.style.backgroundColor = '#0f0f23';
-    }
+    // Simple inline style solution - Tailwind utilities override CSS rules
+    const backgroundColor = this.currentTheme === 'light' ? '#f9fafb' : '#0f0f23';
+    document.body.style.setProperty('background-color', backgroundColor, 'important');
     
     // Update existing elements without full re-render
     this.updateExistingElementsForTheme();
@@ -1069,17 +1069,12 @@ export class App {
   private updateExistingElementsForTheme(): void {
     const themeClasses = this.getThemeClasses();
     
-    // Update main container background
+    // Update main container background - remove conflicting classes only
     const mainContainer = document.querySelector('.min-h-screen') as HTMLElement;
     if (mainContainer) {
-      // Remove existing background classes
+      // Remove existing background classes that might conflict
       mainContainer.classList.remove('bg-gray-50', 'bg-dark-bg');
-      // Add new background class
-      if (this.currentTheme === 'light') {
-        mainContainer.classList.add('bg-gray-50');
-      } else {
-        mainContainer.classList.add('bg-dark-bg');
-      }
+      // Don't add new background classes - let body handle the background
     }
     
     // Update all text elements
@@ -1095,13 +1090,6 @@ export class App {
       span.className = span.className.replace(/text-\S+/g, '');
       span.classList.add(themeClasses.textMuted.split(' ')[0]);
     });
-    
-    // Force CSS recalculation by triggering a repaint
-    if (mainContainer) {
-      mainContainer.style.display = 'none';
-      mainContainer.offsetHeight; // Trigger reflow
-      mainContainer.style.display = '';
-    }
     
     // Update theme selector to reflect current theme
     const themeSelector = document.getElementById('theme-selector') as HTMLSelectElement;

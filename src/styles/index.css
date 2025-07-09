@@ -22,7 +22,6 @@
     padding: 0;
     min-height: 100vh;
     overflow: auto;
-    @apply bg-gray-50;
   }
 
   html, body, #app {
@@ -30,15 +29,15 @@
     margin: 0;
     padding: 0;
   }
-  
-  /* Theme-specific body backgrounds */
-  .light-theme body {
-    background-color: #f9fafb !important;
-  }
-  
-  .dark-theme body {
-    background-color: #0f0f23 !important;
-  }
+}
+
+/* Theme-specific body backgrounds */
+html.light-theme body {
+  background-color: #f9fafb !important;
+}
+
+html.dark-theme body {
+  background-color: #0f0f23 !important;
 }
 
 @layer components {

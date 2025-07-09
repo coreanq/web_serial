@@ -16,7 +16,7 @@ export class ConnectionPanel {
   private nativeProxyStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
   private currentNativeConfig: TcpNativeConnection | null = null;
   private manualDisconnect: boolean = false; // Flag to prevent auto-reconnect after manual disconnect
-  private currentTheme: 'light' | 'dark' = 'light'; // Default theme
+  private currentTheme: 'light' | 'dark' = 'light'; // Default theme, will be set by App
 
   constructor(
     onConnectionChange: (status: ConnectionStatus, config?: any) => void, 
@@ -154,16 +154,16 @@ export class ConnectionPanel {
       <div class="space-y-4">
         <!-- Web Serial API Support Status -->
         <div class="p-3 rounded-md ${isWebSerialSupported 
-          ? 'bg-green-900/20 border border-green-500/30' 
-          : 'bg-red-900/20 border border-red-500/30'}">
+          ? (this.currentTheme === 'dark' ? 'bg-green-900/20 border border-green-500/30' : 'bg-green-100 border border-green-400') 
+          : (this.currentTheme === 'dark' ? 'bg-red-900/20 border border-red-500/30' : 'bg-red-100 border border-red-400')}">
           <div class="flex items-center gap-2">
             <div class="w-2 h-2 rounded-full ${isWebSerialSupported ? 'bg-green-500' : 'bg-red-500'}"></div>
-            <span class="text-sm font-medium">
+            <span class="text-sm font-medium ${this.getStatusTextClass()}">
               ${isWebSerialSupported ? 'Web Serial API Supported' : 'Web Serial API Not Supported'}
             </span>
           </div>
           ${!isWebSerialSupported ? `
-            <p class="text-xs text-dark-text-muted mt-1">
+            <p class="text-xs ${this.getStatusMutedTextClass()} mt-1">
               Please use Chrome/Edge 89+ or enable the Web Serial API flag
             </p>
           ` : ''}
@@ -280,15 +280,15 @@ export class ConnectionPanel {
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full ${this.getNativeProxyIndicatorClass()} status-indicator"></div>
-              <span class="text-sm font-medium status-text">
+              <span class="text-sm font-medium status-text ${this.getStatusTextClass()}">
                 ${this.getNativeProxyStatusText()}
               </span>
             </div>
-            <div class="text-xs opacity-75">
+            <div class="text-xs opacity-75 ${this.getStatusMutedTextClass()}">
               ${this.isNativeProxyFailed() ? i18n.t('connection.nativeGuide.installGuide') : i18n.t('connection.nativeGuide.guideInfo')}
             </div>
           </div>
-          <div class="text-xs text-dark-text-muted mt-1">
+          <div class="text-xs ${this.getStatusMutedTextClass()} mt-1">
             <div class="flex items-center justify-between">
               <span class="${this.isCompactMode ? 'truncate' : ''}">Native Host: com.my_company.stdio_proxy</span>
             </div>
@@ -1163,15 +1163,25 @@ export class ConnectionPanel {
 
   // TCP Native status methods
   private getNativeProxyStatusClass(): string {
+    const isDark = this.currentTheme === 'dark';
+    
     switch (this.nativeProxyStatus) {
       case 'connected':
-        return 'bg-green-900/20 border border-green-500/30';
+        return isDark 
+          ? 'bg-green-900/20 border border-green-500/30' 
+          : 'bg-green-100 border border-green-400';
       case 'connecting':
-        return 'bg-yellow-900/20 border border-yellow-500/30';
+        return isDark 
+          ? 'bg-yellow-900/20 border border-yellow-500/30' 
+          : 'bg-yellow-100 border border-yellow-400';
       case 'error':
-        return 'bg-red-900/20 border border-red-500/30';
+        return isDark 
+          ? 'bg-red-900/20 border border-red-500/30' 
+          : 'bg-red-100 border border-red-400';
       default:
-        return 'bg-gray-900/20 border border-gray-500/30';
+        return isDark 
+          ? 'bg-gray-900/20 border border-gray-500/30' 
+          : 'bg-gray-100 border border-gray-400';
     }
   }
 
@@ -1202,15 +1212,25 @@ export class ConnectionPanel {
   }
 
   private getTcpNativeStatusClass(): string {
+    const isDark = this.currentTheme === 'dark';
+    
     switch (this.tcpNativeStatus) {
       case 'connected':
-        return 'bg-green-900/20 border border-green-500/30';
+        return isDark 
+          ? 'bg-green-900/20 border border-green-500/30' 
+          : 'bg-green-100 border border-green-400';
       case 'connecting':
-        return 'bg-yellow-900/20 border border-yellow-500/30';
+        return isDark 
+          ? 'bg-yellow-900/20 border border-yellow-500/30' 
+          : 'bg-yellow-100 border border-yellow-400';
       case 'error':
-        return 'bg-red-900/20 border border-red-500/30';
+        return isDark 
+          ? 'bg-red-900/20 border border-red-500/30' 
+          : 'bg-red-100 border border-red-400';
       default:
-        return 'bg-gray-900/20 border border-gray-500/30';
+        return isDark 
+          ? 'bg-gray-900/20 border border-gray-500/30' 
+          : 'bg-gray-100 border border-gray-400';
     }
   }
 
@@ -1225,6 +1245,16 @@ export class ConnectionPanel {
       default:
         return 'bg-gray-500';
     }
+  }
+
+  private getStatusTextClass(): string {
+    const isDark = this.currentTheme === 'dark';
+    return isDark ? 'text-dark-text-primary' : 'text-gray-900';
+  }
+
+  private getStatusMutedTextClass(): string {
+    const isDark = this.currentTheme === 'dark';
+    return isDark ? 'text-dark-text-muted' : 'text-gray-600';
   }
 
   private getTcpNativeStatusText(): string {
@@ -1280,7 +1310,10 @@ export class ConnectionPanel {
       const indicator = nativeProxyContainer.querySelector('.status-indicator');
       const text = nativeProxyContainer.querySelector('.status-text');
       if (indicator) indicator.className = `w-2 h-2 rounded-full ${this.getNativeProxyIndicatorClass()} status-indicator`;
-      if (text) text.textContent = this.getNativeProxyStatusText();
+      if (text) {
+        text.textContent = this.getNativeProxyStatusText();
+        text.className = `text-sm font-medium status-text ${this.getStatusTextClass()}`;
+      }
     }
 
     // Update TCP Native status  
@@ -1304,6 +1337,7 @@ export class ConnectionPanel {
     const event = new CustomEvent('panelBackgroundChange');
     document.dispatchEvent(event);
   }
+
 
 
   /**
@@ -1368,11 +1402,9 @@ export class ConnectionPanel {
    */
   public onThemeChange(theme: 'light' | 'dark'): void {
     this.currentTheme = theme;
-    // Re-render the panel with new theme
-    const container = document.querySelector('#connection-content');
-    if (container) {
-      container.innerHTML = this.render();
-      this.attachEventListeners();
-    }
+    // Update all status indicators with new theme
+    this.updateStatusIndicators();
+    // Re-render the current tab content with new theme
+    this.switchTab(this.activeTab);
   }
 }

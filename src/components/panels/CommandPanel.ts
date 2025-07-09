@@ -36,7 +36,7 @@ export class CommandPanel {
 
   private render(): string {
     return `
-      <div class="flex flex-col space-y-4">
+      <div class="flex flex-col space-y-4 ${this.getThemeClasses().panelBg} p-4 rounded-lg">
         <!-- Quick Commands -->
         <div>
           <h3 class="text-sm font-medium ${this.getThemeClasses().textSecondary} mb-3">Quick Commands & Examples</h3>
@@ -1953,6 +1953,17 @@ export class CommandPanel {
       container.innerHTML = this.render();
       this.attachEventListeners();
       this.updateConnectionStatus(this.connectionType, this.connectionType !== 'RTU');
+    }
+  }
+
+  // Theme change handler
+  public onThemeChange(theme: 'light' | 'dark'): void {
+    this.currentTheme = theme;
+    // Re-render the panel with new theme
+    const container = document.querySelector('#command-content');
+    if (container) {
+      container.innerHTML = this.render();
+      this.attachEventListeners();
     }
   }
 }
