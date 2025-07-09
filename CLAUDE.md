@@ -6,7 +6,7 @@
 
 - 프로젝트 초기시 javascript 기본 프로젝트 구조 생성 
 - TypeScript 사용 
-- Tailwind CSS 사용
+- Tailwind CSS Version 3 사용
 - eslint, vite, bun 사용 
 - ES Modules (ESM) 사용
 - TypeScript 엄격 모드 사용 
@@ -28,7 +28,7 @@
 목표: 클라이언트는 자신이 사용하지 않는 메서드에 의존해서는 안 됩니다. 즉, 하나의 거대한 인터페이스보다는 여러 개의 작은 인터페이스가 낫습니다.
 5. 의존성 역전 원칙 (DIP: Dependency Inversion Principle)
 목표: 고수준 모듈은 저수준 모듈에 의존해서는 안 됩니다. 이 두 모듈 모두 추상화에 의존해야 합니다. 추상화는 세부 사항에 의존해서는 안 됩니다. 세부 사항이 추상화에 의존해야 합니다. (즉, 인터페이스나 추상 클래스에 의존하고, 구체 클래스에 직접 의존하지 않습니다.)
-6. 코드 수정 발생 시 코드 수정한 부분의 주석이 알맞게 변경한다.
+6. 코드 수정 발생 시 코드 수정한 부분의 주석을 알맞게 변경한다.
 
 
 ** Shell 에서 사용하는 tool
@@ -69,8 +69,15 @@ web_serial/
 ├── stdio-proxy/           # Native Messaging Host 프로그램
 ├── tcp-loopback-server/   # TCP 테스트 서버
 ├── dist/                  # 빌드 결과물
+├── public/                # 공개 리소스 파일
+├── diagram/               # 시퀀스 다이어그램 (MMD 파일)
+├── prd/                   # 프로덕션 관련 정보
 ├── vite.config.ts         # Vite 설정
 ├── package.json          # Node.js 의존성
+├── bunfig.toml           # Bun 런타임 설정
+├── tailwind.config.js    # Tailwind CSS 설정
+├── postcss.config.js     # PostCSS 설정
+├── tsconfig.json         # TypeScript 설정
 └── CLAUDE.md            # 프로젝트 가이드 (이 파일)
 ```
 
@@ -125,7 +132,12 @@ src/
   - **popup.html**: 팝업 페이지
   - **options.html**: 옵션 페이지
 - **dist/**: 빌드된 확장 파일들
-- **modbus-debugger-extension-v1.0.0.zip**: 패키지된 확장
+- **modbus-analyzer-extension-v1.0.0.zip**: 패키지된 확장
+- **promotional/**: 확장 프로모션 관련 파일들
+- **scripts/**: 빌드 스크립트
+- **store-listing.json**: 스토어 등록 정보
+- **PROMOTIONAL_IMAGES_GUIDE.md**: 프로모션 이미지 가이드
+- **SCREENSHOTS_GUIDE.md**: 스크린샷 가이드
 
 ### 주요 권한
 - `webSerial`: Web Serial API 사용
@@ -290,25 +302,101 @@ chmod +x install-linux.sh
 
 # 고급 기능
 
+## 서비스 클래스 상세 구현
+
+### SerialService.ts
+- **Web Serial API 관리**: 시리얼 포트 연결, 데이터 송수신, 연결 상태 관리
+- **주요 메서드**: `isSupported()`, `requestPort()`, `connect()`, `disconnect()`, `sendData()`, `startReading()`
+- **패킷 버퍼링**: 5ms 타임아웃으로 응답 패킷을 수집하고 Modbus 응답 길이 예측을 통한 완전한 패킷 수신
+- **연결 관리**: 중복 연결 방지, 타임아웃 처리(15초), 상세한 오류 메시지 제공
+- **데이터 변환**: `uint8ArrayToHex()`, `hexToUint8Array()` 유틸리티 메서드
+
+### TcpNativeService.ts
+- **Native Messaging 통합**: `com.my_company.stdio_proxy` 호스트와 통신
+- **패킷 버퍼링**: RTU와 동일한 5ms 타임아웃 방식으로 TCP 패킷 수집
+- **연결 상태 관리**: Proxy 연결과 TCP 연결을 분리하여 관리
+- **콜백 시스템**: `onConnectionChange()`, `onData()`, `onError()`, `onProxyStatus()` 이벤트 핸들러
+
+### I18nService.ts
+- **다국어 메서드**: `t()`, `tString()`, `tArray()` - 타입 안전성 보장
+- **폴백 시스템**: 한국어 → 영어 → 키 이름 순서로 폴백
+- **매개변수 보간**: `{{key}}` 형태의 동적 값 치환
+- **중첩 객체 지원**: 점 표기법으로 깊은 객체 구조 접근
+
+## UI 컴포넌트 상세 구현
+
+### App.ts
+- **패널 관리**: 연결 패널 위치(상단/좌측/우측) 동적 변경, 컴팩트 모드 지원
+- **메모리 최적화**: Object Pool을 통한 LogEntry 재사용, GC 타이머(30초)
+- **배치 처리**: 반복 모드에서 50개씩 로그 배치 처리, 250ms 업데이트 간격
+- **언어 변경**: 전체 UI 재렌더링 및 상태 복원
+
+### LogPanel.ts
+- **가상 스크롤링**: VirtualScrollManager를 통한 30개 이상 로그 시 자동 활성화
+- **Modbus 분석**: RTU/TCP 패킷 분석 및 툴팁 표시(반복 모드 시 비활성화)
+- **시간 필터**: DateTimeFilter로 프리셋(1시간, 4시간, 오늘 등) 및 커스텀 범위 지원
+- **증분 렌더링**: 새 로그만 DOM에 추가하는 효율적 업데이트
+
+### CommandPanel.ts
+- **명령 생성기**: HEX/DEC 모드 지원, 펑션 코드별 데이터 값 입력
+- **반복 모드**: 다중 명령 선택, 정밀한 타이밍 제어(드리프트 보정)
+- **실시간 미리보기**: Modbus 패킷 분석 및 프로토콜 정보 표시
+- **히스토리 관리**: 최근 10개 명령 저장, 원클릭 재전송
+
+### ConnectionPanel.ts
+- **탭 시스템**: RTU/TCP_NATIVE 탭별 다른 UI 렌더링
+- **연결 진행 상태**: 단계별 진행 메시지 표시
+- **Native Host 가이드**: OS별 설치 패키지 다운로드, 문제해결 가이드
+- **상태 표시**: Proxy 연결/TCP 연결 분리된 상태 인디케이터
+
+## 유틸리티 클래스 상세 구현
+
+### ModbusResponseCalculator.ts
+- **응답 길이 예측**: RTU/TCP 프로토콜별 정확한 응답 크기 계산
+- **펑션 코드 지원**: 0x01-0x2B 모든 주요 펑션 코드 지원
+- **프레임 구조 인식**: MBAP 헤더(TCP), Device ID + CRC(RTU) 처리
+- **유효성 검증**: 응답 길이 검증 및 허용 오차 설정
+
+### VirtualScrollManager.ts
+- **뷰포트 계산**: 스크롤 위치 기반 가시 영역 아이템 계산
+- **오버스캔**: 부드러운 스크롤을 위한 추가 아이템 렌더링
+- **상태 관리**: `scrollTop`, `startIndex`, `endIndex`, `visibleItems` 추적
+- **콜백 시스템**: 상태 변경 시 UI 업데이트 트리거
+
+### DateTimeFilter.ts
+- **프리셋 필터**: 1시간, 4시간, 오늘, 어제 등 빠른 시간 범위 설정
+- **커스텀 범위**: 사용자 정의 시작/종료 날짜 및 시간 설정
+- **실시간 업데이트**: 현재 시간 기준 동적 필터링
+- **타임존 처리**: 로컬 타임존 기반 정확한 시간 계산
+
 ## 최적화된 로그 관리 시스템
 
 ### SimpleCircularBuffer
 - **순환 버퍼**: 설정된 크기를 초과하면 오래된 로그를 자동 제거
 - **메모리 효율성**: 고정 크기 버퍼로 메모리 사용량 예측 가능
 - **고속 액세스**: 인덱스 기반 빠른 데이터 접근
+- **효율적 연산**: head/tail 포인터로 O(1) 삽입/제거
+- **동적 크기 조정**: `resize()` 메서드로 런타임 버퍼 크기 변경
+- **통계 정보**: 용량, 사용량, 메모리 추정치 제공
 
 ### OptimizedLogService
-- **하이브리드 저장**: 메모리 버퍼 + IndexedDB 조합으로 대용량 로그 처리
-- **자동 오버플로우 처리**: 메모리 버퍼 초과 시 IndexedDB로 자동 이동
+- **하이브리드 저장**: SimpleCircularBuffer(메모리) + IndexedDBLogService(DB) 조합으로 대용량 로그 처리
+- **자동 오버플로우 처리**: 메모리 버퍼 초과 시 IndexedDB로 자동 이동 (배치 처리 100개 단위)
 - **사용자 설정 가능**: 버퍼 크기, 세그먼트 크기, 자동 저장 임계값 등 사용자 정의
 - **다양한 파일 형식**: JSON, CSV, TXT 형식으로 로그 내보내기 지원
 - **메모리 자동 정리**: 주기적으로 사용하지 않는 메모리 세그먼트 해제
+- **설정 관리**: `loadSettings()`, `saveSettings()`, `updateConfig()` 메서드
+- **통계 정보**: 메모리 사용량, 버퍼 이용률, IndexedDB 크기 등 8가지 통계
 
 ### IndexedDBLogService
 - **브라우저 DB 활용**: IndexedDB를 활용한 대용량 로그 저장
 - **오프라인 지원**: 브라우저 재시작 후에도 로그 데이터 유지
 - **효율적 검색**: 인덱스 기반 빠른 로그 검색 및 필터링
 - **자동 정리**: 전체 로그 저장 시 IndexedDB 자동 초기화
+- **DB 관리**: `ModbusLogsDB` 데이터베이스, `overflowLogs` 테이블
+- **배치 처리**: `addOverflowLogs()` 메서드로 대량 로그 효율적 저장
+- **페이지네이션**: `getOverflowLogsPaginated()` 메서드로 메모리 효율적 로그 조회
+- **통계 및 정리**: DB 크기 추정, 날짜별 로그 정리 기능
 
 ### 반복 모드 최적화
 - **Throttled Logging**: 반복 모드에서 UI 응답성을 위한 로그 배치 처리
@@ -333,6 +421,10 @@ chmod +x install-linux.sh
 - **동적 높이 계산**: 로그 항목의 동적 높이 자동 계산
 - **스크롤 위치 추적**: 정확한 스크롤 위치 및 가시 영역 관리
 - **메모리 절약**: 화면에 보이는 항목만 DOM에 렌더링
+- **뷰포트 계산**: 스크롤 위치 기반 가시 영역 아이템 계산
+- **오버스캔**: 부드러운 스크롤을 위한 추가 아이템 렌더링
+- **상태 관리**: `scrollTop`, `startIndex`, `endIndex`, `visibleItems` 추적
+- **콜백 시스템**: 상태 변경 시 UI 업데이트 트리거
 
 ### 성능 최적화
 - **지연 렌더링**: 필요할 때만 DOM 요소 생성
@@ -346,6 +438,10 @@ chmod +x install-linux.sh
 - **통계 수집**: 평균, 최소, 최대 응답 시간 통계
 - **오류 분석**: Modbus 오류 코드 분석 및 통계
 - **성능 모니터링**: 실시간 통신 성능 지표 제공
+- **응답 길이 예측**: RTU/TCP 프로토콜별 정확한 응답 크기 계산
+- **펑션 코드 지원**: 0x01-0x2B 모든 주요 펑션 코드 지원
+- **프레임 구조 인식**: MBAP 헤더(TCP), Device ID + CRC(RTU) 처리
+- **유효성 검증**: 응답 길이 검증 및 허용 오차 설정
 
 ## 다국어 지원 시스템 (I18nService)
 
@@ -390,6 +486,12 @@ export const ko = {
   }
 };
 ```
+
+### 번역 구조
+- **체계적 구조**: `app`, `common`, `panel`, `connection`, `log`, `command`, `modbus`, `errors` 섹션
+- **중첩 객체**: 연결 → RTU/TCP → 메시지 → 상태 형태의 계층 구조
+- **배열 지원**: `troubleshootingItems` 등 리스트 형태 번역
+- **매개변수 지원**: `{{count}}`, `{{bytes}}` 등 동적 값 치환
 
 ## 패키지 매니저 마이그레이션
 
