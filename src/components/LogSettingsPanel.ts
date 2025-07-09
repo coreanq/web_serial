@@ -14,9 +14,7 @@ export class LogSettingsPanel {
   }
 
   public setClearCallback(callback: () => void): void {
-    console.log('LogSettingsPanel.setClearCallback called'); // Debug log
     this.onClearCallback = callback;
-    console.log('Callback set successfully:', !!this.onClearCallback); // Debug log
   }
 
   private createSettingsPanel(): HTMLElement {
@@ -306,16 +304,12 @@ export class LogSettingsPanel {
 
 
   private async clearLogs(): Promise<void> {
-    console.log('LogSettingsPanel.clearLogs called'); // Debug log
-    console.log('onClearCallback available:', !!this.onClearCallback); // Debug log
     
     try {
       // Call App's clear functionality if available
       if (this.onClearCallback) {
-        console.log('Calling onClearCallback from LogSettingsPanel'); // Debug log
         this.onClearCallback();
       } else {
-        console.log('No callback available, using direct service call'); // Debug log
         // Fallback to direct service call
         this.logService.clearLogs();
       }
@@ -328,16 +322,12 @@ export class LogSettingsPanel {
   }
 
   private async clearAllLogs(): Promise<void> {
-    console.log('LogSettingsPanel.clearAllLogs called'); // Debug log
-    console.log('onClearCallback available:', !!this.onClearCallback); // Debug log
     
     try {
       // Call App's clear functionality if available
       if (this.onClearCallback) {
-        console.log('Calling onClearCallback from LogSettingsPanel (clearAll)'); // Debug log
         this.onClearCallback();
       } else {
-        console.log('No callback available, using direct service call (clearAll)'); // Debug log
         // Fallback to direct service call
         await this.logService.clearAllLogs();
       }
@@ -381,7 +371,6 @@ export class LogSettingsPanel {
       this.container = null as any;
       this.isVisible = false;
       
-      console.log('[LogSettingsPanel] Destroyed successfully');
     } catch (error) {
       console.error('[LogSettingsPanel] Error during destroy:', error);
     }

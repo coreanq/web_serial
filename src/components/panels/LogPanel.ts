@@ -16,6 +16,7 @@ export class LogPanel {
   private optimizedLogService!: OptimizedLogService;
   private logSettingsPanel!: LogSettingsPanel;
   private currentDateTimeFilter: DateTimeRange = {};
+  private currentSearchTerm: string = '';
   private useOptimizedService = true; // 최적화된 서비스 사용 여부
   private lastRenderedCount = 0; // Track last rendered log count for incremental updates
   private renderedLogIds = new Set<string>(); // Track which logs are already rendered
@@ -80,7 +81,7 @@ export class LogPanel {
       this.setupTooltipPositioning();
       this.updateAutoScrollCheckbox();
       this.initializeVirtualScrolling();
-      this.applyCurrentTimeFilter();
+      this.applyFilters();
       // Re-render logs with current data
       this.renderLogs();
     }
@@ -93,10 +94,8 @@ export class LogPanel {
     
     // Set clear callback if already available
     if (this.onClearLogs) {
-      console.log('Setting callback in mount - callback available'); // Debug log
       this.logSettingsPanel.setClearCallback(this.onClearLogs);
     } else {
-      console.log('Setting callback in mount - no callback available yet'); // Debug log
     }
     
     container.innerHTML = this.render();
@@ -110,20 +109,17 @@ export class LogPanel {
     this.initializeVirtualScrolling();
     
     // Initialize filtered logs with current time filter
-    this.applyCurrentTimeFilter();
+    this.applyFilters();
     
     // Log count display has been removed
   }
 
   setClearLogsCallback(callback: () => void): void {
-    console.log('LogPanel.setClearLogsCallback called'); // Debug log
     this.onClearLogs = callback;
     // Also set the callback for LogSettingsPanel
     if (this.logSettingsPanel) {
-      console.log('Setting callback for LogSettingsPanel'); // Debug log
       this.logSettingsPanel.setClearCallback(callback);
     } else {
-      console.log('LogSettingsPanel not available yet'); // Debug log
     }
   }
 
@@ -412,19 +408,31 @@ export class LogPanel {
   }
 
   private renderLogs(): string {
-    if (this.logs.length === 0) {
-      return `
-        <div class="flex items-center justify-center h-full text-dark-text-muted">
-          <div class="text-center">
-            <div class="text-4xl mb-4">📡</div>
-            <p>No communication logs yet</p>
-            <p class="text-sm">Connect to a Modbus device to start monitoring</p>
+    if (this.filteredLogs.length === 0) {
+      if (this.logs.length === 0) {
+        return `
+          <div class="flex items-center justify-center h-full text-dark-text-muted">
+            <div class="text-center">
+              <div class="text-4xl mb-4">📡</div>
+              <p>No communication logs yet</p>
+              <p class="text-sm">Connect to a Modbus device to start monitoring</p>
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        return `
+          <div class="flex items-center justify-center h-full text-dark-text-muted">
+            <div class="text-center">
+              <div class="text-4xl mb-4">🔍</div>
+              <p>No logs match the current filter</p>
+              <p class="text-sm">Try adjusting your search terms or time range</p>
+            </div>
+          </div>
+        `;
+      }
     }
 
-    return this.logs.map(log => this.renderLogEntry(log)).join('');
+    return this.filteredLogs.map(log => this.renderLogEntry(log)).join('');
   }
 
   private renderLogEntry(log: LogEntry): string {
@@ -983,8 +991,12 @@ export class LogPanel {
 
 
   private refreshLogDisplay(): void {
-    // Use regular scrolling for dynamic height support
-    this.renderRegularScrollLogs();
+    // Re-render logs based on current mode
+    if (this.useVirtualScrolling) {
+      this.renderVirtualScrollLogs();
+    } else {
+      this.renderRegularScrollLogs();
+    }
   }
 
   private updateLogCount(): void {
@@ -1128,7 +1140,6 @@ export class LogPanel {
     // Setup state change callback to re-render when virtual scroll state changes
     this.virtualScrollManager.onStateUpdate((state) => {
       if (this.useVirtualScrolling && !this.isRenderingVirtualScroll) {
-        console.log(`[Virtual Scroll] State update - showing items ${state.startIndex}-${state.endIndex} of ${this.filteredLogs.length}`);
         this.renderVirtualScrollLogs();
       }
     });
@@ -1143,9 +1154,7 @@ export class LogPanel {
     const shouldUse = this.filteredLogs.length > VIRTUAL_SCROLL_THRESHOLD;
     
     if (shouldUse && !this.useVirtualScrolling) {
-      console.log(`[Virtual Scroll] Enabling for ${this.filteredLogs.length} logs`);
     } else if (!shouldUse && this.useVirtualScrolling) {
-      console.log(`[Virtual Scroll] Disabling for ${this.filteredLogs.length} logs`);
     }
     
     return shouldUse;
@@ -1258,18 +1267,55 @@ export class LogPanel {
 
 
   private filterLogs(searchTerm: string): void {
-    const logEntries = document.querySelectorAll('.log-entry');
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.toLowerCase().trim();
+    
+    // Store current search term
+    this.currentSearchTerm = term;
+    
+    // Apply both search and time filters
+    this.applyFilters();
+    
+    // Re-render the logs with filtered data
+    if (this.useVirtualScrolling) {
+      this.renderVirtualScrollLogs();
+    } else {
+      this.renderRegularScrollLogs();
+    }
+  }
 
-    logEntries.forEach(entry => {
-      const text = entry.textContent?.toLowerCase() || '';
-      const element = entry as HTMLElement;
-      element.style.display = text.includes(term) ? 'flex' : 'none';
-    });
+  private applyFilters(): void {
+    // Start with all logs
+    let filteredLogs = this.logs;
+    
+    // Apply time filter first
+    if (Object.keys(this.currentDateTimeFilter).length > 0) {
+      filteredLogs = DateTimeFilter.filterLogs(filteredLogs, this.currentDateTimeFilter);
+    }
+    
+    // Apply search filter
+    if (this.currentSearchTerm) {
+      filteredLogs = filteredLogs.filter(log => {
+        const searchableText = [
+          log.data.toLowerCase(),
+          log.direction.toLowerCase(),
+          this.formatTimestamp(log.timestamp).toLowerCase(),
+          log.error ? log.error.toLowerCase() : ''
+        ].join(' ');
+        
+        return searchableText.includes(this.currentSearchTerm);
+      });
+    }
+    
+    // Update filtered logs
+    this.filteredLogs = filteredLogs;
+    
+    // Update virtual scrolling data if enabled
+    if (this.virtualScrollManager) {
+      this.virtualScrollManager.setData(this.filteredLogs);
+    }
   }
 
   public clearLogs(): void {
-    console.log('LogPanel.clearLogs called'); // Debug log
     
     // Reset all tracking variables for incremental rendering
     this.lastRenderedCount = 0;
@@ -1285,6 +1331,15 @@ export class LogPanel {
     // Clear local log arrays
     this.logs = [];
     this.filteredLogs = [];
+    
+    // Clear search term
+    this.currentSearchTerm = '';
+    
+    // Clear search input
+    const searchInput = document.getElementById('log-search') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.value = '';
+    }
     
     // Reset scroll position to top immediately and after DOM update
     const logContainer = document.getElementById('log-container');
@@ -1309,7 +1364,6 @@ export class LogPanel {
       const logContainer = document.getElementById('log-container');
       if (logContainer) {
         logContainer.scrollTop = 0;
-        console.log('Post-refresh scroll reset:', logContainer.scrollTop); // Debug log
       }
     }, 50);
     
@@ -1317,7 +1371,6 @@ export class LogPanel {
     this.isAutoScroll = true;
     this.updateAutoScrollCheckbox();
     
-    console.log('LogPanel cleared and refreshed'); // Debug log
   }
 
   private forceRefreshDisplay(): void {
@@ -1340,7 +1393,7 @@ export class LogPanel {
         `;
       } else {
         // Re-render logs normally
-        this.applyCurrentTimeFilter();
+        this.applyFilters();
         this.renderRegularScrollLogs();
       }
     }
@@ -1437,7 +1490,7 @@ export class LogPanel {
     }
     
     // Apply current filters
-    this.applyCurrentTimeFilter();
+    this.applyFilters();
     
     // Render updated logs
     this.renderRegularScrollLogs();
@@ -1468,8 +1521,8 @@ export class LogPanel {
     // Update logs array
     this.logs = logs;
     
-    // Apply current date/time filter
-    this.applyCurrentTimeFilter();
+    // Apply current filters (time and search)
+    this.applyFilters();
     
     // Check if we should switch virtual scrolling mode
     this.updateVirtualScrollingMode();
@@ -1497,15 +1550,6 @@ export class LogPanel {
     this.handleAutoScroll();
   }
 
-  private applyCurrentTimeFilter(): void {
-    if (Object.keys(this.currentDateTimeFilter).length === 0) {
-      // No filter applied, show all logs
-      this.filteredLogs = [...this.logs];
-    } else {
-      // Apply date/time filter
-      this.filteredLogs = DateTimeFilter.filterLogs(this.logs, this.currentDateTimeFilter);
-    }
-  }
 
   private handleAutoScroll(): void {
     // Double-check auto scroll state from actual DOM element to prevent race conditions
@@ -1646,7 +1690,7 @@ export class LogPanel {
 
   private applyTimeFilter(): void {
     // Apply time filter to logs using the existing method
-    this.applyCurrentTimeFilter();
+    this.applyFilters();
     
     // Update display
     this.refreshLogDisplay();
@@ -1713,7 +1757,6 @@ export class LogPanel {
       this.useVirtualScrolling = false;
       this.isRepeatMode = false;
 
-      console.log('[LogPanel] Destroyed successfully');
     } catch (error) {
       console.error('[LogPanel] Error during destroy:', error);
     }

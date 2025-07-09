@@ -32,30 +32,23 @@ function setupChromeExtensionHandlers() {
   // Handle chrome extension lifecycle
   if (typeof chrome !== 'undefined' && chrome.runtime) {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      console.log('Popup received message:', message);
       // Handle background script messages
       return true;
     });
   }
 
   // Test Web Serial API availability
-  console.log('Testing Web Serial API...');
-  console.log('navigator.serial available:', 'serial' in navigator);
-  console.log('navigator.serial:', (navigator as any).serial);
   
   if ('serial' in navigator) {
     // Test getting already granted ports (doesn't require user gesture)
     (navigator as any).serial.getPorts().then((ports: any) => {
-      console.log('Available serial ports:', ports.length);
-      ports.forEach((port: any, index: number) => {
-        console.log(`Port ${index}:`, port.getInfo());
-      });
+      // Available serial ports detected
     }).catch((error: any) => {
       console.error('Error getting ports:', error);
     });
 
     
   } else {
-    console.warn('Web Serial API not available');
+    // Web Serial API not available
   }
 }

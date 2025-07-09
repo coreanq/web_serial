@@ -437,7 +437,6 @@ export class CommandPanel {
           }
         }
         
-        console.log(`Repeat command ${isChecked ? 'enabled' : 'disabled'} for: ${command}`);
         
         // If we're currently repeating and no commands are checked, stop the repeat
         if (this.isRepeating && !this.hasCheckedCommands()) {
@@ -1730,7 +1729,6 @@ export class CommandPanel {
   updateConnectionStatus(type: 'RTU' | 'TCP' | 'TCP_NATIVE', connected: boolean): void {
     // Stop repeat mode if connection is lost
     if (!connected && this.isRepeating) {
-      console.log('Connection lost - stopping repeat mode');
       this.stopRepeatMode();
     }
     
@@ -1763,8 +1761,6 @@ export class CommandPanel {
     
     // Also update history display to ensure listeners are attached
     this.updateHistoryDisplay();
-    
-    console.log(`Quick commands updated for ${type} mode`);
   }
 
   // Attach event listeners to quick command buttons
@@ -1877,12 +1873,10 @@ export class CommandPanel {
         // RTU mode: Enable Auto CRC (Modbus RTU requires CRC)
         autoCrcCheckbox.checked = true;
         autoCrcCheckbox.disabled = false;
-        console.log('Auto CRC enabled for Modbus RTU mode');
       } else if (type.startsWith('TCP')) {
         // TCP mode: Disable Auto CRC (Modbus TCP uses MBAP header, no CRC needed)
         autoCrcCheckbox.checked = false;
         autoCrcCheckbox.disabled = true;
-        console.log('Auto CRC disabled for Modbus TCP mode (MBAP header used instead)');
       }
       
       // Trigger change event to update preview

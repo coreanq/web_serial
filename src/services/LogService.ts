@@ -128,8 +128,6 @@ export class LogService {
     
     // In a browser environment, we can't directly manage files
     // This would be implemented with File System Access API or server-side storage
-    console.log('Cleanup would remove files older than', this.config.rotation.maxAge, 'days');
-    console.log('Keeping maximum', this.config.rotation.maxFiles, 'files');
   }
 
   // Public methods

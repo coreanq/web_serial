@@ -33,7 +33,6 @@ export class NativeMessagingService {
             console.error('Native port disconnected with error:', chrome.runtime.lastError.message);
             reject(new Error(chrome.runtime.lastError.message));
           } else {
-            console.log('Native port disconnected.');
           }
         });
 
@@ -41,7 +40,6 @@ export class NativeMessagingService {
         // We'll resolve immediately and let errors be handled by onDisconnect.
         // A common practice is to wait for a "proxy_started" message.
         this.onMessage('proxy_started', () => {
-          console.log('Native Messaging Host connected and ready.');
           resolve();
         });
 

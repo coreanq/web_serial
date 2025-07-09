@@ -33,21 +33,16 @@ export class ConnectionPanel {
   private setupTcpNativeHandlers(): void {
     // TCP Native connection status
     this.tcpNativeService.onConnectionChange((connected, error) => {
-      console.log(`TCP Native connection change: connected=${connected}, error=${error}`);
       
       if (connected) {
-        console.log('✅ TCP Native connected successfully');
         this.tcpNativeStatus = 'connected';
         this.onConnectionChange('connected', this.getCurrentConfig());
         this.updateButtonStates(true);
         // Only update status display, no re-rendering
         this.updateStatusDisplayOnly();
       } else {
-        console.log('TCP Native disconnected', error ? `: ${error}` : '');
-        
         // Don't trigger disconnect handling if manually disconnected
         if (this.manualDisconnect) {
-          console.log('Manual disconnect - not triggering reconnection');
           this.tcpNativeStatus = 'disconnected';
         } else {
           this.tcpNativeStatus = error ? 'error' : 'disconnected';
@@ -62,7 +57,6 @@ export class ConnectionPanel {
 
     // Data received from TCP Native
     this.tcpNativeService.onData((data) => {
-      console.log('Received from TCP Native:', data);
       if (this.onDataReceived) {
         this.onDataReceived(data);
       }
@@ -433,12 +427,10 @@ export class ConnectionPanel {
 
     // Auto-connect to Native Proxy when switching to TCP_NATIVE tab (only if not manually disconnected)
     if (tabType === 'TCP_NATIVE' && !this.tcpNativeService.isProxyReady() && !this.manualDisconnect) {
-      console.log('TCP Native tab selected, connecting to native proxy...');
       this.nativeProxyStatus = 'connecting';
       this.updateTcpNativeStatusDisplay();
       
       this.tcpNativeService.init().then(() => {
-        console.log('Native proxy connected successfully');
         this.nativeProxyStatus = 'connected';
         this.updateTcpNativeStatusDisplay();
       }).catch(error => {
@@ -579,7 +571,6 @@ export class ConnectionPanel {
     if (this.serialService.getConnectionProgress()) {
       // Connection already in progress, just update the UI to show current status
       this.showConnectionProgress('Connection already in progress...');
-      console.log('Connection attempt ignored: already in progress');
       return;
     }
 
@@ -649,13 +640,11 @@ export class ConnectionPanel {
   private async handleTcpNativeConnect(): Promise<void> {
     // Check if already connected
     if (this.tcpNativeStatus === 'connected') {
-      console.log('Already connected to TCP Native, ignoring duplicate request');
       return;
     }
 
     // Check if connection is in progress
     if (this.tcpNativeStatus === 'connecting') {
-      console.log('TCP Native connection already in progress');
       return;
     }
 
@@ -674,7 +663,6 @@ export class ConnectionPanel {
     try {
       // Initialize and connect to native messaging host
       if (!this.tcpNativeService.isProxyReady()) {
-        console.log('🔌 Connecting to native messaging host...');
         await this.tcpNativeService.init();
         // Note: nativeProxyStatus will be updated by onProxyStatus callback when proxy_started message is received
       }
@@ -685,8 +673,6 @@ export class ConnectionPanel {
         host: config.tcp.host,
         port: config.tcp.port
       };
-
-      console.log(`🔌 Attempting to connect to TCP device at ${nativeConfig.host}:${nativeConfig.port} via native proxy`);
 
       // Store current config for status display
       this.currentNativeConfig = nativeConfig;
@@ -876,7 +862,6 @@ export class ConnectionPanel {
   };
 
   private handleConnectClick = () => {
-    console.log('Connect button clicked');
     this.handleConnect();
   };
 
@@ -1040,13 +1025,11 @@ export class ConnectionPanel {
         e.preventDefault();
         const button = e.target as HTMLElement;
         const url = button.closest('button')?.getAttribute('data-download-url');
-        console.log('Download button clicked, URL:', url);
         if (url) {
           try {
             // Chrome 확장에서는 chrome.tabs.create를 사용
             if (chrome && chrome.tabs && chrome.tabs.create) {
               chrome.tabs.create({ url: url });
-              console.log('Chrome tabs.create called successfully');
             } else {
               // 폴백: a 태그를 통한 다운로드
               const link = document.createElement('a');
@@ -1057,7 +1040,6 @@ export class ConnectionPanel {
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
-              console.log('Fallback download link clicked');
             }
           } catch (error) {
             console.error('Failed to open download URL:', error);
@@ -1069,8 +1051,6 @@ export class ConnectionPanel {
               alert(i18n.t('connection.nativeGuide.downloadManually') + url);
             }
           }
-        } else {
-          console.error('No download URL found for button:', button);
         }
       });
     });
@@ -1082,7 +1062,6 @@ export class ConnectionPanel {
         e.preventDefault();
         const button = e.target as HTMLElement;
         const modalId = button.closest('button')?.getAttribute('data-modal');
-        console.log('Modal close clicked, modalId:', modalId);
         if (modalId) {
           document.getElementById(modalId)?.remove();
         }
@@ -1096,7 +1075,6 @@ export class ConnectionPanel {
         e.preventDefault();
         const button = e.target as HTMLElement;
         const path = button.closest('button')?.getAttribute('data-path');
-        console.log('Open folder clicked, path:', path);
         if (path) {
           window.open(path, '_blank');
         }

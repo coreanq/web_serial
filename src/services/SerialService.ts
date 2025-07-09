@@ -51,13 +51,11 @@ export class SerialService {
   async connect(port: SerialPort, options: SerialOptions, timeoutMs: number = 15000): Promise<void> {
     // Prevent multiple simultaneous connection attempts
     if (this.isConnecting) {
-      console.log('Connection attempt blocked: already in progress');
       return; // Silently ignore duplicate connection attempts
     }
 
     // If we're already connected to the same port, just return
     if (this.isConnected && this.currentPort === port) {
-      console.log('Already connected to the same port');
       return;
     }
 
@@ -67,7 +65,6 @@ export class SerialService {
     }
 
     this.isConnecting = true;
-    console.log('Starting connection attempt...');
 
     try {
       // Create timeout promise

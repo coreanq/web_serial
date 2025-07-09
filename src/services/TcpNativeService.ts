@@ -76,14 +76,12 @@ export class TcpNativeService {
    * Disconnect from the TCP server
    */
   disconnect(force: boolean = false): void {
-    console.log('🔴 TcpNativeService.disconnect() called, force:', force);
     
     if (!force) {
       console.warn('⚠️ Automatic disconnect prevented. Use disconnect(true) for manual disconnect.');
       return;
     }
     
-    console.log('✅ Manual disconnect proceeding...');
     
     // Clear receive timeout and buffer
     if (this.receiveTimeout) {

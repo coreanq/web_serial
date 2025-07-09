@@ -155,7 +155,6 @@ export class OptimizedLogService {
       
       // 내보내기 후 IndexedDB 초기화
       await this.indexedDBService.clearAllOverflowLogs();
-      console.log('IndexedDB cleared after export');
       
     } catch (error) {
       console.error('Failed to export all logs:', error);
@@ -330,7 +329,6 @@ export class OptimizedLogService {
 
   // 로그 지우기 (메모리만 - IndexedDB는 유지)
   public clearLogs(): void {
-    console.log('OptimizedLogService.clearLogs called'); // Debug log
     
     // 현재 버퍼의 모든 로그를 Object Pool로 반환
     if (this.onLogEvicted) {
@@ -342,7 +340,6 @@ export class OptimizedLogService {
     
     // 오버플로우 큐도 지우기
     if (this.overflowQueue.length > 0) {
-      console.log(`Clearing ${this.overflowQueue.length} overflow logs`); // Debug log
       this.overflowQueue = [];
     }
     
@@ -353,7 +350,6 @@ export class OptimizedLogService {
     }
     
     this.buffer.clear();
-    console.log('OptimizedLogService buffer cleared'); // Debug log
   }
 
   // 모든 로그 지우기 (메모리 + IndexedDB)

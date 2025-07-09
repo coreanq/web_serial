@@ -82,7 +82,6 @@ export class App {
 
   async mount(container: HTMLElement): Promise<void> {
     // Debug log for initial position
-    console.log('Initial connectionPanelPosition:', this.connectionPanelPosition);
     
     container.innerHTML = this.render();
     this.attachEventListeners();
@@ -95,11 +94,9 @@ export class App {
     this.applyTheme();
     
     // Log after initial layout
-    console.log('Layout applied, current position:', this.connectionPanelPosition);
   }
 
   private render(): string {
-    console.log('render() called, connectionPanelPosition:', this.connectionPanelPosition);
     
     return `
       <div class="min-h-screen ${this.getThemeClasses().background} p-4">
@@ -240,7 +237,6 @@ export class App {
       // Clear logs button
       const clearButton = document.getElementById('clear-logs');
       clearButton?.addEventListener('click', () => {
-        console.log('Clear logs button clicked'); // Debug log
         this.onLogsClear();
       });
 
@@ -475,7 +471,6 @@ export class App {
   }
 
   private updateLayout(): void {
-    console.log('updateLayout called, connectionPanelPosition:', this.connectionPanelPosition);
     
     const layoutContainer = document.getElementById('layout-container');
     const toggleButton = document.getElementById('toggle-connection-panel');
@@ -485,7 +480,6 @@ export class App {
     this.connectionPanel.setCompactMode(isCompact);
     
     if (layoutContainer) {
-      console.log('Rendering layout for position:', this.connectionPanelPosition);
       layoutContainer.innerHTML = this.renderLayout();
       // Re-mount child components after layout change
       this.mountChildComponents();
@@ -603,7 +597,6 @@ export class App {
             // Send ModbusTCP packet with MBAP header
             tcpNativeService.sendData(actualSentData);
             if (!isRepeating) {
-              console.log('TCP Native Command sent successfully:', actualSentData);
             }
           }
         }
@@ -666,7 +659,6 @@ export class App {
   private updateLogPanelFromService(): void {
     // Get logs from optimized service instead of state.logs
     const allLogs = this.optimizedLogService.getAllLogs();
-    console.log(`Updating LogPanel with ${allLogs.length} logs from service`); // Debug log
     this.logPanel.updateLogs(allLogs);
   }
 
@@ -783,7 +775,6 @@ export class App {
       // Final memory cleanup
       this.performMemoryCleanup();
 
-      console.log('[App] Destroyed successfully');
     } catch (error) {
       console.error('[App] Error during destroy:', error);
     }
@@ -804,11 +795,9 @@ export class App {
   }
 
   private onLogsClear(): void {
-    console.log('onLogsClear called'); // Debug log
     
     // Clear optimized service instead of state.logs
     this.optimizedLogService.clearLogs();
-    console.log('OptimizedLogService cleared'); // Debug log
     
     // Recycle pending repeat logs to pool before clearing
     for (const log of this.pendingRepeatLogs) {
@@ -824,7 +813,6 @@ export class App {
     
     // Force update the log panel from service with empty data
     this.updateLogPanelFromService();
-    console.log('Log panel updated from service'); // Debug log
     
     // Force LogPanel to refresh its display
     this.logPanel.clearLogs();
@@ -898,7 +886,6 @@ export class App {
     if (!this.logSettingsPanel) {
       this.logSettingsPanel = new LogSettingsPanel(this.optimizedLogService);
       // Set the clear callback after creating the panel
-      console.log('Setting clear callback for LogSettingsPanel from App'); // Debug log
       this.logSettingsPanel.setClearCallback(this.onLogsClear.bind(this));
     }
     

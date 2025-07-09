@@ -28,7 +28,6 @@ export class IndexedDBLogService {
 
       request.onsuccess = () => {
         this.db = request.result;
-        console.log('[IndexedDB] Database opened successfully');
         resolve();
       };
 
@@ -45,7 +44,6 @@ export class IndexedDBLogService {
           // 인덱스 생성 (timestamp 기준 정렬용)
           store.createIndex('timestamp', 'timestamp', { unique: false });
           
-          console.log('[IndexedDB] Object store created');
         }
       };
     });
@@ -252,7 +250,6 @@ export class IndexedDBLogService {
         const request = store.clear();
         
         request.onsuccess = () => {
-          console.log('[IndexedDB] All overflow logs cleared');
           resolve();
         };
         
@@ -287,7 +284,6 @@ export class IndexedDBLogService {
             deletedCount++;
             cursor.continue();
           } else {
-            console.log(`[IndexedDB] Deleted ${deletedCount} old logs`);
             resolve(deletedCount);
           }
         };
@@ -306,7 +302,6 @@ export class IndexedDBLogService {
     if (this.db) {
       this.db.close();
       this.db = null;
-      console.log('[IndexedDB] Database connection closed');
     }
   }
 }

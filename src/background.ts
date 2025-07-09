@@ -3,9 +3,9 @@
 
 // Service Worker context check
 if (typeof (self as any).importScripts === 'function') {
-  console.log('Running in service worker context');
+  // Running in service worker context
 } else {
-  console.log('Not in service worker context');
+  // Not in service worker context
 }
 
 class ChromeExtensionBackground {
@@ -32,12 +32,12 @@ class ChromeExtensionBackground {
 
     // Handle extension lifecycle
     chrome.runtime.onStartup.addListener(() => {
-      console.log('Extension startup');
+      // Extension startup
       // Don't auto-connect to native app
     });
 
     chrome.runtime.onInstalled.addListener(() => {
-      console.log('Extension installed/updated');
+      // Extension installed/updated
       // Don't auto-connect to native app
     });
 
@@ -72,7 +72,7 @@ class ChromeExtensionBackground {
       this.sendToNative({ type: 'ping' })
         .then(() => {
           this.isNativeConnected = true;
-          console.log('Native app connected');
+          // Native app connected
           this.broadcastToTabs({ type: 'native_connected' });
         })
         .catch((error) => {
@@ -124,7 +124,7 @@ class ChromeExtensionBackground {
   }
 
   private handleNativeMessage(response: any) {
-    console.log('Native app response:', response);
+    // Native app response received
 
     // Handle message responses
     if (response.messageId && this.messageHandlers.has(response.messageId)) {
