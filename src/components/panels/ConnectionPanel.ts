@@ -1260,25 +1260,25 @@ export class ConnectionPanel {
   private getTcpNativeStatusText(): string {
     switch (this.tcpNativeStatus) {
       case 'connected':
-        return 'TCP Native Connected';
+        return i18n.tString('connection.status.tcpNativeConnected');
       case 'connecting':
-        return 'Connecting to TCP Device...';
+        return i18n.tString('connection.status.tcpNativeConnecting');
       case 'error':
-        return 'TCP Native Connection Failed';
+        return i18n.tString('connection.status.tcpNativeFailed');
       default:
-        return 'TCP Native Disconnected';
+        return i18n.tString('connection.status.tcpNativeDisconnected');
     }
   }
 
   private getTcpNativeStatusDetail(): string {
     if (this.currentNativeConfig) {
-      const statusPrefix = this.tcpNativeStatus === 'connected' ? 'Connected to:' :
-                          this.tcpNativeStatus === 'connecting' ? 'Connecting to:' :
-                          this.tcpNativeStatus === 'error' ? 'Failed to connect to:' :
-                          'Last attempted:';
+      const statusPrefix = this.tcpNativeStatus === 'connected' ? i18n.tString('connection.status.connectedTo') :
+                          this.tcpNativeStatus === 'connecting' ? i18n.tString('connection.status.connectingTo') :
+                          this.tcpNativeStatus === 'error' ? i18n.tString('connection.status.failedToConnect') :
+                          i18n.tString('connection.status.lastAttempted');
       return `${statusPrefix} ${this.currentNativeConfig.host}:${this.currentNativeConfig.port}`;
     }
-    return 'No connection attempted';
+    return i18n.tString('connection.status.noConnectionAttempted');
   }
 
   // Get panel background color based on connection status

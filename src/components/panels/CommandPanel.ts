@@ -1955,15 +1955,4 @@ export class CommandPanel {
       this.updateConnectionStatus(this.connectionType, this.connectionType !== 'RTU');
     }
   }
-
-  // Theme change handler
-  public onThemeChange(theme: 'light' | 'dark'): void {
-    this.currentTheme = theme;
-    // Re-render the panel with new theme
-    const container = document.querySelector('#command-content');
-    if (container) {
-      container.innerHTML = this.render();
-      this.attachEventListeners();
-    }
-  }
 }
