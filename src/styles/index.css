@@ -263,8 +263,8 @@ html.dark-theme body {
     @apply transition-all duration-300 ease-in-out;
   }
 
-  /* Fixed height panel styles for proper scrolling - ONLY for log panel */
-  #log-panel.panel-fixed {
+  /* Fixed height panel styles for proper scrolling */
+  .panel-fixed {
     @apply flex flex-col;
     height: calc(100vh - var(--header-height) - 40px); /* More aggressive full height */
     min-height: 600px; /* Increased minimum height */

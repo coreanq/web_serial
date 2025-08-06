@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Modbus Protocol Analyzer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Professional Modbus RTU/TCP debugging tool with real-time packet analysis",
   
   "permissions": [

@@ -382,14 +382,14 @@ export class App {
     if (this.mainContentLayout === 'command-left') {
       return `
         <!-- Main Layout: Command Panel (left) + Log Panel (right) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-          <!-- Command Panel with flexible height -->
-          <div class="md:col-span-1 order-2 md:order-1">
-            <div id="command-panel" class="panel h-auto max-h-screen">
-              <div class="panel-header">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch h-full">
+          <!-- Command Panel with fixed height -->
+          <div class="md:col-span-1 order-2 md:order-1 h-full min-h-0">
+            <div id="command-panel" class="panel panel-fixed flex flex-col">
+              <div class="panel-header flex-shrink-0">
                 ${i18n.t('command.manual.title')}
               </div>
-              <div class="panel-content overflow-y-auto h-auto" id="command-content">
+              <div class="panel-content flex-1 overflow-y-auto min-h-0" id="command-content">
                 <!-- Command panel content will be mounted here -->
               </div>
             </div>
@@ -416,7 +416,7 @@ export class App {
     } else {
       return `
         <!-- Main Layout: Log Panel (left) + Command Panel (right) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch h-full">
           <!-- Log Panel with fixed height -->
           <div class="md:col-span-2 order-1">
             <div id="log-panel" class="panel panel-fixed">
@@ -434,13 +434,13 @@ export class App {
             </div>
           </div>
 
-          <!-- Command Panel with flexible height -->
-          <div class="md:col-span-1 order-2">
-            <div id="command-panel" class="panel h-auto max-h-screen">
-              <div class="panel-header">
+          <!-- Command Panel with fixed height -->
+          <div class="md:col-span-1 order-2 h-full min-h-0">
+            <div id="command-panel" class="panel panel-fixed flex flex-col">
+              <div class="panel-header flex-shrink-0">
                 ${i18n.t('command.manual.title')}
               </div>
-              <div class="panel-content overflow-y-auto h-auto" id="command-content">
+              <div class="panel-content flex-1 overflow-y-auto min-h-0" id="command-content">
                 <!-- Command panel content will be mounted here -->
               </div>
             </div>
@@ -465,7 +465,9 @@ export class App {
       case 'hide':
         return `${baseClasses} hidden ${backgroundClass}`;
       default:
-        console.warn('getConnectionPanelClasses: Unknown position:', this.connectionPanelPosition);
+        console.warn('getConnectionPanelClasses: Unknown position:', this.connectionPanelPosition, 'defaulting to right');
+        // Force right position for unknown values
+        this.connectionPanelPosition = 'right';
         return `${baseClasses} ${visibilityClass} ${backgroundClass} panel-positioned-left panel-compact h-screen-adjusted panel-full-height debug-layout-left`;
     }
   }
