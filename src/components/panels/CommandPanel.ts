@@ -82,9 +82,22 @@ export class CommandPanel {
             </div>
 
             <!-- Command Builder -->
-            <div class="border-t ${this.getThemeClasses().border} pt-3">
-              <h4 class="text-xs font-medium ${this.getThemeClasses().textMuted} mb-2">${i18n.t('command.generator.title')}</h4>
+            <div class="border-t border-dark-border pt-3">
+              <h4 class="text-xs font-medium text-dark-text-muted mb-2">Command Builder</h4>
               
+              <!-- Build and Send Controls -->
+              <div class="flex gap-2 mb-3">
+                <button class="btn-secondary flex-1" id="build-command">
+                  ${i18n.t('command.generator.buildCommand')}
+                </button>
+                <button class="btn-primary flex-1" id="send-command">
+                  ${i18n.t('command.generator.sendCommand')}
+                </button>
+                <button class="btn-secondary" id="clear-command">
+                  ${i18n.t('common.clear')}
+                </button>
+              </div>
+
               <!-- Hex Base Mode Checkbox -->
               <div class="mb-3">
                 <label class="flex items-center gap-2 text-sm">
@@ -120,7 +133,7 @@ export class CommandPanel {
                   <input id="start-address" class="input-field w-full text-sm" value="0000" placeholder="0000 (hex) or 0 (dec)">
                 </div>
                 <div>
-                  <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">${i18n.t('command.generator.quantity')}</label>
+                  <label id="quantity-label" for="quantity" class="block text-xs text-dark-text-muted mb-1">Quantity/Value</label>
                   <input id="quantity" class="input-field w-full text-sm" value="000A" placeholder="000A (hex) or 10 (dec)">
                 </div>
               </div>
@@ -135,20 +148,6 @@ export class CommandPanel {
                   + ${i18n.t('command.dataValues.add')}
                 </button>
               </div>
-              
-              <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition-colors duration-200 font-medium w-full mt-2 text-sm" id="build-command">
-                ${i18n.t('command.generator.generateCommand')}
-              </button>
-            </div>
-
-            <!-- Send Controls -->
-            <div class="flex gap-2 pt-3 border-t ${this.getThemeClasses().border} mt-auto">
-              <button class="btn-primary flex-1" id="send-command">
-                ${i18n.t('common.send')}
-              </button>
-              <button class="btn-secondary" id="clear-command">
-                ${i18n.t('common.clear')}
-              </button>
             </div>
           </div>
         </div>
@@ -983,9 +982,8 @@ export class CommandPanel {
     
     let finalCommand = convertedHex;
     let protocolInfo = '';
-    const typeInfo = '';
     
-    if (this.connectionType === 'TCP') {
+    if (this.connectionType.startsWith('TCP')) {
       // TCP mode: Show MBAP header will be added
       const pduBytes = convertedHex.replace(/\s+/g, '').length / 2;
       const totalBytes = 7 + pduBytes; // 7 bytes MBAP header + PDU
@@ -997,43 +995,37 @@ export class CommandPanel {
       protocolInfo = ` <span class="text-green-400">(+CRC: ${inputBytes + 2} bytes total)</span>`;
     }
     
-    const byteCount = finalCommand.replace(/\s+/g, '').length / 2;
-    
-    // Add packet analysis like in LogPanel
-    const packetAnalysis = this.analyzePacketForPreview(finalCommand, this.connectionType);
-    
     previewElement.innerHTML = `
       <div class="flex flex-col gap-1">
         <div>
           <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
           <span class="${this.getThemeClasses().textSecondary} font-mono">${finalCommand}</span>${protocolInfo}
         </div>
-        <div class="text-xs">
-          ${this.connectionType === 'TCP' ? `<span class="${this.getThemeClasses().textMuted}">Protocol:</span> <span class="text-cyan-400">Modbus TCP</span>` : ''}
-        </div>
-        ${packetAnalysis ? `
-        <div class="text-xs border-t ${this.getThemeClasses().border} pt-1 mt-1">
-          <span class="${this.getThemeClasses().textMuted}">Analysis:</span>
-          <div class="mt-1 p-2 ${this.getThemeClasses().panelBg} rounded text-xs ${this.getThemeClasses().textSecondary} whitespace-pre-line font-mono">${packetAnalysis}</div>
-        </div>
-        ` : ''}
       </div>
     `;
   }
 
   private handleFunctionCodeChange(): void {
     const functionCodeSelect = document.getElementById('function-code') as HTMLSelectElement;
+    const quantityLabel = document.getElementById('quantity-label');
     const dataValuesSection = document.getElementById('data-values-section');
     const dataValuesLabel = document.getElementById('data-values-label');
     const addDataButton = document.getElementById('add-data-value');
-    
-    if (!functionCodeSelect || !dataValuesSection || !dataValuesLabel || !addDataButton) return;
-    
+  
+    if (!functionCodeSelect || !quantityLabel || !dataValuesSection || !dataValuesLabel || !addDataButton) return;
+  
     const selectedFC = parseInt(functionCodeSelect.value, 16);
-    
-    if (selectedFC === 0x0F || selectedFC === 0x10) { // Write Multiple Coils or Registers
+  
+    // Reset to default state first
+    quantityLabel.textContent = 'Quantity/Value';
+    dataValuesSection.classList.add('hidden');
+  
+    if (selectedFC === 0x05 || selectedFC === 0x06) { // Write Single Coil/Register
+      quantityLabel.textContent = 'Write Value';
+    } else if (selectedFC === 0x0F || selectedFC === 0x10) { // Write Multiple Coils/Registers
+      quantityLabel.textContent = 'Quantity';
       dataValuesSection.classList.remove('hidden');
-      
+  
       if (selectedFC === 0x0F) {
         dataValuesLabel.textContent = 'Coil Values (for FC 0F)';
         addDataButton.textContent = '+ Add Coil';
@@ -1041,10 +1033,10 @@ export class CommandPanel {
         dataValuesLabel.textContent = 'Register Values (for FC 10)';
         addDataButton.textContent = '+ Add Register';
       }
-      
+  
       this.updateDataValuesSection();
-    } else {
-      dataValuesSection.classList.add('hidden');
+    } else { // Read functions
+      quantityLabel.textContent = 'Quantity';
     }
   }
 

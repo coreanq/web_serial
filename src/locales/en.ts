@@ -255,8 +255,8 @@ export const en = {
       startAddress: "Start Address", 
       quantity: "Quantity",
       hexBaseMode: "HEX Base Mode",
-      generateCommand: "Generate Command",
-      addToHistory: "Add to History"
+      buildCommand: "Build Command",
+      sendCommand: "Send Command"
     },
 
     // Function Codes

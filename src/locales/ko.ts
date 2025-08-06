@@ -255,8 +255,8 @@ export const ko = {
       startAddress: "시작 주소",
       quantity: "수량",
       hexBaseMode: "HEX 베이스 모드",
-      generateCommand: "명령 생성",
-      addToHistory: "히스토리에 추가"
+      buildCommand: "명령 생성",
+      sendCommand: "명령 전송"
     },
 
     // Function Codes
