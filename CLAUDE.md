@@ -1,3 +1,96 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+# 개발 명령어
+
+## 루트 프로젝트 명령어
+```bash
+# 의존성 설치
+bun install
+
+# 개발 서버 시작 (메인 애플리케이션)
+bun run dev
+
+# 프로덕션 빌드
+bun run build
+
+# 빌드 미리보기
+bun run preview
+
+# 코드 린팅
+bun run lint
+
+# 린팅 자동 수정
+bun run lint:fix
+
+# TypeScript 타입 체크
+bun run typecheck
+```
+
+## Chrome Extension 빌드
+```bash
+cd chrome-extension
+bun install
+bun run build
+```
+
+## Native Messaging Host 빌드
+```bash
+cd stdio-proxy
+bun install
+bun run build
+```
+
+## TCP 테스트 서버 실행
+```bash
+cd tcp-loopback-server
+bun install
+bun start
+```
+
+## Native Host 설치 (OS별)
+```bash
+# Windows
+cd stdio-proxy
+install-windows.bat
+
+# Linux/macOS
+cd stdio-proxy
+chmod +x install-linux.sh
+./install-linux.sh
+```
+
+# 아키텍처 개요
+
+## Chrome Extension 멀티 타겟 아키텍처
+이 프로젝트는 하나의 소스 코드에서 세 가지 다른 Chrome Extension 컨텍스트를 빌드합니다:
+
+1. **메인 애플리케이션** (`src/index.ts`): 독립 실행형 웹 앱
+2. **Extension Popup** (`src/popup.ts`): 확장 팝업 페이지
+3. **Extension Options** (`src/options.ts`): 확장 옵션 페이지
+4. **Background Script** (`src/background.ts`): 서비스 워커
+
+## 하이브리드 로그 관리 시스템
+```
+메모리 (SimpleCircularBuffer) ←→ IndexedDB (대용량 저장)
+        ↓
+가상 스크롤링 (VirtualScrollManager)
+        ↓
+DOM 렌더링 (최적화된 업데이트)
+```
+
+## 통신 아키텍처
+```
+RTU 모드: Browser → Web Serial API → Serial Device
+TCP 모드: Browser → Chrome Extension → Native Host → TCP Socket → Device
+```
+
+## 다국어 시스템 아키텍처
+- **I18nService**: 중앙 집중식 다국어 관리
+- **타입 안전성**: `tString()`, `tArray()` 전용 메서드
+- **폴백 시스템**: 한국어 → 영어 → 키 이름 순서
+
 **기본 사항**
 - 한글로 답변한다.
 - 주석은 영어로 달아둔다.

@@ -81,7 +81,7 @@ export default defineConfig({
         }
       },
     },
-  ],
+  ].filter(Boolean), // Filter out false values from conditional plugins
   
   // CSS processing
   css: {

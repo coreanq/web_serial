@@ -37,16 +37,6 @@ export class CommandPanel {
   private render(): string {
     return `
       <div class="flex flex-col space-y-4 ${this.getThemeClasses().panelBg} p-4 rounded-lg">
-        <!-- Quick Commands -->
-        <div>
-          <h3 class="text-sm font-medium ${this.getThemeClasses().textSecondary} mb-3">Quick Commands & Examples</h3>
-          <div class="grid grid-cols-1 gap-2" id="quick-commands">
-            ${this.renderQuickCommands()}
-          </div>
-          <div class="text-xs text-blue-400 mt-2" id="mode-info">
-            ${this.renderModeInfo()}
-          </div>
-        </div>
 
         <!-- Manual Command Input -->
         <div class="flex flex-col">
@@ -217,7 +207,6 @@ export class CommandPanel {
   }
 
   private attachEventListeners(): void {
-    this.attachQuickCommandListeners();
 
     // Send command
     const sendButton = document.getElementById('send-command');
@@ -1732,95 +1721,9 @@ export class CommandPanel {
     this.lastConnectionType = type;
     this.connectionType = type;
     this.updateAutoCrcForConnectionType(type);
-    this.updateQuickCommandsForConnectionType(type);
     this.updateHexPreview(); // Refresh preview with new connection type
   }
 
-  // Update quick commands and mode info based on connection type
-  updateQuickCommandsForConnectionType(type: 'RTU' | 'TCP' | 'TCP_NATIVE'): void {
-    const quickCommandsContainer = document.getElementById('quick-commands');
-    const modeInfoContainer = document.getElementById('mode-info');
-    
-    if (quickCommandsContainer) {
-      quickCommandsContainer.innerHTML = this.renderQuickCommands();
-      // Reattach event listeners for new buttons
-      this.attachQuickCommandListeners();
-    }
-    
-    if (modeInfoContainer) {
-      modeInfoContainer.innerHTML = this.renderModeInfo();
-    }
-    
-    // Also update history display to ensure listeners are attached
-    this.updateHistoryDisplay();
-  }
-
-  // Attach event listeners to quick command buttons
-  private attachQuickCommandListeners(): void {
-    document.querySelectorAll('[data-command]').forEach(button => {
-      button.addEventListener('click', (e) => {
-        const command = (e.target as HTMLElement).dataset.command;
-        if (command) {
-          // Quick command examples don't include CRC, so set them directly
-          // The CRC will be added automatically when sending if Auto CRC is enabled
-          this.setManualHexInput(command);
-        }
-      });
-    });
-  }
-
-
-  // Render quick command buttons based on connection type
-  private renderQuickCommands(): string {
-    if (this.connectionType.startsWith('TCP')) {
-      // TCP mode: No Device ID (Unit ID goes in MBAP header)
-      return `
-        <button class="btn-secondary text-sm text-left" data-command="03 00 00 00 0A">
-          📖 Read Holding Registers (0-9)
-        </button>
-        <button class="btn-secondary text-sm text-left" data-command="04 00 00 00 05">
-          📊 Read Input Registers (0-4)
-        </button>
-        <button class="btn-secondary text-sm text-left" data-command="01 00 00 00 08">
-          🔌 Read Coils (0-7)
-        </button>
-        <button class="btn-secondary text-sm text-left" data-command="Hello World">
-          📝 ASCII Text Example
-        </button>
-      `;
-    } else {
-      // RTU mode: Include Device ID
-      return `
-        <button class="btn-secondary text-sm text-left" data-command="01 03 00 00 00 0A">
-          📖 Read Holding Registers (0-9)
-        </button>
-        <button class="btn-secondary text-sm text-left" data-command="01 04 00 00 00 05">
-          📊 Read Input Registers (0-4)
-        </button>
-        <button class="btn-secondary text-sm text-left" data-command="01 01 00 00 00 08">
-          🔌 Read Coils (0-7)
-        </button>
-        <button class="btn-secondary text-sm text-left" data-command="Hello World">
-          📝 ASCII Text Example
-        </button>
-      `;
-    }
-  }
-
-  // Render mode-specific information
-  private renderModeInfo(): string {
-    if (this.connectionType.startsWith('TCP')) {
-      return `
-        💡 <strong>TCP Mode:</strong> MBAP header (includes Unit ID) automatically added<br>
-        💡 Preview show PDU only (Device ID handled by MBAP header)<br>
-      `;
-    } else {
-      return `
-        💡 <strong>RTU Mode:</strong> Device ID + Function Code + Data<br>
-        💡 CRC automatically added when Auto CRC is enabled<br>
-      `;
-    }
-  }
 
   // Add command to recent commands list
   private addToRecentCommands(command: string): void {
