@@ -96,14 +96,29 @@ html.dark-theme body {
   .dark-theme .panel-content {
     @apply p-4 !important;
   }
+
+  .dark-theme #command-panel {
+    @apply h-auto !important;
+    height: auto !important;
+    max-height: calc(100vh - var(--header-height) - 40px) !important;
+  }
+  
+  .dark-theme #command-panel .panel-content {
+    @apply h-auto !important;
+    overflow-y: auto !important;
+    max-height: calc(100vh - var(--header-height) - 80px) !important;
+  }
   
   .light-theme #command-panel {
     @apply h-auto bg-white !important;
     height: auto !important;
+    max-height: calc(100vh - var(--header-height) - 40px) !important;
   }
   
   .light-theme #command-panel .panel-content {
     @apply h-auto bg-white !important;
+    overflow-y: auto !important;
+    max-height: calc(100vh - var(--header-height) - 80px) !important;
   }
   
   .light-theme .btn-primary {
@@ -290,14 +305,17 @@ html.dark-theme body {
     @apply flex-1 min-h-0 overflow-hidden;
   }
 
-  /* Command panel should remain flexible height but responsive */
+  /* Command panel should remain flexible height but responsive with scroll */
   #command-panel {
     @apply flex flex-col;
     height: auto;
+    max-height: calc(100vh - var(--header-height) - 40px); /* Limit maximum height to viewport */
   }
 
   #command-panel .panel-content {
     @apply h-auto;
+    overflow-y: auto; /* Enable vertical scrolling when content exceeds container height */
+    max-height: calc(100vh - var(--header-height) - 80px); /* Account for panel header */
   }
 
   /* Fixed height grid for main content area */
@@ -310,6 +328,27 @@ html.dark-theme body {
   .h-screen-adjusted {
     height: calc(100vh - 120px);
     min-height: 400px;
+  }
+
+  /* Custom scrollbar styles for command panel */
+  #command-panel .panel-content::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  #command-panel .panel-content::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded-md;
+  }
+
+  #command-panel .panel-content::-webkit-scrollbar-thumb {
+    @apply bg-gray-400 rounded-md hover:bg-gray-500;
+  }
+
+  .dark-theme #command-panel .panel-content::-webkit-scrollbar-track {
+    @apply bg-dark-border rounded-md;
+  }
+
+  .dark-theme #command-panel .panel-content::-webkit-scrollbar-thumb {
+    @apply bg-dark-text-muted rounded-md hover:bg-dark-text-secondary;
   }
 
   .panel-full-height {

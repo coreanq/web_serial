@@ -1016,10 +1016,10 @@ export class CommandPanel {
       dataValuesSection.classList.remove('hidden');
   
       if (selectedFC === 0x0F) {
-        dataValuesLabel.textContent = 'Coil Values (for FC 0F)';
+        dataValuesLabel.textContent = 'Coil Values';
         addDataButton.textContent = '+ Add Coil';
       } else {
-        dataValuesLabel.textContent = 'Register Values (for FC 10)';
+        dataValuesLabel.textContent = 'Register Values';
         addDataButton.textContent = '+ Add Register';
       }
   

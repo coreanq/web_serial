@@ -5,7 +5,8 @@
       "Bash(bun add:*)",
       "Bash(bun run:*)",
       "Bash(bun show:*)",
-      "Bash(bun remove:*)"
+      "Bash(bun remove:*)",
+      "Bash(bun install:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
