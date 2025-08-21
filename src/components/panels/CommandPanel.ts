@@ -63,7 +63,7 @@ export class CommandPanel {
               <textarea 
                 id="manual-hex-input"
                 class="input-field w-full h-16 font-mono text-sm resize-none"
-                placeholder="Enter Modbus PDU data:&#10;• HEX Mode: 01 03 00 00 00 0A&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
+                placeholder="Enter Modbus PDU data:&#10;• HEX Mode: 01 03 00 00 00 0A (spaces optional, auto-formats on blur)&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
               ></textarea>
               <div class="text-xs mt-1" id="hex-preview">
                 <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
@@ -303,27 +303,42 @@ export class CommandPanel {
       }
     });
 
-    // Format input on typing and update preview
+    // Gentle formatting on typing and update preview
     manualHexInput?.addEventListener('input', (e) => {
       const input = e.target as HTMLTextAreaElement;
       const asciiModeCheckbox = document.getElementById('ascii-mode') as HTMLInputElement;
       const isAsciiMode = asciiModeCheckbox?.checked || false;
       
-      // Only format HEX input in real-time, leave ASCII as-is
+      // Only apply gentle formatting in HEX mode
       if (!isAsciiMode) {
         const originalValue = input.value;
-        const originalCursor = input.selectionStart;
-        const converted = this.formatHexInput(originalValue);
+        const originalCursor = input.selectionStart || 0;
+        const gentlyFormatted = this.formatHexInputGently(originalValue);
         
-        if (converted !== originalValue) {
-          input.value = converted;
-          // Adjust cursor position for automatic spacing
-          const newCursor = this.adjustCursorForSpacing(originalValue, originalCursor, converted);
+        // Only update if there's a meaningful change (not just spacing)
+        if (gentlyFormatted !== originalValue) {
+          input.value = gentlyFormatted;
+          // Better cursor position adjustment
+          const newCursor = this.adjustCursorForGentleFormatting(originalValue, originalCursor, gentlyFormatted);
           input.setSelectionRange(newCursor, newCursor);
         }
       }
       
       this.updateHexPreview();
+    });
+
+    // Apply complete formatting on blur (when user finishes editing)
+    manualHexInput?.addEventListener('blur', (e) => {
+      const input = e.target as HTMLTextAreaElement;
+      const asciiModeCheckbox = document.getElementById('ascii-mode') as HTMLInputElement;
+      const isAsciiMode = asciiModeCheckbox?.checked || false;
+      
+      if (!isAsciiMode && input.value.trim()) {
+        // Apply full formatting including auto-padding
+        const fullyFormatted = this.formatHexInput(input.value, true);
+        input.value = fullyFormatted;
+        this.updateHexPreview();
+      }
     });
 
     // Handle paste events
@@ -338,21 +353,22 @@ export class CommandPanel {
         return;
       }
       
-      // In HEX mode, format the pasted data with automatic spacing
+      // In HEX mode, apply gentle formatting to pasted data
       e.preventDefault();
       const pastedData = e.clipboardData?.getData('text') || '';
       const input = e.target as HTMLTextAreaElement;
-      const start = input.selectionStart;
-      const end = input.selectionEnd;
+      const start = input.selectionStart || 0;
+      const end = input.selectionEnd || 0;
       const currentValue = input.value;
       
-      // Insert pasted data and format the entire input
+      // Insert pasted data and apply gentle formatting
       const newValue = currentValue.substring(0, start) + pastedData + currentValue.substring(end);
-      const formatted = this.formatHexInput(newValue);
-      input.value = formatted;
+      const gentlyFormatted = this.formatHexInputGently(newValue);
+      input.value = gentlyFormatted;
       
-      // Update cursor position
-      const newCursorPos = start + this.formatHexInput(pastedData).length;
+      // Better cursor position calculation for paste
+      const formattedPastedLength = this.formatHexInputGently(pastedData).length;
+      const newCursorPos = start + formattedPastedLength;
       input.setSelectionRange(newCursorPos, newCursorPos);
       
       this.updateHexPreview();
@@ -469,7 +485,8 @@ export class CommandPanel {
     if (isAsciiMode) {
       command = this.asciiToHex(rawInput);
     } else {
-      command = this.formatHexInput(rawInput);
+      // Apply full formatting with auto-padding when sending
+      command = this.formatHexInput(rawInput, true);
       if (!this.isValidHexInput(command)) {
         alert('Invalid HEX format. Please use hex characters (0-9, A-F) only.');
         return;
@@ -507,7 +524,8 @@ export class CommandPanel {
     if (isAsciiMode) {
       command = this.asciiToHex(rawInput);
     } else {
-      command = this.formatHexInput(rawInput);
+      // Apply full formatting with auto-padding when sending
+      command = this.formatHexInput(rawInput, true);
       if (!this.isValidHexInput(command)) {
         console.error('Invalid HEX format during repeat mode:', rawInput);
         return;
@@ -833,12 +851,12 @@ export class CommandPanel {
   }
 
   // Format HEX input with automatic spacing every 2 characters
-  private formatHexInput(input: string): string {
+  private formatHexInput(input: string, forceFormat: boolean = false): string {
     // Remove non-hex characters and all whitespace
     let cleaned = input.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
     
-    // Ensure even length by padding with leading zero if necessary
-    if (cleaned.length % 2 !== 0) {
+    // Only auto-pad when explicitly requested (e.g., on blur or send)
+    if (forceFormat && cleaned.length % 2 !== 0) {
       cleaned = '0' + cleaned;
     }
     
@@ -846,6 +864,18 @@ export class CommandPanel {
     const formatted = cleaned.replace(/(.{2})/g, '$1 ').trim();
     
     return formatted;
+  }
+
+  // New method for gentle formatting without auto-padding
+  private formatHexInputGently(input: string): string {
+    // Remove non-hex characters but preserve user's intent
+    const cleaned = input.replace(/[^0-9a-fA-F\s]/g, '').toUpperCase();
+    
+    // Only add spacing, don't change the actual hex values
+    // Split by existing spaces or every 2 chars, then rejoin with single spaces
+    const parts = cleaned.split(/\s+/).join('').replace(/(.{2})/g, '$1 ').trim();
+    
+    return parts;
   }
 
   // Convert ASCII text to HEX
@@ -901,7 +931,7 @@ export class CommandPanel {
     return hexPattern.test(cleanInput);
   }
 
-  // Adjust cursor position after automatic spacing
+  // Adjust cursor position after automatic spacing (legacy method)
   private adjustCursorForSpacing(originalValue: string, originalCursor: number, newValue: string): number {
     // Count hex characters before cursor position in original value
     const beforeCursor = originalValue.substring(0, originalCursor);
@@ -910,6 +940,52 @@ export class CommandPanel {
     // Calculate new position: hex chars + spaces added
     const spacesAdded = Math.floor(hexCharsBeforeCursor / 2);
     const newPosition = hexCharsBeforeCursor + spacesAdded;
+    
+    return Math.min(newPosition, newValue.length);
+  }
+
+  // Improved cursor position adjustment for gentle formatting
+  private adjustCursorForGentleFormatting(originalValue: string, originalCursor: number, newValue: string): number {
+    // If cursor is at the end, keep it at the end
+    if (originalCursor >= originalValue.length) {
+      return newValue.length;
+    }
+    
+    // Count actual hex characters before cursor in original value
+    const beforeCursor = originalValue.substring(0, originalCursor);
+    let hexCharCount = 0;
+    let spaceCount = 0;
+    
+    for (let i = 0; i < beforeCursor.length; i++) {
+      const char = beforeCursor[i];
+      if (/[0-9a-fA-F]/i.test(char)) {
+        hexCharCount++;
+      } else if (char === ' ') {
+        spaceCount++;
+      }
+    }
+    
+    // Find the equivalent position in the new formatted string
+    let newPosition = 0;
+    let hexFound = 0;
+    
+    for (let i = 0; i < newValue.length && hexFound < hexCharCount; i++) {
+      if (/[0-9a-fA-F]/i.test(newValue[i])) {
+        hexFound++;
+      }
+      newPosition = i + 1;
+    }
+    
+    // Adjust if cursor was after a space in original
+    if (originalCursor > 0 && originalValue[originalCursor - 1] === ' ') {
+      // Find next space position in new value
+      while (newPosition < newValue.length && newValue[newPosition] !== ' ') {
+        newPosition++;
+      }
+      if (newPosition < newValue.length) {
+        newPosition++; // Position after the space
+      }
+    }
     
     return Math.min(newPosition, newValue.length);
   }
@@ -956,16 +1032,24 @@ export class CommandPanel {
     
     // Convert to HEX for preview
     let convertedHex: string;
+    let validationStatus = '';
+    
     if (isAsciiMode) {
       convertedHex = this.asciiToHex(rawInput);
     } else {
-      convertedHex = this.formatHexInput(rawInput);
-      if (!this.isValidHexInput(convertedHex)) {
-        previewElement.innerHTML = `
-          <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
-          <span class="text-red-400 font-mono">Invalid HEX format</span>
-        `;
-        return;
+      // Use gentle formatting for preview (no auto-padding)
+      convertedHex = this.formatHexInputGently(rawInput);
+      
+      // Check validation but don't block preview
+      const cleanInput = rawInput.replace(/\s+/g, '');
+      if (cleanInput.length > 0) {
+        if (!this.isValidHexInput(convertedHex)) {
+          validationStatus = ` <span class="text-yellow-400">⚠️ Contains invalid characters</span>`;
+        } else if (cleanInput.length % 2 !== 0) {
+          validationStatus = ` <span class="text-blue-400">ℹ️ Odd length (will auto-pad on send)</span>`;
+        } else if (this.isValidHexInput(convertedHex)) {
+          validationStatus = ` <span class="text-green-400">✓ Valid</span>`;
+        }
       }
     }
     
@@ -974,21 +1058,27 @@ export class CommandPanel {
     
     if (this.connectionType.startsWith('TCP')) {
       // TCP mode: Show MBAP header will be added
-      const pduBytes = convertedHex.replace(/\s+/g, '').length / 2;
-      const totalBytes = 7 + pduBytes; // 7 bytes MBAP header + PDU
-      protocolInfo = ` <span class="text-cyan-400">(+MBAP: ${totalBytes} bytes total)</span>`;
+      const cleanHex = convertedHex.replace(/\s+/g, '');
+      if (cleanHex.length > 0) {
+        const pduBytes = Math.ceil(cleanHex.length / 2); // Handle odd lengths gracefully
+        const totalBytes = 7 + pduBytes; // 7 bytes MBAP header + PDU
+        protocolInfo = ` <span class="text-cyan-400">(+MBAP: ${totalBytes} bytes total)</span>`;
+      }
     } else if (autoCrcCheckbox?.checked && this.connectionType === 'RTU') {
       // RTU mode: Show CRC will be added
-      finalCommand = this.addCrcToCommand(convertedHex);
-      const inputBytes = convertedHex.replace(/\s+/g, '').length / 2;
-      protocolInfo = ` <span class="text-green-400">(+CRC: ${inputBytes + 2} bytes total)</span>`;
+      const cleanHex = convertedHex.replace(/\s+/g, '');
+      if (cleanHex.length > 0 && this.isValidHexInput(convertedHex)) {
+        finalCommand = this.addCrcToCommand(convertedHex);
+        const inputBytes = Math.ceil(cleanHex.length / 2);
+        protocolInfo = ` <span class="text-green-400">(+CRC: ${inputBytes + 2} bytes total)</span>`;
+      }
     }
     
     previewElement.innerHTML = `
       <div class="flex flex-col gap-1">
         <div>
           <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
-          <span class="${this.getThemeClasses().textSecondary} font-mono">${finalCommand}</span>${protocolInfo}
+          <span class="${this.getThemeClasses().textSecondary} font-mono">${finalCommand}</span>${protocolInfo}${validationStatus}
         </div>
       </div>
     `;
