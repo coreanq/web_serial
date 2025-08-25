@@ -80,6 +80,15 @@ chmod +x install-linux.sh
 DOM 렌더링 (최적화된 업데이트)
 ```
 
+## 애플리케이션 설정 관리 시스템
+```
+SettingsService (IndexedDB)
+        ↓
+패널 위치, 테마, 언어, Recent Commands 영구 저장
+        ↓
+자동 복원 (앱 재시작 시)
+```
+
 ## 통신 아키텍처
 ```
 RTU 모드: Browser → Web Serial API → Serial Device
@@ -145,6 +154,7 @@ TCP 모드: Browser → Chrome Extension → Native Host → TCP Socket → Devi
 - **반복 모드**: 자동 명령 반복 실행
 - **최적화된 로그 관리**: 순환 버퍼 + IndexedDB로 메모리 효율성 극대화
 - **자동 파일 저장**: 메모리 버퍼 초과 시 오래된 로그 자동 내보내기
+- **영구 설정 저장**: IndexedDB 기반 패널 위치, 테마, 언어, Recent Commands 영구 저장
 - **다국어 지원**: 한국어, 영어 인터페이스 지원
 - **가상 스크롤링**: 대용량 로그 표시 최적화
 - **Modbus 응답 계산기**: 실시간 응답 시간 및 통계 계산
@@ -196,6 +206,7 @@ src/
 │   ├── OptimizedLogService.ts # 최적화된 로그 서비스 (CircularBuffer)
 │   ├── IndexedDBLogService.ts # IndexedDB 로그 서비스
 │   ├── SimpleCircularBuffer.ts # 순환 버퍼 구현
+│   ├── SettingsService.ts     # 애플리케이션 설정 관리 (IndexedDB)
 │   └── I18nService.ts         # 다국어 지원 서비스
 ├── locales/                   # 다국어 파일
 │   ├── index.ts               # 다국어 진입점
@@ -410,6 +421,14 @@ chmod +x install-linux.sh
 - **연결 상태 관리**: Proxy 연결과 TCP 연결을 분리하여 관리
 - **콜백 시스템**: `onConnectionChange()`, `onData()`, `onError()`, `onProxyStatus()` 이벤트 핸들러
 
+### SettingsService.ts
+- **IndexedDB 기반 설정 관리**: 브라우저 재시작 시에도 설정 유지
+- **AppSettings 인터페이스**: 패널 위치, 테마, 언어, Recent Commands 타입 안전 관리
+- **비동기 설정 로드/저장**: `loadSettings()`, `saveSettings()`, 특화된 업데이트 메서드들
+- **Recent Commands 관리**: 최대 10개까지 명령 히스토리 자동 관리
+- **자동 병합**: 기본 설정과 사용자 설정 자동 병합으로 누락 방지
+- **오류 처리**: IndexedDB 접근 실패 시 기본값으로 안전한 폴백
+
 ### I18nService.ts
 - **다국어 메서드**: `t()`, `tString()`, `tArray()` - 타입 안전성 보장
 - **폴백 시스템**: 한국어 → 영어 → 키 이름 순서로 폴백
@@ -426,15 +445,19 @@ chmod +x install-linux.sh
 
 ### LogPanel.ts
 - **가상 스크롤링**: VirtualScrollManager를 통한 30개 이상 로그 시 자동 활성화
-- **Modbus 분석**: RTU/TCP 패킷 분석 및 툴팁 표시(반복 모드 시 비활성화)
+- **실시간 툴팁 시스템**: 마우스 오버 시 실시간으로 Modbus 패킷 분석 및 툴팁 생성
+- **조건부 툴팁 활성화**: 반복 모드 실행 중 및 스크롤 중일 때 성능을 위해 툴팁 비활성화
 - **시간 필터**: DateTimeFilter로 프리셋(1시간, 4시간, 오늘 등) 및 커스텀 범위 지원
 - **증분 렌더링**: 새 로그만 DOM에 추가하는 효율적 업데이트
 
 ### CommandPanel.ts
+- **새로운 UI 구조**: Command Builder → Recent Commands → Manual Command 순서로 재구성
+- **섹션별 시각화**: 파란색(Command Builder), 초록색(Recent Commands), 주황색(Manual Command) 테두리로 구분
+- **간소화된 명령 전송**: Build Command 버튼 제거, Send Command 시 자동 빌드 후 전송
 - **명령 생성기**: HEX/DEC 모드 지원, 펑션 코드별 데이터 값 입력
 - **반복 모드**: 다중 명령 선택, 정밀한 타이밍 제어(드리프트 보정)
 - **실시간 미리보기**: Modbus 패킷 분석 및 프로토콜 정보 표시
-- **히스토리 관리**: 최근 10개 명령 저장, 원클릭 재전송
+- **영구 히스토리**: SettingsService 연동으로 최근 10개 명령 IndexedDB 저장
 
 ### ConnectionPanel.ts
 - **탭 시스템**: RTU/TCP_NATIVE 탭별 다른 UI 렌더링
@@ -620,6 +643,13 @@ export const ko = {
 ---
 
 # 최신 업데이트 사항
+
+## v1.0.3 주요 변경사항 (최신)
+1. **SettingsService 도입**: IndexedDB 기반 영구 설정 저장 시스템
+2. **Command Panel UI 재구성**: Command Builder → Recent Commands → Manual Command 순서, 색상 구분
+3. **실시간 툴팁 시스템**: 성능 최적화를 위한 온디맨드 툴팁 생성
+4. **연결 패널 기본값 변경**: Connection Panel 기본 위치를 'left'로 변경
+5. **명령 전송 간소화**: Build Command 버튼 제거, Send 시 자동 빌드
 
 ## v1.0.0 주요 변경사항
 1. **다국어 지원 완전 구현**: 한국어, 영어 UI 완전 지원
