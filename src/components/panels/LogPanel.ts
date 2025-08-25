@@ -209,10 +209,15 @@ export class LogPanel {
         
         // Check if tooltip should be shown (not during repeat mode or scrolling)
         if (target.classList.contains('modbus-packet') && 
-            target.dataset.tooltip && 
+            target.dataset.logData && 
             !this.isRepeatMode &&
             !logContainer.classList.contains('scrolling')) {
-          currentTooltip = this.showTooltip(target, target.dataset.tooltip);
+          
+          // Analyze packet in real-time when mouse hovers
+          const modbusInfo = this.analyzeModbusPacket(target.dataset.logData);
+          if (modbusInfo) {
+            currentTooltip = this.showTooltip(target, modbusInfo);
+          }
         }
       };
 
@@ -439,14 +444,12 @@ export class LogPanel {
     const timestamp = this.formatTimestamp(log.timestamp);
     const directionClass = log.direction === 'send' ? 'send' : 'recv';
     const directionText = log.direction === 'send' ? 'SEND' : 'RECV';
-    const modbusInfo = this.analyzeModbusPacket(log.data);
     
     return `
       <div class="log-entry" data-log-id="${log.id}">
         <div class="log-timestamp">${timestamp}</div>
         <div class="log-direction ${directionClass}">${directionText}</div>
-        <div class="log-data ${modbusInfo ? 'cursor-help modbus-packet' : ''}" 
-             ${modbusInfo ? `data-tooltip="${modbusInfo.replace(/"/g, '&quot;')}"` : ''}>
+        <div class="log-data cursor-help modbus-packet" data-log-data="${log.data}">
           ${this.formatLogData(log.data)}
         </div>
         ${log.responseTime ? `<div class="text-xs ${this.getThemeClasses().textMuted}">${log.responseTime}ms</div>` : ''}
@@ -1111,14 +1114,10 @@ export class LogPanel {
     const directionClass = log.direction === 'send' ? 'send' : 'recv';
     const directionText = log.direction === 'send' ? 'SEND' : 'RECV';
     
-    // Disable tooltip analysis during repeat mode for better performance
-    const modbusInfo = this.isRepeatMode ? null : this.analyzeModbusPacket(log.data);
-    
     div.innerHTML = `
       <div class="log-timestamp">${timestamp}</div>
       <div class="log-direction ${directionClass}">${directionText}</div>
-      <div class="log-data ${modbusInfo && !this.isRepeatMode ? 'cursor-help modbus-packet' : ''}" 
-           ${modbusInfo && !this.isRepeatMode ? `data-tooltip="${modbusInfo.replace(/"/g, '&quot;')}"` : ''}>
+      <div class="log-data cursor-help modbus-packet" data-log-data="${log.data}">
         ${this.formatLogData(log.data)}
       </div>
       ${log.responseTime ? `<div class="text-xs text-dark-text-muted">${log.responseTime}ms</div>` : ''}

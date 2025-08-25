@@ -1,4 +1,5 @@
 import { i18n } from '../../locales';
+import { SettingsService } from '../../services/SettingsService';
 
 export class CommandPanel {
   private onCommandSend: (command: string, isRepeating?: boolean) => void;
@@ -16,6 +17,7 @@ export class CommandPanel {
   private expectedNextTime = 0; // Expected time for next execution
   private checkedCommands: Set<string> = new Set(); // Track checked commands
   private currentTheme: 'light' | 'dark' = 'light'; // Default theme
+  private settingsService: SettingsService | null = null;
 
   constructor(onCommandSend: (command: string, isRepeating?: boolean) => void, onRepeatModeChanged?: (isRepeating: boolean) => void) {
     this.onCommandSend = onCommandSend;
@@ -210,7 +212,11 @@ export class CommandPanel {
 
     // Send command (build and send)
     const sendButton = document.getElementById('send-command');
-    sendButton?.addEventListener('click', () => this.handleBuildAndSendCommand());
+    sendButton?.addEventListener('click', () => {
+      this.handleBuildAndSendCommand().catch(error => {
+        console.error('Failed to send command:', error);
+      });
+    });
 
     // Clear command
     const clearButton = document.getElementById('clear-command');
@@ -289,7 +295,9 @@ export class CommandPanel {
     manualHexInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        this.handleSendCommand();
+        this.handleSendCommand().catch(error => {
+          console.error('Failed to send command:', error);
+        });
       } else if (e.key === 'ArrowUp' && e.ctrlKey) {
         e.preventDefault();
         this.navigateHistory(-1);
@@ -446,7 +454,7 @@ export class CommandPanel {
     });
   }
 
-  private handleSendCommand(): void {
+  private async handleSendCommand(): Promise<void> {
     const manualHexInput = document.getElementById('manual-hex-input') as HTMLTextAreaElement;
     const asciiModeCheckbox = document.getElementById('ascii-mode') as HTMLInputElement;
     const isAsciiMode = asciiModeCheckbox?.checked || false;
@@ -458,14 +466,14 @@ export class CommandPanel {
     }
 
     // Send the command
-    this.sendCommandDirectly(rawInput, isAsciiMode);
+    await this.sendCommandDirectly(rawInput, isAsciiMode);
     
     // Clear input
     manualHexInput.value = '';
     this.updateHexPreview();
   }
 
-  private sendCommandDirectly(rawInput: string, isAsciiMode?: boolean): void {
+  private async sendCommandDirectly(rawInput: string, isAsciiMode?: boolean): Promise<void> {
     if (!rawInput) {
       return;
     }
@@ -498,7 +506,7 @@ export class CommandPanel {
     }
 
     // Add to recent commands (store the original input for reuse)
-    this.addToRecentCommands(rawInput);
+    await this.addToRecentCommands(rawInput);
     
     // Send command
     this.onCommandSend(command);
@@ -711,13 +719,13 @@ export class CommandPanel {
     return crc;
   }
 
-  private handleBuildAndSendCommand(): void {
+  private async handleBuildAndSendCommand(): Promise<void> {
     const hexCommand = this.buildCommand();
     if (hexCommand) {
       // Send the built command directly
       this.onCommandSend(hexCommand);
       // Add to recent commands (store the hex command)
-      this.addToRecentCommands(hexCommand);
+      await this.addToRecentCommands(hexCommand);
       
       // Clear the command builder inputs after successful send
       this.clearCommandBuilderInputs();
@@ -1861,7 +1869,10 @@ export class CommandPanel {
 
 
   // Add command to recent commands list
-  private addToRecentCommands(command: string): void {
+  private async addToRecentCommands(command: string): Promise<void> {
+    console.log('CommandPanel: Adding recent command:', command);
+    console.log('CommandPanel: SettingsService available:', !!this.settingsService);
+    
     // Remove if already exists
     const existingIndex = this.recentCommands.indexOf(command);
     if (existingIndex !== -1) {
@@ -1876,18 +1887,37 @@ export class CommandPanel {
       this.recentCommands = this.recentCommands.slice(0, this.maxRecentCommands);
     }
     
+    console.log('CommandPanel: Updated recent commands:', this.recentCommands);
+    
+    // Save to IndexedDB
+    if (this.settingsService) {
+      try {
+        await this.settingsService.updateRecentCommands([...this.recentCommands]);
+        console.log('CommandPanel: Successfully saved to IndexedDB');
+      } catch (error) {
+        console.error('CommandPanel: Failed to save to IndexedDB:', error);
+      }
+    } else {
+      console.warn('CommandPanel: SettingsService not available, cannot save to IndexedDB');
+    }
+    
     // Update UI
     this.updateHistoryDisplay();
   }
 
   // Remove command from recent commands
-  private removeFromRecentCommands(index: number): void {
+  private async removeFromRecentCommands(index: number): Promise<void> {
     if (index >= 0 && index < this.recentCommands.length) {
       const commandToRemove = this.recentCommands[index];
       this.recentCommands.splice(index, 1);
       
       // Also remove from checked commands if it was checked
       this.checkedCommands.delete(commandToRemove);
+      
+      // Save to IndexedDB
+      if (this.settingsService) {
+        await this.settingsService.updateRecentCommands([...this.recentCommands]);
+      }
       
       this.updateHistoryDisplay();
     }
@@ -1977,6 +2007,28 @@ export class CommandPanel {
       container.innerHTML = this.render();
       this.attachEventListeners();
       this.updateConnectionStatus(this.connectionType, this.connectionType !== 'RTU');
+    }
+  }
+
+  /**
+   * Set settings service for persistent storage
+   */
+  public setSettingsService(settingsService: SettingsService): void {
+    this.settingsService = settingsService;
+  }
+
+  /**
+   * Load recent commands from settings
+   */
+  public async loadRecentCommands(): Promise<void> {
+    if (!this.settingsService) return;
+    
+    try {
+      const settings = await this.settingsService.loadSettings();
+      this.recentCommands = [...settings.recentCommands];
+      this.updateHistoryDisplay();
+    } catch (error) {
+      console.error('Failed to load recent commands:', error);
     }
   }
 }

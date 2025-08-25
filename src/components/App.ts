@@ -4,6 +4,7 @@ import { CommandPanel } from './panels/CommandPanel';
 import { LogSettingsPanel } from './LogSettingsPanel';
 import { AppState, ConnectionStatus } from '../types';
 import { OptimizedLogService } from '../services/OptimizedLogService';
+import { SettingsService, AppSettings } from '../services/SettingsService';
 import { i18n } from '../locales';
 
 export class App {
@@ -12,7 +13,7 @@ export class App {
   private logPanel: LogPanel;
   private commandPanel: CommandPanel;
   private logSettingsPanel: LogSettingsPanel | null = null;
-  private connectionPanelPosition: 'top' | 'left' | 'right' = 'right';
+  private connectionPanelPosition: 'top' | 'left' | 'right' = 'left';
   private mainContentLayout: 'command-left' | 'command-right' = 'command-left';
   private currentTheme: 'light' | 'dark' = 'light';
   private connectionPanelVisible: boolean = true;
@@ -24,8 +25,10 @@ export class App {
   private maxPoolSize = 500; // Maximum pool size for memory management
   private gcTimer: NodeJS.Timeout | null = null; // Garbage collection timer
   private optimizedLogService!: OptimizedLogService; // Central log service with memory limits
+  private settingsService: SettingsService; // Settings persistence service
 
   constructor() {
+    this.settingsService = new SettingsService();
     this.state = {
       connectionStatus: 'disconnected',
       connectionConfig: {
@@ -81,13 +84,14 @@ export class App {
   }
 
   async mount(container: HTMLElement): Promise<void> {
-    // Debug log for initial position
+    // Load settings before rendering
+    await this.loadSettings();
     
     container.innerHTML = this.render();
     this.attachEventListeners();
     await this.mountChildComponents();
     
-    // Apply initial layout based on default panel position
+    // Apply initial layout based on loaded panel position
     this.updateLayout();
     
     // Apply initial theme
@@ -170,17 +174,15 @@ export class App {
     const toggleButton = document.getElementById('toggle-connection-panel') as HTMLButtonElement;
     
     positionSelect?.addEventListener('change', (e) => {
-      this.connectionPanelPosition = (e.target as HTMLSelectElement).value as 'top' | 'left' | 'right';
-      this.updateLayout();
-      this.saveUISettings();
+      const position = (e.target as HTMLSelectElement).value as 'top' | 'left' | 'right';
+      this.setConnectionPanelPosition(position);
     });
     
     // Main content layout controls
     const mainLayoutSelect = document.getElementById('main-layout') as HTMLSelectElement;
     mainLayoutSelect?.addEventListener('change', (e) => {
-      this.mainContentLayout = (e.target as HTMLSelectElement).value as 'command-left' | 'command-right';
-      this.updateLayout();
-      this.saveUISettings();
+      const layout = (e.target as HTMLSelectElement).value as 'command-left' | 'command-right';
+      this.setMainContentLayout(layout);
     });
     
     // Show connection panel button (only appears when panel is hidden)
@@ -271,7 +273,11 @@ export class App {
     if (commandContent) {
       // Set current theme before mounting
       this.commandPanel.onThemeChange(this.currentTheme);
+      // Set settings service for persistent storage
+      this.commandPanel.setSettingsService(this.settingsService);
       this.commandPanel.mount(commandContent);
+      // Load recent commands after mounting
+      await this.commandPanel.loadRecentCommands();
     }
   }
 
@@ -902,9 +908,14 @@ export class App {
   }
 
   public setConnectionPanelPosition(position: 'top' | 'left' | 'right'): void {
+    console.log('App: Setting connection panel position to:', position);
     this.connectionPanelPosition = position;
     this.updateLayout();
-    this.saveUISettings();
+    this.settingsService.updateConnectionPanelPosition(position).then(() => {
+      console.log('App: Connection panel position saved to IndexedDB');
+    }).catch(error => {
+      console.error('App: Failed to save connection panel position:', error);
+    });
   }
 
   public getConnectionPanelState(): { position: 'top' | 'left' | 'right', visible: boolean } {
@@ -915,9 +926,17 @@ export class App {
   }
 
   public setMainContentLayout(layout: 'command-left' | 'command-right'): void {
+    console.log('App: Setting main content layout to:', layout);
     this.mainContentLayout = layout;
     this.updateLayout();
-    this.saveUISettings();
+    const manualCommandPosition: 'bottom' | 'left' | 'right' = 
+      layout === 'command-left' ? 'left' : 'right';
+    console.log('App: Converted to manual command position:', manualCommandPosition);
+    this.settingsService.updateManualCommandPosition(manualCommandPosition).then(() => {
+      console.log('App: Manual command position saved to IndexedDB');
+    }).catch(error => {
+      console.error('App: Failed to save manual command position:', error);
+    });
   }
 
   public getMainContentLayout(): 'command-left' | 'command-right' {
@@ -969,6 +988,9 @@ export class App {
    * Handle language change - re-render all UI components
    */
   private onLanguageChange(): void {
+    // Save language setting
+    this.settingsService.updateLanguage(i18n.getCurrentLanguage() as 'ko' | 'en');
+    
     // Get current container
     const container = document.querySelector('.min-h-screen') as HTMLElement;
     if (!container) return;
@@ -1114,6 +1136,60 @@ export class App {
   public setTheme(theme: 'light' | 'dark'): void {
     this.currentTheme = theme;
     this.applyTheme();
-    this.saveUISettings();
+    this.settingsService.updateTheme(theme);
+  }
+
+  /**
+   * Load settings from IndexedDB
+   */
+  private async loadSettings(): Promise<void> {
+    try {
+      const settings = await this.settingsService.loadSettings();
+      
+      // Apply connection panel position
+      this.connectionPanelPosition = settings.connectionPanelPosition;
+      
+      // Apply manual command position (convert to main content layout)
+      this.mainContentLayout = settings.manualCommandPosition === 'left' ? 'command-left' : 'command-right';
+      
+      // Apply theme
+      this.currentTheme = settings.theme;
+      
+      // Apply language
+      i18n.setLanguage(settings.language);
+      
+      // Load recent commands
+      if (this.commandPanel && settings.recentCommands.length > 0) {
+        // We'll set this in CommandPanel after it's initialized
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  }
+
+  /**
+   * Save current settings to IndexedDB
+   */
+  private async saveSettings(): Promise<void> {
+    try {
+      const manualCommandPosition: 'bottom' | 'left' | 'right' = 
+        this.mainContentLayout === 'command-left' ? 'left' : 'right';
+      
+      await this.settingsService.saveSettings({
+        connectionPanelPosition: this.connectionPanelPosition,
+        manualCommandPosition: manualCommandPosition,
+        theme: this.currentTheme,
+        language: i18n.getCurrentLanguage() as 'ko' | 'en'
+      });
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    }
+  }
+
+  /**
+   * Get settings service for child components
+   */
+  public getSettingsService(): SettingsService {
+    return this.settingsService;
   }
 }
