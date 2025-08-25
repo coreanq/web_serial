@@ -166,14 +166,11 @@ export class ConnectionPanel {
         <div class="${this.isCompactMode ? 'space-y-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'}">
           <!-- Serial Port Selection -->
           <div class="${this.isCompactMode ? '' : 'lg:col-span-2'}">
-            <label class="block text-sm font-medium ${this.getThemeClasses().textSecondary} mb-2">
-              ${i18n.t('connection.rtu.port')}
-            </label>
             <div class="space-y-2">
               ${isWebSerialSupported ? `
                 <div class="flex gap-2">
                   <button class="btn-primary flex-1 ${this.isCompactMode ? 'text-sm py-1' : ''}" id="select-port-btn">
-                    📍 ${this.isCompactMode ? i18n.t('connection.rtu.port') : i18n.t('connection.rtu.selectPort')}
+                    📍 ${i18n.t('connection.rtu.selectPort')}
                   </button>
                   <button class="btn-secondary ${this.isCompactMode ? 'text-sm py-1 px-2' : ''}" id="refresh-ports-btn" title="Refresh granted ports">
                     🔄

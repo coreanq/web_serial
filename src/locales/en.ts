@@ -64,7 +64,7 @@ export const en = {
     // RTU Serial
     rtu: {
       title: "RTU (Serial)",
-      port: "Serial Port",
+      port: "Select Port",
       selectPort: "Select Port",
       noPortSelected: "No port selected",
       baudRate: "Baud Rate",
@@ -254,7 +254,7 @@ export const en = {
       functionCode: "Function Code",
       startAddress: "Start Address", 
       quantity: "Quantity",
-      hexBaseMode: "HEX Base Mode",
+      hexBaseMode: "HEX?",
       buildCommand: "Build Command",
       sendCommand: "Send Command"
     },
@@ -274,8 +274,8 @@ export const en = {
     // Manual Command
     manual: {
       title: "Manual Command",
-      input: "Enter HEX data or text",
-      asciiMode: "ASCII Mode",
+      input: "HEX String or text",
+      asciiMode: "ASCII?",
       autoCrc: "Auto CRC",
       preview: "Preview",
       invalidHex: "Invalid HEX format",
@@ -286,7 +286,7 @@ export const en = {
 
     // Command History
     history: {
-      title: "Recent Commands",
+      title: "Recent",
       empty: "No recent commands",
       remove: "Remove",
       repeat: "Repeat",
@@ -295,7 +295,7 @@ export const en = {
 
     // Repeat Mode
     repeat: {
-      title: "Repeat Mode",
+      title: "Repeat",
       interval: "Interval (ms)",
       selectCommands: "Select commands to repeat",
       minInterval: "Minimum interval: 10ms",

@@ -36,116 +36,75 @@ export class CommandPanel {
 
   private render(): string {
     return `
-      <div class="flex flex-col space-y-4 ${this.getThemeClasses().panelBg} p-4 rounded-lg">
+      <div class="flex flex-col space-y-6 ${this.getThemeClasses().panelBg} p-4 rounded-lg">
 
-        <!-- Manual Command Input -->
-        <div class="flex flex-col">
-          <h3 class="text-sm font-medium ${this.getThemeClasses().textSecondary} mb-3">${i18n.t('command.manual.title')}</h3>
+        <!-- Command Builder -->
+        <div class="border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+          <h3 class="text-sm font-semibold mb-3" style="color: ${this.currentTheme === 'light' ? '#111827' : '#f9fafb'};">📋 Command Builder</h3>
           
-          <div class="flex flex-col space-y-3">
-            <!-- Manual HEX Input -->
+          <!-- Send Control -->
+          <div class="flex gap-2 mb-3">
+            <button class="btn-primary w-full" id="send-command">
+              ${i18n.t('command.generator.sendCommand')}
+            </button>
+          </div>
+
+          <!-- Hex Base Mode Checkbox -->
+          <div class="mb-3">
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" id="hex-base-mode" checked class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
+              <span class="${this.getThemeClasses().textSecondary}">${i18n.t('command.generator.hexBaseMode')}</span>
+              <span class="text-xs ${this.getThemeClasses().textMuted}">(hex strings)</span>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <div class="flex items-center justify-between mb-2">
-                <label class="block text-xs ${this.getThemeClasses().textMuted}">
-                  ${i18n.t('command.manual.input')}
-                </label>
-                <div class="flex items-center gap-3">
-                  <label class="flex items-center gap-1 text-xs">
-                    <input type="checkbox" id="ascii-mode" class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
-                    <span class="${this.getThemeClasses().textMuted}">${i18n.t('command.manual.asciiMode')}</span>
-                  </label>
-                  <label class="flex items-center gap-1 text-xs">
-                    <input type="checkbox" id="auto-crc" checked class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
-                    <span class="${this.getThemeClasses().textMuted}">${i18n.t('command.manual.autoCrc')}</span>
-                  </label>
-                </div>
-              </div>
-              <textarea 
-                id="manual-hex-input"
-                class="input-field w-full h-16 font-mono text-sm resize-none"
-                placeholder="Enter Modbus PDU data:&#10;• HEX Mode: 01 03 00 00 00 0A (spaces optional, auto-formats on blur)&#10;• ASCII Mode: Hello World&#10;Toggle ASCII Mode checkbox for text input"
-              ></textarea>
-              <div class="text-xs mt-1" id="hex-preview">
-                <span class="${this.getThemeClasses().textMuted}">Preview:</span> 
-                <span class="${this.getThemeClasses().textSecondary} font-mono">Enter data above (toggle ASCII Mode for text input)...</span>
-              </div>
+              <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">
+                ${i18n.t('command.generator.slaveId')}
+              </label>
+              <input id="slave-id" class="input-field w-full text-sm" value="01" 
+                     placeholder="${this.connectionType.startsWith('TCP') ? '01 (Unit ID for MBAP)' : '01 (hex) or 1 (dec)'}">
             </div>
-
-            <!-- Command Builder -->
-            <div class="border-t border-dark-border pt-3">
-              <h4 class="text-xs font-medium text-dark-text-muted mb-2">Command Builder</h4>
-              
-              <!-- Build and Send Controls -->
-              <div class="flex gap-2 mb-3">
-                <button class="btn-secondary flex-1" id="build-command">
-                  ${i18n.t('command.generator.buildCommand')}
-                </button>
-                <button class="btn-primary flex-1" id="send-command">
-                  ${i18n.t('command.generator.sendCommand')}
-                </button>
-                <button class="btn-secondary" id="clear-command">
-                  ${i18n.t('common.clear')}
-                </button>
-              </div>
-
-              <!-- Hex Base Mode Checkbox -->
-              <div class="mb-3">
-                <label class="flex items-center gap-2 text-sm">
-                  <input type="checkbox" id="hex-base-mode" checked class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
-                  <span class="${this.getThemeClasses().textSecondary}">${i18n.t('command.generator.hexBaseMode')}</span>
-                  <span class="text-xs ${this.getThemeClasses().textMuted}">(Input values as hex strings)</span>
-                </label>
-              </div>
-
-              <div class="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">
-                    ${i18n.t('command.generator.slaveId')}
-                  </label>
-                  <input id="slave-id" class="input-field w-full text-sm" value="01" 
-                         placeholder="${this.connectionType.startsWith('TCP') ? '01 (Unit ID for MBAP)' : '01 (hex) or 1 (dec)'}">
-                </div>
-                <div>
-                  <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">${i18n.t('command.generator.functionCode')}</label>
-                  <select id="function-code" class="input-field w-full text-sm">
-                    <option value="01">${i18n.t('command.functionCodes.01')}</option>
-                    <option value="02">${i18n.t('command.functionCodes.02')}</option>
-                    <option value="03" selected>${i18n.t('command.functionCodes.03')}</option>
-                    <option value="04">${i18n.t('command.functionCodes.04')}</option>
-                    <option value="05">${i18n.t('command.functionCodes.05')}</option>
-                    <option value="06">${i18n.t('command.functionCodes.06')}</option>
-                    <option value="0F">${i18n.t('command.functionCodes.0F')}</option>
-                    <option value="10">${i18n.t('command.functionCodes.10')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">${i18n.t('command.generator.startAddress')}</label>
-                  <input id="start-address" class="input-field w-full text-sm" value="0000" placeholder="0000 (hex) or 0 (dec)">
-                </div>
-                <div>
-                  <label id="quantity-label" for="quantity" class="block text-xs text-dark-text-muted mb-1">Quantity/Value</label>
-                  <input id="quantity" class="input-field w-full text-sm" value="000A" placeholder="000A (hex) or 10 (dec)">
-                </div>
-              </div>
-              
-              <!-- Data Values for Function Code 0F/10 -->
-              <div id="data-values-section" class="mt-3 hidden">
-                <label class="block text-xs ${this.getThemeClasses().textMuted} mb-2" id="data-values-label">${i18n.t('command.dataValues.title')}</label>
-                <div class="space-y-2" id="data-values-container">
-                  <!-- Data value inputs will be dynamically added here -->
-                </div>
-                <button type="button" class="btn-secondary text-xs mt-2" id="add-data-value">
-                  + ${i18n.t('command.dataValues.add')}
-                </button>
-              </div>
+            <div>
+              <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">${i18n.t('command.generator.functionCode')}</label>
+              <select id="function-code" class="input-field w-full text-sm">
+                <option value="01">${i18n.t('command.functionCodes.01')}</option>
+                <option value="02">${i18n.t('command.functionCodes.02')}</option>
+                <option value="03" selected>${i18n.t('command.functionCodes.03')}</option>
+                <option value="04">${i18n.t('command.functionCodes.04')}</option>
+                <option value="05">${i18n.t('command.functionCodes.05')}</option>
+                <option value="06">${i18n.t('command.functionCodes.06')}</option>
+                <option value="0F">${i18n.t('command.functionCodes.0F')}</option>
+                <option value="10">${i18n.t('command.functionCodes.10')}</option>
+              </select>
             </div>
+            <div>
+              <label class="block text-xs ${this.getThemeClasses().textMuted} mb-1">${i18n.t('command.generator.startAddress')}</label>
+              <input id="start-address" class="input-field w-full text-sm" value="0000" placeholder="0000 (hex) or 0 (dec)">
+            </div>
+            <div>
+              <label id="quantity-label" for="quantity" class="block text-xs text-dark-text-muted mb-1">Quantity/Value</label>
+              <input id="quantity" class="input-field w-full text-sm" value="000A" placeholder="000A (hex) or 10 (dec)">
+            </div>
+          </div>
+          
+          <!-- Data Values for Function Code 0F/10 -->
+          <div id="data-values-section" class="mt-3 hidden">
+            <label class="block text-xs ${this.getThemeClasses().textMuted} mb-2" id="data-values-label">${i18n.t('command.dataValues.title')}</label>
+            <div class="space-y-2" id="data-values-container">
+              <!-- Data value inputs will be dynamically added here -->
+            </div>
+            <button type="button" class="btn-secondary text-xs mt-2" id="add-data-value">
+              + ${i18n.t('command.dataValues.add')}
+            </button>
           </div>
         </div>
 
-        <!-- Command History -->
-        <div class="border-t ${this.getThemeClasses().border} pt-3">
+        <!-- Recent Commands -->
+        <div class="border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+          <h3 class="text-sm font-semibold mb-3" style="color: ${this.currentTheme === 'light' ? '#111827' : '#f9fafb'};">📜 ${i18n.t('command.history.title')} & ${i18n.t('command.repeat.title')} (Max 10)</h3>
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm font-medium ${this.getThemeClasses().textSecondary}">${i18n.t('command.history.title')} & ${i18n.t('command.repeat.title')} (Max 10)</h3>
             <div class="flex items-center gap-2">
               <input 
                 type="number" 
@@ -166,6 +125,47 @@ export class CommandPanel {
           </div>
           <div class="space-y-1 max-h-32 overflow-y-auto scrollbar-thin" id="command-history">
             ${this.renderCommandHistory()}
+          </div>
+        </div>
+
+        <!-- Manual Command Input -->
+        <div class="border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+          <h3 class="text-sm font-semibold mb-3" style="color: ${this.currentTheme === 'light' ? '#111827' : '#f9fafb'};">⌨️ ${i18n.t('command.manual.title')}</h3>
+          
+          <div class="flex flex-col space-y-3">
+            <!-- Manual HEX Input -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <label class="block text-xs font-medium" style="color: ${this.currentTheme === 'light' ? '#111827' : '#f9fafb'};">
+                  ${i18n.t('command.manual.input')}
+                </label>
+                <div class="flex items-center gap-3">
+                  <label class="flex items-center gap-1 text-xs">
+                    <input type="checkbox" id="ascii-mode" class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
+                    <span style="color: ${this.currentTheme === 'light' ? '#374151' : '#d1d5db'};">${i18n.t('command.manual.asciiMode')}</span>
+                  </label>
+                  <label class="flex items-center gap-1 text-xs">
+                    <input type="checkbox" id="auto-crc" checked class="rounded ${this.getThemeClasses().border} ${this.getThemeClasses().inputBg}">
+                    <span style="color: ${this.currentTheme === 'light' ? '#374151' : '#d1d5db'};">${i18n.t('command.manual.autoCrc')}</span>
+                  </label>
+                </div>
+              </div>
+              <textarea 
+                id="manual-hex-input"
+                class="input-field w-full h-16 font-mono text-sm resize-none"
+              ></textarea>
+              <div class="text-xs mt-1" id="hex-preview">
+                <span style="color: ${this.currentTheme === 'light' ? '#374151' : '#d1d5db'};">Preview:</span> 
+                <span class="font-mono" style="color: ${this.currentTheme === 'light' ? '#111827' : '#f9fafb'};">Enter data above (toggle ASCII Mode for text input)...</span>
+              </div>
+            </div>
+            
+            <!-- Manual Command Controls -->
+            <div class="flex gap-2 mt-3">
+              <button class="btn-secondary" id="clear-command">
+                ${i18n.t('common.clear')}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -208,17 +208,13 @@ export class CommandPanel {
 
   private attachEventListeners(): void {
 
-    // Send command
+    // Send command (build and send)
     const sendButton = document.getElementById('send-command');
-    sendButton?.addEventListener('click', () => this.handleSendCommand());
+    sendButton?.addEventListener('click', () => this.handleBuildAndSendCommand());
 
     // Clear command
     const clearButton = document.getElementById('clear-command');
     clearButton?.addEventListener('click', () => this.clearCommand());
-
-    // Build command
-    const buildButton = document.getElementById('build-command');
-    buildButton?.addEventListener('click', () => this.buildCommand());
 
     // Hex base mode checkbox
     const hexBaseModeCheckbox = document.getElementById('hex-base-mode') as HTMLInputElement;
@@ -544,7 +540,7 @@ export class CommandPanel {
     this.onCommandSend(command, false);
   }
 
-  private buildCommand(): void {
+  private buildCommand(): string | null {
     const hexBaseMode = (document.getElementById('hex-base-mode') as HTMLInputElement).checked;
     const slaveIdValue = (document.getElementById('slave-id') as HTMLInputElement).value;
     const functionCodeValue = (document.getElementById('function-code') as HTMLSelectElement).value;
@@ -573,7 +569,7 @@ export class CommandPanel {
     // Validate parsed values
     if (isNaN(slaveId) || isNaN(functionCode) || isNaN(startAddress) || isNaN(quantity)) {
       alert('Invalid input values. Please check your entries.');
-      return;
+      return null;
     }
 
     // Build Modbus frame based on connection type and function code
@@ -585,7 +581,7 @@ export class CommandPanel {
         const coilData = this.getCoilValuesFromInputs();
         if (!coilData) {
           alert('Please enter valid coil values for Function Code 0F');
-          return;
+          return null;
         }
         
         const coilCount = coilData.coilCount;
@@ -604,7 +600,7 @@ export class CommandPanel {
         const registerData = this.getRegisterValuesFromInputs(hexBaseMode);
         if (!registerData) {
           alert('Please enter valid register values for Function Code 10');
-          return;
+          return null;
         }
         
         const registerCount = registerData.length / 2; // Each register is 2 bytes
@@ -655,7 +651,7 @@ export class CommandPanel {
         const registerData = this.getRegisterValuesFromInputs(hexBaseMode);
         if (!registerData) {
           alert('Please enter valid register values for Function Code 10');
-          return;
+          return null;
         }
         
         const registerCount = registerData.length / 2; // Each register is 2 bytes
@@ -684,10 +680,18 @@ export class CommandPanel {
       }
     }
 
-    // Format as HEX string (CRC will be added automatically when sending)
-    const hexCommand = frame.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+    // Format as HEX string
+    let hexCommand = frame.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
     
-    this.setManualHexInput(hexCommand);
+    // For RTU, add CRC if enabled
+    if (this.connectionType === 'RTU') {
+      const autoCrcCheckbox = document.getElementById('auto-crc') as HTMLInputElement;
+      if (autoCrcCheckbox?.checked) {
+        hexCommand = this.addCrcToCommand(hexCommand);
+      }
+    }
+    
+    return hexCommand;
   }
 
   private calculateCRC16(data: number[]): number {
@@ -705,6 +709,47 @@ export class CommandPanel {
     }
     
     return crc;
+  }
+
+  private handleBuildAndSendCommand(): void {
+    const hexCommand = this.buildCommand();
+    if (hexCommand) {
+      // Send the built command directly
+      this.onCommandSend(hexCommand);
+      // Add to recent commands (store the hex command)
+      this.addToRecentCommands(hexCommand);
+      
+      // Clear the command builder inputs after successful send
+      this.clearCommandBuilderInputs();
+    }
+  }
+
+  private clearCommandBuilderInputs(): void {
+    // Clear command builder inputs
+    const slaveIdInput = document.getElementById('slave-id') as HTMLInputElement;
+    const startAddressInput = document.getElementById('start-address') as HTMLInputElement;
+    const quantityInput = document.getElementById('quantity') as HTMLInputElement;
+    const functionCodeSelect = document.getElementById('function-code') as HTMLSelectElement;
+    
+    if (slaveIdInput) slaveIdInput.value = '01';
+    if (startAddressInput) startAddressInput.value = '0000';
+    if (quantityInput) quantityInput.value = '000A';
+    if (functionCodeSelect) functionCodeSelect.value = '03';
+    
+    // Clear data values section
+    const dataValuesContainer = document.getElementById('data-values-container');
+    if (dataValuesContainer) {
+      dataValuesContainer.innerHTML = '';
+    }
+    
+    // Hide data values section
+    const dataValuesSection = document.getElementById('data-values-section');
+    if (dataValuesSection) {
+      dataValuesSection.classList.add('hidden');
+    }
+    
+    // Update function code UI
+    this.handleFunctionCodeChange();
   }
 
   private clearCommand(): void {

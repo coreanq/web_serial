@@ -274,8 +274,8 @@ export const ko = {
     // Manual Command
     manual: {
       title: "수동 명령",
-      input: "HEX 데이터 또는 텍스트 입력",
-      asciiMode: "ASCII 모드",
+      input: "HEX 또는 텍스트",
+      asciiMode: "ASCII?",
       autoCrc: "자동 CRC",
       preview: "미리보기",
       invalidHex: "잘못된 HEX 형식",
